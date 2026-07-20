@@ -1368,6 +1368,7 @@ function WelcomeScreen() {
   const [password, setPassword] = useState(() => welcomePrefill.password);
   const [wrongPasswordPoke, setWrongPasswordPoke] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const togglePassword = (enabled) => {
     setPasswordEnabled(enabled);
@@ -1436,7 +1437,16 @@ function WelcomeScreen() {
           <button className="join-code-button" type="submit" disabled={creating || normaliseRoomCode(roomCode).length !== 4}>{creating ? "Opening" : entryIntent === "join" ? "Join room" : "Create room"}</button>
         </form>
       </section>
-      <footer className="welcome-footer"><a href="/information">Information, reports and roadmap</a></footer>
+      <footer className="welcome-footer">
+        <button className="welcome-tutorial-link" type="button" onClick={() => setShowTutorial(true)}>How to play &amp; tutorials</button>
+      </footer>
+      <GameTutorial
+        mode="overview"
+        open={showTutorial}
+        onClose={() => setShowTutorial(false)}
+        includeHost
+        allowedModes={["overview", "quiz", "herd", "host"]}
+      />
       {wrongPasswordPoke ? <PokeJumpScare key={wrongPasswordPoke.id} poke={wrongPasswordPoke} /> : null}
     </main>);
 

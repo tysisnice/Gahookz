@@ -32,11 +32,13 @@ temp/
 # Local release archives, tunnels, and scratch files
 work/
 
-# Local Codex/agent notes and the private Git setup guide
+# Local Codex/agent notes and shared machine handoffs
 .agents/
 .codex/
 codexLastPrompt.md
 git.md
+PROJECT-MEMORY.md
+LAPTOP-DEPLOY-PROMPT.md
 
 # Syncthing metadata and conflict copies
 .stfolder/

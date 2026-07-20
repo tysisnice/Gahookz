@@ -6,6 +6,8 @@ node_modules
 work
 git.md
 codexLastPrompt.md
+PROJECT-MEMORY.md
+LAPTOP-DEPLOY-PROMPT.md
 .idea
 .vscode
 *.log

@@ -107,6 +107,9 @@ and can be run with names such as `npm run standalone:smoke:deployment`.
 
 ## Server documentation
 
+- [`OPERATIONS-AND-ROADMAP.md`](OPERATIONS-AND-ROADMAP.md) is the complete
+  owner runbook, architecture/risk audit, production promotion guide,
+  TypeScript execution plan, and Steam/mobile/monetisation roadmap.
 - [`DEPLOY-FEDORA.md`](DEPLOY-FEDORA.md) covers the full Fedora, Docker, Nginx,
   DNS, firewall, and TLS setup.
 - [`SERVER-COMMANDS.md`](SERVER-COMMANDS.md) is the short server runbook.

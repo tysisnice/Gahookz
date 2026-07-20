@@ -17,6 +17,9 @@ services:
       NODE_OPTIONS: "--max-old-space-size=${GAHOOKZ_NODE_MEMORY_MB:-768}"
     ports:
       - "${GAHOOKZ_BIND_ADDRESS:-127.0.0.1}:${GAHOOKZ_DEV_PORT:-3101}:3001"
+    networks:
+      - default
+      - proxy
     volumes:
       - ./standalone:/app/standalone:z
     security_opt:
@@ -48,6 +51,9 @@ services:
       NODE_OPTIONS: "--max-old-space-size=${GAHOOKZ_NODE_MEMORY_MB:-768}"
     ports:
       - "${GAHOOKZ_BIND_ADDRESS:-127.0.0.1}:${GAHOOKZ_PROD_PORT:-3102}:3001"
+    networks:
+      - default
+      - proxy
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -63,3 +69,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+networks:
+  proxy:
+    name: gahookz-proxy
+    external: true

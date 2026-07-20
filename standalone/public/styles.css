@@ -742,10 +742,25 @@ img {
   text-align: center;
 }
 
-.welcome-footer a {
+.welcome-tutorial-link {
+  border: 0;
+  padding: 4px 2px;
+  background: transparent;
   color: #ffffff;
+  font: inherit;
   font-weight: 800;
+  text-decoration: underline;
   text-underline-offset: 0.2em;
+}
+
+.welcome-tutorial-link:hover {
+  color: #ffdf45;
+}
+
+.welcome-tutorial-link:focus-visible {
+  outline: 3px solid #ffdf45;
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 .welcome-panel {
@@ -7545,6 +7560,7 @@ button.answer-tile {
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), inset 0 -8px 0 rgba(6, 51, 82, 0.1);
 }
 
+.tutorial-dialog--overview,
 .tutorial-dialog--quiz,
 .tutorial-dialog--herd,
 .tutorial-dialog--host {
@@ -7565,6 +7581,10 @@ button.answer-tile {
   border-color: #8ff0bc;
 }
 
+.tutorial-dialog--overview {
+  border-color: #ff8fb8;
+}
+
 .tutorial-dialog__close {
   position: absolute;
   top: 14px;
@@ -7581,31 +7601,7 @@ button.answer-tile {
   font-weight: 1000;
 }
 
-.tutorial-dialog__header {
-  padding-right: 52px;
-}
-
-.tutorial-dialog__eyebrow {
-  display: inline-flex;
-  min-height: 30px;
-  align-items: center;
-  border-radius: 999px;
-  padding: 0 12px;
-  background: linear-gradient(135deg, #246bfe, #ff3d8b);
-  color: #ffffff;
-  font-size: 0.78rem;
-  font-weight: 1000;
-  text-transform: uppercase;
-}
-
-.tutorial-dialog__header h2 {
-  margin: 10px 0 16px;
-  font-size: clamp(2rem, 5vw, 3.3rem);
-  line-height: 0.96;
-  letter-spacing: -0.035em;
-}
-
-.quiz-tutorial__header {
+.tutorial-guide__header {
   display: grid;
   justify-items: center;
   gap: 11px;
@@ -7613,7 +7609,7 @@ button.answer-tile {
   text-align: center;
 }
 
-.quiz-tutorial__header h2 {
+.tutorial-guide__header h2 {
   margin: 0;
   color: #07516a;
   font-size: clamp(1.7rem, 3.2vw, 2.35rem);
@@ -7650,12 +7646,23 @@ button.answer-tile {
   color: #5a2f89;
 }
 
+.tutorial-mode-tab--overview {
+  color: #9b2457;
+}
+
 .tutorial-mode-tab--herd {
   color: #087054;
 }
 
 .tutorial-mode-tab--host {
   color: #755300;
+}
+
+.tutorial-mode-tab--overview.is-selected {
+  background: linear-gradient(135deg, #ff3d8b, #7c3aed, #246bfe);
+  color: #ffffff;
+  box-shadow: 3px 4px 0 #ffdf45;
+  transform: rotate(1deg);
 }
 
 .tutorial-mode-tab--quiz.is-selected {
@@ -7697,124 +7704,6 @@ button.answer-tile {
   min-width: 0;
 }
 
-.tutorial-guide__mode-title {
-  margin: 16px 0 0;
-  color: #063352;
-  font-size: clamp(1.25rem, 2.4vw, 1.65rem);
-  font-weight: 1000;
-  line-height: 1.1;
-  text-align: center;
-}
-
-.quiz-tutorial__rows {
-  display: grid;
-  gap: 22px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.quiz-tutorial__row {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 0.94fr) minmax(340px, 1.06fr);
-  grid-template-areas: "copy visual";
-  align-items: stretch;
-  gap: 17px;
-}
-
-.quiz-tutorial__row:nth-child(even) {
-  grid-template-areas: "copy visual";
-  grid-template-columns: minmax(0, 0.94fr) minmax(340px, 1.06fr);
-}
-
-.quiz-tutorial__copy {
-  grid-area: copy;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  align-items: center;
-  gap: 13px;
-  border: 2px solid #bed3e6;
-  border-radius: 14px;
-  padding: 15px;
-  background: #ffffff;
-  box-shadow: inset 0 -5px 0 rgba(6, 51, 82, 0.07), 0 7px 18px rgba(6, 51, 82, 0.11);
-}
-
-.quiz-tutorial__row:nth-child(1) .quiz-tutorial__copy {
-  border-left: 7px solid #20b26b;
-}
-
-.quiz-tutorial__row:nth-child(2) .quiz-tutorial__copy {
-  border-left: 7px solid #246bfe;
-}
-
-.quiz-tutorial__row:nth-child(3) .quiz-tutorial__copy {
-  border-left: 7px solid #ff3d8b;
-}
-
-.quiz-tutorial__number {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border: 3px solid #111214;
-  border-radius: 13px;
-  background: linear-gradient(135deg, #ffdf45, #ff8a00);
-  color: #111214;
-  font-size: 1.35rem;
-  font-weight: 1000;
-  box-shadow: 3px 4px 0 #111214;
-  transform: rotate(-3deg);
-}
-
-.quiz-tutorial__row:nth-child(2) .quiz-tutorial__number {
-  background: linear-gradient(135deg, #8ff0bc, #00bfd8);
-  transform: rotate(3deg);
-}
-
-.quiz-tutorial__row:nth-child(3) .quiz-tutorial__number {
-  background: linear-gradient(135deg, #ff8fb8, #ff3d8b);
-  color: #ffffff;
-}
-
-.quiz-tutorial__copy h3,
-.quiz-tutorial__copy p {
-  margin: 0;
-}
-
-.quiz-tutorial__copy h3 {
-  color: #063352;
-  font-size: clamp(1rem, 1.8vw, 1.23rem);
-  font-weight: 1000;
-  line-height: 1.08;
-}
-
-.quiz-tutorial__copy p {
-  margin-top: 6px;
-  color: #344054;
-  font-size: clamp(0.8rem, 1.35vw, 0.94rem);
-  font-weight: 800;
-  line-height: 1.46;
-}
-
-.quiz-tutorial__visual {
-  grid-area: visual;
-  min-width: 0;
-  aspect-ratio: 2.25 / 1;
-  overflow: hidden;
-  border: 4px solid #111214;
-  border-radius: 14px;
-  background: #063352;
-  box-shadow: 5px 6px 0 rgba(17, 18, 20, 0.2);
-}
-
-.quiz-tutorial__visual .tutorial-art {
-  width: 100%;
-  height: 100%;
-}
-
 .tutorial-dialog__actions.tutorial-dialog__actions--quiz {
   margin-top: 18px;
 }
@@ -7828,8 +7717,10 @@ button.answer-tile {
 
 .tutorial-dialog__art {
   overflow: hidden;
+  border: 4px solid #111214;
   border-radius: 15px;
-  box-shadow: 0 12px 28px rgba(6, 51, 82, 0.2);
+  background: #063352;
+  box-shadow: 5px 6px 0 rgba(17, 18, 20, 0.2), 0 12px 28px rgba(6, 51, 82, 0.2);
 }
 
 .tutorial-art {
@@ -7857,8 +7748,19 @@ button.answer-tile {
   border-radius: 12px;
   padding: 12px;
   background: #ffffff;
-  font-weight: 850;
-  line-height: 1.35;
+  box-shadow: inset 0 -5px 0 rgba(6, 51, 82, 0.06), 0 7px 18px rgba(6, 51, 82, 0.09);
+}
+
+.tutorial-dialog__step:nth-child(1) {
+  border-top: 6px solid #20b26b;
+}
+
+.tutorial-dialog__step:nth-child(2) {
+  border-top: 6px solid #246bfe;
+}
+
+.tutorial-dialog__step:nth-child(3) {
+  border-top: 6px solid #ff3d8b;
 }
 
 .tutorial-dialog__step-number {
@@ -7872,6 +7774,35 @@ button.answer-tile {
   font-size: 1.15rem;
   font-weight: 1000;
   box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.17);
+}
+
+.tutorial-dialog__step:nth-child(1) .tutorial-dialog__step-number {
+  background: linear-gradient(135deg, #8ff0bc, #20b26b);
+  color: #052f29;
+}
+
+.tutorial-dialog__step:nth-child(2) .tutorial-dialog__step-number {
+  background: linear-gradient(135deg, #7bdcff, #246bfe);
+}
+
+.tutorial-dialog__step-copy h3,
+.tutorial-dialog__step-copy p {
+  margin: 0;
+}
+
+.tutorial-dialog__step-copy h3 {
+  color: #063352;
+  font-size: clamp(1rem, 1.55vw, 1.16rem);
+  font-weight: 1000;
+  line-height: 1.1;
+}
+
+.tutorial-dialog__step-copy p {
+  margin-top: 7px;
+  color: #344054;
+  font-size: clamp(0.8rem, 1.2vw, 0.91rem);
+  font-weight: 780;
+  line-height: 1.46;
 }
 
 .tutorial-dialog__actions {
@@ -7957,13 +7888,14 @@ button.answer-tile {
 }
 
 @media (max-width: 760px) {
+  .tutorial-dialog--overview,
   .tutorial-dialog--quiz,
   .tutorial-dialog--herd,
   .tutorial-dialog--host {
     padding: 16px 12px 12px;
   }
 
-  .quiz-tutorial__header {
+  .tutorial-guide__header {
     gap: 9px;
     padding: 0 48px 17px;
   }
@@ -7979,47 +7911,8 @@ button.answer-tile {
     font-size: 0.8rem;
   }
 
-  .quiz-tutorial__row,
-  .quiz-tutorial__row:nth-child(even) {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      "copy"
-      "visual";
-    gap: 10px;
-  }
-
-  .quiz-tutorial__rows {
-    gap: 16px;
-  }
-
-  .quiz-tutorial__row:nth-child(2) .quiz-tutorial__copy {
-    border-right: 2px solid #bed3e6;
-    border-left: 7px solid #246bfe;
-  }
-
-  .quiz-tutorial__copy {
-    grid-template-columns: 38px minmax(0, 1fr);
-    gap: 10px;
-    padding: 13px;
-  }
-
-  .quiz-tutorial__number {
-    width: 38px;
-    height: 38px;
-    border-radius: 11px;
-    font-size: 1.12rem;
-    box-shadow: 2px 3px 0 #111214;
-  }
-
-  .quiz-tutorial__copy p {
-    margin-top: 4px;
-  }
-
-  .quiz-tutorial__visual {
-    aspect-ratio: 2.08 / 1;
-    border-width: 3px;
-    border-radius: 12px;
-    box-shadow: 3px 4px 0 rgba(17, 18, 20, 0.18);
+  .tutorial-dialog__steps {
+    grid-template-columns: 1fr;
   }
 
   .tutorial-dialog__actions--quiz {
@@ -8092,12 +7985,11 @@ button.answer-tile {
     padding: 18px 14px 14px;
   }
 
-  .tutorial-dialog__header h2,
-  .quiz-tutorial__header h2 {
+  .tutorial-guide__header h2 {
     font-size: 1.65rem;
   }
 
-  .quiz-tutorial__header {
+  .tutorial-guide__header {
     padding-inline: 44px;
   }
 

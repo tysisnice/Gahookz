@@ -53,6 +53,16 @@ async function listFiles(directory) {
   return nested.flat();
 }
 
+async function writeTextIfChanged(absolutePath, source) {
+  let current = null;
+  try {
+    current = await fs.readFile(absolutePath, "utf8");
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  if (current !== source) await fs.writeFile(absolutePath, source, "utf8");
+}
+
 async function writeReleaseFiles() {
   const replaceVersions = (source) => source
     .replace(/gahookz-shell-[A-Za-z0-9._-]+/g, "gahookz-shell-" + assetVersion)
@@ -66,7 +76,7 @@ async function writeReleaseFiles() {
   }));
 
   await Promise.all([
-    ...shellSources.map(([fileName, source]) => fs.writeFile(path.join(publicDir, fileName), source, "utf8")),
+    ...shellSources.map(([fileName, source]) => writeTextIfChanged(path.join(publicDir, fileName), source)),
     fs.writeFile(path.join(publicDir, "release.json"), JSON.stringify({
       version: assetVersion,
       builtAt: new Date().toISOString()

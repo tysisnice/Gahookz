@@ -30,6 +30,9 @@ assert(!welcome.includes("Join or Host a room"), "Welcome should move directly f
 assert((welcome.match(/<input value=\{roomCode\}/g) || []).length === 1, "Join and Host should share one room-code field");
 assert(welcome.includes("intent: entryIntent"), "Welcome should send explicit Join or Host intent");
 assert(!welcome.includes("Install Gahookz"), "Welcome should not show a duplicate install action");
+assert(welcome.includes("How to play &amp; tutorials") && welcome.includes('mode="overview"'), "Welcome should open the Gahookz overview tutorial");
+assert(welcome.includes('allowedModes={["overview", "quiz", "herd", "host"]}'), "The welcome tutorial should expose all four guides");
+assert(!welcome.includes('href="/information"'), "Welcome should no longer send players to the reports page");
 
 assert(app.includes("function RoundPresetSelector"), "Host setup should expose the game-length preset selector");
 assert(app.includes('{ id: "quick"') && app.includes('{ id: "standard"') && app.includes('{ id: "custom"'), "Quick, Standard, and Custom presets should be available");
@@ -52,20 +55,22 @@ assert(!avatarPicker.includes('type="file"') && !avatarPicker.includes("UploadAv
 assert(joinScreen.includes("<SimplePaintEditor") && joinScreen.includes("upload an image here"), "Profile-picture uploads should remain available inside the custom drawing editor");
 
 const sentenceGroups = [...tutorial.matchAll(/sentences:\s*Object\.freeze\(\[([\s\S]*?)\]\)/g)].map((match) => stringValues(match[1]));
-assert(sentenceGroups.length === 3 && sentenceGroups.every((sentences) => sentences.length === 3), "Quiz, Herd, and Host tutorials should each contain exactly three sentences");
+assert(sentenceGroups.length === 4 && sentenceGroups.every((sentences) => sentences.length === 3), "Gahookz, Quiz, Herd, and Host tutorials should each contain exactly three explanations");
 assert(tutorial.includes("<h2 id={titleId}>How to play</h2>"), "The tutorial should use a clear centered How to play heading");
-assert(tutorial.includes('TUTORIAL_MODE_ORDER = Object.freeze(["quiz", "herd", "host"])') && tutorial.includes("tutorial-mode-tab--${tutorialMode}"), "Quiz, Herd, and Host should be switchable tutorial tabs");
+assert(tutorial.includes('TUTORIAL_MODE_ORDER = Object.freeze(["overview", "quiz", "herd", "host"])') && tutorial.includes("tutorial-mode-tab--${tutorialMode}"), "Gahookz, Quiz, Herd, and Host should be switchable tutorial tabs");
+assert(tutorial.includes('TUTORIAL_MODE_ORDER.filter(mode => mode !== "overview")'), "The Gahookz overview should stay exclusive to explicitly configured launchers such as Welcome");
 assert(tutorial.includes("Write the questions together, race to answer them") && tutorial.includes("tutorial-guide__summary"), "Each mode should have a concise explainer under the tutorial tabs");
+assert(tutorial.includes('label: "Gahookz"') && tutorial.includes('"Join your friends"') && tutorial.includes('"Make the game together"') && tutorial.includes('"Gahook for glory"'), "The welcome-only overview should explain joining, making games, and Gahooking");
 assert(tutorial.includes('"Sabotage your friends!"'), "Quiz tutorial should use the requested third-step heading");
 assert(tutorial.includes('"Make your own questions"') && tutorial.includes("believable wrong ones"), "Quiz step one should clearly explain creating or generating questions");
-assert(tutorial.includes("QuizBuildArtwork") && tutorial.includes("QuizAnswerArtwork") && tutorial.includes("QuizGahookArtwork"), "Quiz tutorial should have three distinct illustrations");
-assert(tutorial.includes("HostInviteArtwork") && tutorial.includes("HostOptionsArtwork") && tutorial.includes("HostRunArtwork"), "Host tutorial should illustrate inviting, choosing options, and running the room");
-assert(tutorial.includes('className="quiz-tutorial__rows"') && tutorial.includes('className="quiz-tutorial__row"'), "Quiz tutorial should render three instructional rows");
+assert(tutorial.includes("OverviewTutorialArtwork") && tutorial.includes("QuizTutorialArtwork") && tutorial.includes("HerdTutorialArtwork") && tutorial.includes("HostTutorialArtwork"), "Every guide should have one combined three-stage illustration");
+assert(!tutorial.includes("QuizBuildArtwork") && !tutorial.includes("HostInviteArtwork"), "Quiz and Host should no longer split their flow across separate illustrations");
+assert(tutorial.includes('className="tutorial-dialog__art"') && tutorial.includes('className="tutorial-dialog__steps"'), "Every tutorial should share one-artwork/three-explanation layout");
+assert(tutorial.includes("<h3>{content.stepTitles[index]}</h3>") && tutorial.includes("<p>{sentence}</p>"), "Every explanation should have a heading and supporting paragraph");
 assert(tutorial.includes("onClick={onClose}>Let's Go!</button>") && tutorial.includes('aria-label="Close how to play"'), "Quiz X and Let's Go controls should both close the tutorial");
-assert(styles.includes('grid-template-areas: "copy visual"') && !styles.includes('grid-template-areas: "visual copy"'), "Desktop tutorial rows should keep every explanation on the left");
-assert(styles.includes(".quiz-tutorial__rows") && styles.includes("gap: 22px"), "Tutorial steps should have comfortable vertical spacing");
-assert(styles.includes('"copy"\n      "visual"'), "Narrow Quiz rows should stack copy before artwork");
-assert(tutorial.includes("HerdTutorialArtwork") && tutorial.includes("Pick the Herd's favourites") && tutorial.includes("tap the three responses"), "Herd tutorial should explain the illustrated top-three prediction flow");
+assert(styles.includes(".tutorial-dialog__steps") && styles.includes("grid-template-columns: repeat(3, minmax(0, 1fr))"), "Desktop tutorials should place the three explanations beneath their combined artwork");
+assert(styles.includes(".tutorial-dialog__step-copy h3") && styles.includes(".tutorial-dialog__step-copy p"), "Tutorial explanation headings and paragraphs should have dedicated styling");
+assert(tutorial.includes('"Start the stampede"') && tutorial.includes('"Answer anonymously"') && tutorial.includes('"Predict the top three"'), "Herd tutorial should clearly name all three stages");
 assert(tutorial.includes("<svg") && tutorial.includes('role="img"'), "Each tutorial should include accessible Gahook-style artwork");
 assert(tutorial.includes('role="dialog"') && tutorial.includes('aria-modal="true"'), "How to play should be an accessible modal dialog");
 assert(app.includes("gahookz-how-to-play-seen-v2-") && app.includes('autoOpenMode="host"') && app.includes("showButton={false}"), "Host and selected game tutorials should have separate first-time triggers, including late joins");
@@ -88,7 +93,7 @@ console.log(JSON.stringify({
     "live total and duration summaries",
     "chat-only player-banner lobby social UI",
     "single custom profile-picture editor entry",
-    "three-row illustrated Quiz tutorial and updated Herd top-three tutorial",
+    "four single-artwork tutorials with three headed explanations each",
     "first-time and persistent tutorial access",
     "tutorial style isolation and offline cache"
   ]

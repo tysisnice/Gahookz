@@ -44,7 +44,9 @@ assert.match(appSource, /mode === "information" \? <InformationHub \/>/);
 assert.match(appSource, /serverConnection\.offline\s*&&\s*mode\s*!==\s*"information"/);
 assert(appSource.includes('document.title = mode === "room"'));
 assert(appSource.includes('mode === "information" ? "Gahookz Information"'));
-assert(appSource.includes('<a href="/information">Information, reports and roadmap</a>'));
+assert(!appSource.includes('<a href="/information">Information, reports and roadmap</a>'));
+assert(appSource.includes('How to play &amp; tutorials'));
+assert(appSource.includes('mode="overview"'));
 
 // Source and production builds must both include the InformationHub module.
 assert.match(appSource, /import \{ InformationHub \} from "\.\/client\/information\.jsx"/);
