@@ -1,0 +1,37 @@
+export function presentPlayer(room, player, counts = {}) {
+  const kickVotes = room.voteKicks[player.id] || {};
+  return {
+    id: player.id,
+    name: player.name,
+    score: player.score,
+    avatarId: counts.avatarId,
+    avatarImageDataUrl: player.avatarImageDataUrl || "",
+    gahookForm: player.gahookForm || "monkey",
+    dashTopScore: Math.max(0, Number(player.dashTopScore) || 0),
+    dashScore: Math.max(0, Number(player.dashScore) || 0),
+    dashPlayerY: Number(player.dashPlayerY) || 0,
+    dashRunning: Boolean(player.dashRunning && Date.now() - (player.dashUpdatedAt || 0) < 1800),
+    dashRunId: player.dashRunId || "",
+    dashUpdatedAt: player.dashUpdatedAt || 0,
+    connected: player.connected,
+    ready: player.ready,
+    pokeCount: player.pokeCount || 0,
+    latestPokeId: player.latestPoke?.id || "",
+    latestPokeAt: player.latestPoke?.createdAt || 0,
+    latestPokeKind: player.latestPoke?.kind || "normal",
+    latestPokeUltimateStack: player.latestPoke?.ultimateStack || 0,
+    latestPokeUltimateUntil: player.latestPoke?.ultimateUntil || 0,
+    ultimateGahookUntil: player.ultimateGahookUntil || 0,
+    ultimateGahookStack: player.ultimateGahookStack || 0,
+    shamePokes: player.shamePokes || 0,
+    congratulationsCount: player.congratulationsCount || 0,
+    ultimateCongratulationsUntil: player.ultimateCongratulationsUntil || 0,
+    ultimateCongratulationsStack: player.ultimateCongratulationsStack || 0,
+    questionsSubmitted: counts.submitted || 0,
+    questionsPending: counts.pending || 0,
+    questionSlotsUsed: (counts.submitted || 0) + (counts.pending || 0),
+    kickVotes: Object.keys(kickVotes).filter((id) => room.players[id]?.connected && id !== player.id).length,
+    isHost: counts.isHost,
+    joinedAt: player.joinedAt
+  };
+}

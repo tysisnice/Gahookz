@@ -1,0 +1,33 @@
+{
+  "id": "/",
+  "name": "Gahookz",
+  "short_name": "Gahookz",
+  "description": "Make a room, drop a code, GAHOOK.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#15111f",
+  "theme_color": "#073b59",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/gahookz-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/gahookz-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/gahookz-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

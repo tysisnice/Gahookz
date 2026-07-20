@@ -1,0 +1,65 @@
+name: gahookz
+
+services:
+  gahookz-dev:
+    image: gahookz:dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+    environment:
+      NODE_ENV: development
+      PORT: "3001"
+      HOST: "0.0.0.0"
+      NODE_OPTIONS: "--max-old-space-size=${GAHOOKZ_NODE_MEMORY_MB:-768}"
+    ports:
+      - "${GAHOOKZ_BIND_ADDRESS:-127.0.0.1}:${GAHOOKZ_DEV_PORT:-3101}:3001"
+    volumes:
+      - ./standalone:/app/standalone:z
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: "${GAHOOKZ_MEMORY_LIMIT:-1g}"
+    cpus: "${GAHOOKZ_CPU_LIMIT:-2.0}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gahookz:
+    image: gahookz:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      HOST: "0.0.0.0"
+      NODE_OPTIONS: "--max-old-space-size=${GAHOOKZ_NODE_MEMORY_MB:-768}"
+    ports:
+      - "${GAHOOKZ_BIND_ADDRESS:-127.0.0.1}:${GAHOOKZ_PROD_PORT:-3102}:3001"
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: "${GAHOOKZ_MEMORY_LIMIT:-1g}"
+    cpus: "${GAHOOKZ_CPU_LIMIT:-2.0}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -1,0 +1,46 @@
+{
+  "name": "gahookz",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node standalone/dev.mjs",
+    "build": "node standalone/build-client.mjs",
+    "start": "node standalone/server.js",
+    "standalone:build": "node standalone/build-client.mjs",
+    "standalone:smoke:round-presets": "node standalone/smoke-round-presets.mjs",
+    "standalone:smoke:onboarding": "node standalone/smoke-onboarding.mjs",
+    "standalone:smoke:herd-ranking": "node standalone/smoke-herd-ranking.mjs",
+    "standalone:smoke:herd-flow": "node standalone/smoke-herd-flow.mjs",
+    "standalone:smoke:gahooks": "node standalone/smoke-gahooks.mjs",
+    "standalone:smoke:roles": "node standalone/smoke-roles.mjs",
+    "standalone:smoke:layout": "node standalone/smoke-layout.mjs",
+    "standalone:smoke:finals": "node standalone/smoke-finals.mjs",
+    "standalone:smoke:party-view": "node standalone/smoke-party-view.mjs",
+    "standalone:smoke:regressions": "node standalone/smoke-regressions.mjs",
+    "standalone:smoke:pwa": "node standalone/smoke-pwa.mjs",
+    "standalone:smoke:information": "node standalone/smoke-information.mjs",
+    "standalone:smoke:dash": "node standalone/smoke-dash.mjs",
+    "standalone:smoke:social-media": "node standalone/smoke-social-media.mjs",
+    "standalone:smoke:social-creation": "node standalone/smoke-social-creation.mjs",
+    "standalone:smoke:prompts": "node standalone/smoke-prompt-library.mjs",
+    "standalone:smoke:deployment": "node standalone/smoke-deployment.mjs",
+    "deploy:fedora": "bash scripts/docker-deploy.sh",
+    "status:fedora": "bash scripts/docker-status.sh",
+    "deploy:docker": "bash scripts/docker-deploy.sh",
+    "update:docker": "bash scripts/docker-update.sh",
+    "status:docker": "bash scripts/docker-status.sh",
+    "build:docker": "docker compose build gahookz-dev gahookz",
+    "start:docker": "docker compose up -d gahookz-dev gahookz",
+    "start:docker:dev": "docker compose up -d gahookz-dev",
+    "start:docker:prod": "docker compose up -d gahookz",
+    "standalone:smoke": "npm run standalone:smoke:herd-ranking && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment",
+    "test": "npm run standalone:smoke"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "esbuild": "0.21.5"
+  }
+}

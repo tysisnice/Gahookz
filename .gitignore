@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Generated browser build output
+standalone/public/app.js
+standalone/public/release.json
+standalone/public/client/audio.runtime.js
+standalone/public/client/custom-gahook.js
+standalone/public/client/drawing.js
+standalone/public/client/information.js
+standalone/public/client/offline.js
+standalone/public/client/preferences.js
+standalone/public/client/presentation.js
+standalone/public/client/qr.js
+standalone/public/client/social.js
+standalone/public/client/tutorial.js
+
+# Logs, coverage, and temporary output
+*.log
+*.out.log
+*.err.log
+coverage/
+.nyc_output/
+tmp/
+temp/
+
+# Local release archives, tunnels, and scratch files
+work/
+
+# Local Codex/agent notes and the private Git setup guide
+.agents/
+.codex/
+codexLastPrompt.md
+git.md
+
+# Syncthing metadata and conflict copies
+.stfolder/
+.stversions/
+.stignore
+*.sync-conflict-*
+.syncthing.*.tmp
+
+# Editor and operating-system files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini

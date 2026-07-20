@@ -1,0 +1,21 @@
+* text=auto
+
+# Keep Linux/server files usable when the folder is shared across computers.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Treat image and archive formats as binary.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.gz binary
+*.zip binary
+*.exe binary
