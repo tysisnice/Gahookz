@@ -24,12 +24,17 @@ const generatedFiles = new Set([
 const assetVersion = await sourceAssetVersion();
 const versioned = (value) => value + "?v=" + assetVersion;
 
+function ignoredSyncArtifact(relativePath) {
+  const fileName = path.posix.basename(relativePath);
+  return fileName.startsWith(".syncthing.") || fileName.includes(".sync-conflict-");
+}
+
 async function sourceAssetVersion() {
   const hash = crypto.createHash("sha256");
   const files = await listFiles(publicDir);
   for (const absolutePath of files.sort()) {
     const relativePath = path.relative(publicDir, absolutePath).replaceAll("\\", "/");
-    if (generatedFiles.has(relativePath)) continue;
+    if (generatedFiles.has(relativePath) || ignoredSyncArtifact(relativePath)) continue;
     let contents = await fs.readFile(absolutePath);
     if (["index.html", "service-worker.js", "vendor-bootstrap.js"].includes(relativePath)) {
       contents = Buffer.from(contents.toString("utf8")

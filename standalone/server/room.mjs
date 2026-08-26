@@ -9,9 +9,6 @@ export function roomAssetChars(room) {
   });
   [...(room.questions || []), ...(room.pendingQuestions || []), ...(room.quizQuestions || [])].forEach((question) => {
     total += String(question.imageDataUrl || "").length;
-    (question.herdResults?.groups || []).forEach((group) => {
-      total += String(group.imageDataUrl || "").length;
-    });
   });
   Object.values(room.game?.answers || {}).forEach((answer) => {
     total += String(answer.imageDataUrl || "").length;

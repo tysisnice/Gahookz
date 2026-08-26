@@ -22,8 +22,11 @@ async function post(route, body, expectOk = true) {
 }
 
 async function snapshot(playerKey) {
-  const params = new URLSearchParams({ code, role: "player", playerKey });
-  const response = await fetch(BASE_URL + "/api/state?" + params.toString());
+  const response = await fetch(BASE_URL + "/api/state", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code, role: "player", playerKey })
+  });
   assert.equal(response.ok, true);
   return response.json();
 }

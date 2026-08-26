@@ -1,155 +1,121 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 
 const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3102";
-const roomCode = ("H" + Math.random().toString(36).slice(2, 5)).toUpperCase().replace(/[^A-Z]/g, "X").padEnd(4, "X").slice(0, 4);
+const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const code = Array.from({ length: 4 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join("");
 const hostKey = "herd-host-" + Date.now() + Math.random().toString(36).slice(2);
-const TINY_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
-const players = [
-  { label: "Alpha", name: "Alpha Alpaca", avatarId: "panda" },
-  { label: "Bravo", name: "Bravo Bunny", avatarId: "bunny" },
-  { label: "Charlie", name: "Charlie Capybara", avatarId: "turtle" },
-  { label: "Delta", name: "Delta Dingo", avatarId: "fox" }
-].map((player, index) => ({ ...player, key: "herd-player-" + index + "-" + Date.now() + Math.random().toString(36).slice(2) }));
+const players = Array.from({ length: 5 }, (_, index) => ({
+  key: "herd-player-" + index + "-" + Date.now() + Math.random().toString(36).slice(2),
+  name: "Herd Player " + (index + 1)
+}));
 
-async function request(path, body = null) {
-  const response = await fetch(BASE_URL + path, body ? {
+async function request(path, body) {
+  const response = await fetch(BASE_URL + path, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body)
-  } : undefined);
-  const data = await response.json();
-  return { response, data };
+  });
+  return { response, data: await response.json() };
 }
 
 async function post(path, body) {
-  const { data } = await request(path, body);
-  assert.equal(data.ok, true, path + " failed: " + data.error);
-  return data;
-}
-
-async function expectError(path, body, message) {
-  const { data } = await request(path, body);
-  assert.equal(data.ok, false, path + " should reject invalid data");
-  assert.match(String(data.error || ""), message);
+  const result = await request(path, body);
+  assert.equal(result.data.ok, true, path + " failed: " + result.data.error);
+  return result.data;
 }
 
 async function state(role = "host", playerKey = hostKey) {
-  const query = new URLSearchParams({ code: roomCode, role, playerKey });
-  const { response, data } = await request("/api/state?" + query);
-  assert.equal(response.ok, true);
-  return data;
+  const result = await request("/api/state", { code, role, playerKey });
+  assert.equal(result.response.ok, true, "State failed: " + result.data.error);
+  return result.data;
 }
 
-async function waitForPhase(phase, timeoutMs = 4000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const snapshot = await state();
-    if (snapshot.phase === phase) return snapshot;
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  throw new Error("Timed out waiting for phase " + phase + " in room " + roomCode);
-}
+const appSource = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");
+const tutorialSource = fs.readFileSync(new URL("./public/client/tutorial.jsx", import.meta.url), "utf8");
+assert(appSource.includes('available: true }];') && appSource.includes('id: "herd"'), "Herd should be selectable");
+assert(appSource.includes("function PlayerHerdPreparation") && appSource.includes("/api/herd/answer"), "Herd needs a private answer-writing workspace");
+assert(appSource.includes("function HerdRevealBreakdown") && appSource.includes("authoredPoints"), "Herd needs a dual-score reveal");
+assert(tutorialSource.includes("herd: Object.freeze") && tutorialSource.includes("function HerdTutorialArtwork"), "Herd needs its own concise tutorial");
 
-await post("/api/room", { code: roomCode, playerKey: hostKey });
-await post("/api/host/settings", { code: roomCode, playerKey: hostKey, gameMode: "herd", roundPreset: "quick", approveQuestions: false });
+await post("/api/room", { code, playerKey: hostKey, intent: "host" });
+await post("/api/host/settings", { code, playerKey: hostKey, gameMode: "herd", roundPreset: "custom", maxQuestionsPerPlayer: 5 });
 for (const player of players) {
-  await post("/api/player/join", { code: roomCode, playerKey: player.key, name: player.name, avatarId: player.avatarId });
+  await post("/api/player/join", { code, playerKey: player.key, name: player.name, avatarId: "fox" });
 }
-await post("/api/host/lock-setup", { code: roomCode, playerKey: hostKey });
-for (let index = 0; index < players.length; index += 1) {
-  const player = players[index];
-  await post("/api/question", { code: roomCode, playerKey: player.key, text: "Round " + (index + 1) + ": name the funniest party disaster." });
-  await post("/api/player/ready", { code: roomCode, playerKey: player.key, ready: true });
+let snapshot = await state();
+assert.equal(snapshot.gameMode, "herd");
+assert.equal(snapshot.maxQuestionsPerPlayer, 1, "Herd should always use one prompt per player");
+await post("/api/host/lock-setup", { code, playerKey: hostKey });
+for (const [index, player] of players.entries()) {
+  await post("/api/question", { code, playerKey: player.key, text: "Herd prompt " + (index + 1) + ": what happens next?", answers: [] });
+  await post("/api/player/ready", { code, playerKey: player.key, ready: true });
 }
-await post("/api/host/start", { code: roomCode, playerKey: hostKey });
+await post("/api/host/start", { code, playerKey: hostKey });
+snapshot = await state();
+assert.equal(snapshot.phase, "herd-writing");
+assert.equal(snapshot.herdPreparation.total, 20, "Five players should create four answers for each of five prompts");
+assert.equal(snapshot.totalQuestions, 5);
 
-const expectedRoundScores = [833, 433, 567, 367];
-for (let round = 0; round < players.length; round += 1) {
-  await waitForPhase("reading");
-  await post("/api/host/skip", { code: roomCode, playerKey: hostKey });
-  await waitForPhase("answering");
-  for (let playerIndex = 0; playerIndex < players.length; playerIndex += 1) {
-    const player = players[playerIndex];
-    const answer = await post("/api/answer", { code: roomCode, playerKey: player.key, answerText: player.label + " answer round " + (round + 1), imageDataUrl: playerIndex === 0 ? TINY_PNG : "" });
-    if (playerIndex === 0) assert.match(answer.imageDataUrl, /^\/media\/[A-Z]{4}\/[a-f0-9]{32}$/i, "Herd answer images should become bounded room media");
+for (const player of players) {
+  const playerState = await state("player", player.key);
+  assert.equal(playerState.ownHerdAssignments.length, 4, "Every five-player Herd writer should receive four prompts");
+  assert.equal(playerState.ownHerdAssignments.some((assignment) => assignment.question.author.id === playerState.ownPlayer.id), false, "Players should not answer their own prompt when four other writers are available");
+  for (const [answerIndex, assignment] of playerState.ownHerdAssignments.entries()) {
+    await post("/api/herd/answer", {
+      code,
+      playerKey: player.key,
+      questionId: assignment.questionId,
+      text: player.name + " answer " + (answerIndex + 1)
+    });
   }
-  await waitForPhase("ranking");
-
-  const playerSnapshots = [];
-  for (const player of players) {
-    const snapshot = await state("player", player.key);
-    const options = snapshot.currentQuestion.herdAnswerOptions;
-    assert.equal(options.length, 4, "Each player should see every answer, including their own");
-    const ownOption = options.find((option) => option.text.startsWith(player.label + " "));
-    assert(ownOption?.isOwn, "A player's own answer should be clearly identified and selectable");
-    assert.equal(options.filter((option) => option.isOwn).length, 1, "Only the viewer's answer should be marked as their own");
-    const alphaOption = options.find((option) => option.text.startsWith("Alpha "));
-    assert.match(alphaOption?.imageDataUrl || "", /^\/media\/[A-Z]{4}\/[a-f0-9]{32}$/i, "Uploaded Herd answer images should appear on ranking choices");
-    playerSnapshots.push(snapshot);
-  }
-
-  const optionIds = (playerIndex, labels) => labels.map((label) => {
-    const option = playerSnapshots[playerIndex].currentQuestion.herdAnswerOptions.find((answer) => answer.text.startsWith(label + " "));
-    assert(option, "Missing " + label + " option for player " + playerIndex);
-    return option.id;
-  });
-  const ballots = [
-    optionIds(0, ["Alpha", "Charlie", "Delta"]),
-    optionIds(1, ["Alpha", "Charlie", "Delta"]),
-    optionIds(2, ["Alpha", "Bravo", "Delta"]),
-    optionIds(3, ["Alpha", "Bravo", "Charlie"])
-  ];
-  await expectError("/api/herd/rank", { code: roomCode, playerKey: players[0].key, answerIds: ballots[0].slice(0, 2) }, /exactly three/i);
-  await expectError("/api/herd/rank", { code: roomCode, playerKey: players[0].key, answerIds: [ballots[0][0], ballots[0][0], ballots[0][2]] }, /exactly three/i);
-  for (let index = 0; index < players.length; index += 1) {
-    await post("/api/herd/rank", { code: roomCode, playerKey: players[index].key, answerIds: ballots[index] });
-  }
-
-  const reveal = await waitForPhase("reveal");
-  const groups = reveal.currentQuestion.herdResults.groups;
-  assert.deepEqual(groups.slice(0, 4).map((group) => group.answerText.split(" ")[0]), ["Alpha", "Charlie", "Bravo", "Delta"]);
-  assert.deepEqual(groups.slice(0, 4).map((group) => group.voteScore), [12, 5, 4, 3]);
-  assert.deepEqual(groups.slice(0, 4).map((group) => group.answerPoints), [500, 300, 100, 0]);
-  assert.deepEqual(groups[0].voters.map((vote) => vote.rank), [1, 1, 1, 1]);
-  assert.match(groups[0].imageDataUrl || "", /^\/media\/[A-Z]{4}\/[a-f0-9]{32}$/i, "The reveal should retain the winning answer image");
-  assert(groups.every((group) => group.voters.every((vote) => vote.player?.avatarId)), "Reveal votes should include player profile data");
-
-  for (let index = 0; index < players.length; index += 1) {
-    const snapshot = await state("player", players[index].key);
-    const personal = snapshot.currentQuestion.herdResults.playerResults.find((entry) => entry.playerId === snapshot.ownPlayer.id);
-    assert.equal(personal.totalPoints, expectedRoundScores[index]);
-    assert(personal.predictionPoints >= 0 && personal.predictionPoints <= 500);
-  }
-
-  const scoreBeforeRepeatState = reveal.leaderboard.map((entry) => entry.score);
-  const repeatedState = await state();
-  assert.deepEqual(repeatedState.leaderboard.map((entry) => entry.score), scoreBeforeRepeatState, "Reading reveal state twice must not score twice");
-
-  await post("/api/question/vote", { code: roomCode, playerKey: players[0].key, good: true });
-  await post("/api/question/vote", { code: roomCode, playerKey: players[1].key, good: false });
-  await post("/api/question/vote", { code: roomCode, playerKey: players[3].key, good: true });
-  const voted = await state();
-  assert.equal(voted.currentQuestion.goodVotes, 2);
-  assert.equal(voted.currentQuestion.badVotes, 1);
-  assert.equal(voted.currentQuestion.voteSelections.length, 3, "The non-voter must remain an abstention");
-
-  await post("/api/host/skip", { code: roomCode, playerKey: hostKey });
+  await post("/api/player/ready", { code, playerKey: player.key, ready: true });
 }
 
-const finale = await waitForPhase("finished");
-assert(finale.questionResults.bestAnswer, "Herd finale should include a best singular answer award");
-assert.equal(finale.questionResults.bestAnswer.author.id, finale.players.find((player) => player.name === players[0].name).id);
-assert.match(finale.questionResults.bestAnswer.text, /^Alpha answer/);
-assert.equal(finale.questionResults.bestAnswer.firstPlaceVotes, 4);
-assert.match(finale.questionResults.bestAnswer.imageDataUrl || "", /^\/media\/[A-Z]{4}\/[a-f0-9]{32}$/i, "The finale best-answer award should retain its image");
-const scoresByName = new Map(finale.leaderboard.map((entry) => [entry.name, entry.score]));
-players.forEach((player, index) => assert.equal(scoresByName.get(player.name), expectedRoundScores[index] * players.length));
+snapshot = await state();
+assert.equal(snapshot.herdPreparation.completed, 20);
+assert.equal(snapshot.canStart, true);
+assert(snapshot.herdAnswerReview.every((assignment) => assignment.submitted), "The host should be able to review every completed answer");
+await post("/api/host/start", { code, playerKey: hostKey });
+
+let rounds = 0;
+let firstReveal = null;
+while ((snapshot = await state()).phase !== "finished") {
+  assert.equal(snapshot.phase, "reading");
+  await post("/api/host/skip", { code, playerKey: hostKey });
+  snapshot = await state();
+  assert.equal(snapshot.phase, "answering");
+  const choices = snapshot.currentQuestion.answers;
+  assert.equal(choices.length, 4);
+  for (const [index, player] of players.entries()) {
+    const answerId = rounds === 0 && index >= 3 ? choices[1].id : choices[0].id;
+    await post("/api/answer", { code, playerKey: player.key, answerId });
+  }
+  await post("/api/host/skip", { code, playerKey: hostKey });
+  snapshot = await state();
+  assert.equal(snapshot.phase, "reveal");
+  assert(snapshot.currentQuestion.herdResults, "Herd reveal should publish its scoring result");
+  assert(snapshot.currentQuestion.answers.every((answer) => answer.author && Number.isInteger(answer.authoredPoints)), "Answer writers and authored points should appear only at reveal");
+  if (rounds === 0) firstReveal = snapshot.currentQuestion.herdResults;
+  await post("/api/host/skip", { code, playerKey: hostKey });
+  rounds += 1;
+}
+
+assert.equal(rounds, 5);
+assert.equal(firstReveal.topCount, 3);
+assert.equal(firstReveal.authorResults.find((result) => result.answerId === firstReveal.winningAnswerId).points, 300, "Three of five votes should award 300 authored points");
+assert(firstReveal.playerResults.filter((result) => result.correct).every((result) => result.points > 0 && result.points <= 500), "Winning voters should earn no more than 500 speed points");
+snapshot = await state();
+assert.equal(snapshot.leaderboard.length, 5);
+assert(snapshot.leaderboard.every((player) => player.score > 0), "Every player should be able to score through Herd votes or authored answers");
 
 console.log(JSON.stringify({
   ok: true,
   baseUrl: BASE_URL,
-  roomCode,
-  rounds: players.length,
-  finalScores: Object.fromEntries(scoresByName),
-  bestAnswer: finale.questionResults.bestAnswer
+  code,
+  players: players.length,
+  assignments: 20,
+  rounds,
+  firstWinningVotes: firstReveal.topCount,
+  finalScores: Object.fromEntries(snapshot.leaderboard.map((player) => [player.name, player.score]))
 }, null, 2));

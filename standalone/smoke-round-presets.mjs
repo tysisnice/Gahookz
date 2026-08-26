@@ -31,9 +31,7 @@ async function post(path, body) {
 }
 
 async function snapshot(roomCode, playerKey, role = "host") {
-  const params = new URLSearchParams({ code: roomCode, role, playerKey });
-  const response = await fetch(BASE_URL + "/api/state?" + params.toString());
-  return response.json();
+  return (await request("/api/state", { code: roomCode, role, playerKey })).data;
 }
 
 async function addPlayers(roomCode, count, prefix) {

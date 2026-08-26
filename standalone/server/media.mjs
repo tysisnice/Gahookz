@@ -36,6 +36,13 @@ export function storeRoomAudio(room, value, { maxChars, label }) {
   return storeRoomAsset(room, value, { maxChars, label, pattern: DATA_AUDIO, expectedType: "audio", formatError: "Use an MP3, WAV, OGG, WEBM, M4A, or AAC audio file." });
 }
 
+export function roomAssetDataUrl(room, value, expectedType = "") {
+  const match = String(value || "").match(/^\/media\/([a-z]{4})\/([a-f0-9]{32})$/i);
+  const asset = match && match[1].toUpperCase() === room?.code ? room.media?.get(match[2].toLowerCase()) : null;
+  if (!asset || (expectedType && !asset.contentType.startsWith(expectedType + "/"))) return "";
+  return "data:" + asset.contentType + ";base64," + asset.bytes.toString("base64");
+}
+
 export function pruneRoomMedia(room) {
   initialiseRoomMedia(room);
   const retained = new Set();
@@ -56,7 +63,6 @@ export function pruneRoomMedia(room) {
   [...(room.questions || []), ...(room.pendingQuestions || []), ...(room.quizQuestions || [])].forEach((question) => {
     retain(question.imageDataUrl);
     retain(question.authorAvatarImageDataUrl);
-    (question.herdResults?.groups || []).forEach((group) => retain(group.imageDataUrl));
   });
   Object.values(room.game?.answers || {}).forEach((answer) => retain(answer.imageDataUrl));
   (room.chatMessages || []).forEach((message) => retain(message.senderAvatarImageDataUrl));

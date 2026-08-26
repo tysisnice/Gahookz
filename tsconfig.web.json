@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["react", "react-dom"],
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "standalone/public/**/*.ts",
+    "standalone/public/**/*.tsx",
+    "standalone/public/**/*.d.ts"
+  ],
+  "exclude": [
+    "standalone/public/vendor",
+    "standalone/public/**/*.sync-conflict-*"
+  ]
+}

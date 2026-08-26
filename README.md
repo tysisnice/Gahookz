@@ -1,16 +1,20 @@
 # Gahookz
 
-Gahookz is a dependency-light, real-time Node.js party game. A single HTTP
-server provides the browser app and JSON API, while Server-Sent Events keep
-each room in sync.
+Gahookz is a dependency-light, real-time Node.js party game with three active
+modes: classic Quiz, opinion-led Majority Rulz, and the collaborative Herd.
+The authoritative server provides the browser app and JSON API, while
+Server-Sent Events keep each room in sync.
 
-Rooms, credentials, chat, drawings, and uploaded room media are held in
-memory. There is currently no database or persistent application volume, so
-restarting an app process ends its active rooms.
+Active rooms, credentials, chat, drawings, and uploaded room media are held in
+the owning Node process, so restarting it ends those rooms. Optional accounts,
+career statistics, entitlements, and cloud custom-Gahook slots use PostgreSQL
+in production. Guest play remains account-free and the server refuses a public
+deployment without PostgreSQL when `GAHOOKZ_REQUIRE_POSTGRES=1`.
 
 ## Requirements
 
-- Node.js 20 or newer and npm for local development
+- Node.js 20 or newer and npm for local development (the pinned `tsx` runtime
+  loads the incrementally migrated TypeScript modules)
 - Docker Engine with the Docker Compose plugin for the two-container setup
 - Nginx on the server when exposing the app through a domain
 
@@ -89,6 +93,12 @@ Then run the full suite in a second terminal:
 npm test
 ```
 
+Run strict TypeScript checks, unit tests, and the production browser build with:
+
+```bash
+npm run check
+```
+
 Alternatively, run the suite while the Docker production service is available
 on its default port. The individual smoke commands are listed in `package.json`
 and can be run with names such as `npm run standalone:smoke:deployment`.
@@ -98,14 +108,27 @@ and can be run with names such as `npm run standalone:smoke:deployment`.
 - `standalone/server.js` contains the HTTP/API/SSE process and static server.
 - `standalone/server/` contains the separated server-side features.
 - `standalone/public/` contains browser source, styles, PWA files, and assets.
+- `standalone/legacy/` preserves retired modes outside the live build.
 - `standalone/build-client.mjs` builds and versions the browser modules.
 - `standalone/dev.mjs` watches, rebuilds, restarts, and reloads development.
+- `packages/` contains typed contracts, account-stat helpers, and the pure Herd
+  assignment/scoring engine.
+- `infra/postgres/` contains the production account schema.
+- `docs/architecture/` and `docs/operations/` contain current decisions and
+  production constraints.
 - `Dockerfile` defines separate development and production image targets.
 - `compose.yaml` maps internal port 3001 to host ports 3101 and 3102.
 - `deploy/nginx/` contains the example reverse-proxy configuration.
 - `scripts/` contains production deploy, update, and status helpers.
 
 ## Server documentation
+
+- [`docs/architecture/0001-long-term-foundation.md`](docs/architecture/0001-long-term-foundation.md)
+  records the TypeScript, CSS, server-authority, persistence, and identity
+  decisions.
+- [`docs/operations/production-readiness.md`](docs/operations/production-readiness.md)
+  documents affinity, security controls, database setup, observability, and
+  remaining launch gates.
 
 - [`OPERATIONS-AND-ROADMAP.md`](OPERATIONS-AND-ROADMAP.md) is the complete
   owner runbook, architecture/risk audit, production promotion guide,

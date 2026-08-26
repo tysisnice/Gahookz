@@ -88,10 +88,7 @@ async function expectError(path, body, expectedPattern) {
 }
 
 async function state(code, role = "player", playerKey = "") {
-  const params = new URLSearchParams({ code, role });
-  if (playerKey) params.set("playerKey", playerKey);
-  const response = await fetch(`${BASE_URL}/api/state?${params}`);
-  const data = await response.json();
+  const { response, data } = await rawPost("/api/state", { code, role, playerKey });
   assert(response.ok, `State request failed: ${data.error || response.status}`);
   return data;
 }
@@ -140,6 +137,7 @@ function validStroke(overrides = {}) {
 function runStaticUiSmoke() {
   assert(drawingSource.includes("export function SimplePaintEditor"), "The reusable paint editor should be exported");
   assert(drawingSource.includes('type="color"'), "The paint editor needs a native custom-colour input");
+  assert(drawingSource.includes('"#8a4f21"'), "The shared drawing palette should include a visible brown swatch");
   for (const size of ["small", "medium", "large"]) {
     assert(drawingSource.includes(`id: "${size}"`), `The paint editor is missing its ${size} brush`);
   }
@@ -163,6 +161,10 @@ function runStaticUiSmoke() {
   assert(socialSource.includes("chatProfileStyle") && socialSource.includes("--chat-profile-background"), "Chat bubbles and notifications should derive a stable colour from each player's profile");
   assert((socialSource.match(/className="social-chat-minimize/g) || []).length >= 2 && socialSource.includes("social-chat-minimize--footer"), "Expanded chat should provide minimize controls at both the top and bottom-right");
   assert((socialSource.match(/aria-hidden="true">×<\/span>/g) || []).length === 2 && socialSource.includes('placeholder="Send message"'), "Both minimize controls should use an X and chat should use the concise message placeholder");
+  assert(socialSource.includes("chatInputRef.current?.focus") && socialSource.includes("requestAnimationFrame"), "Chat should return focus to the message input after a send finishes");
+  assert(socialSource.includes("drawingStrokeSegments") && !socialSource.includes("stroke.points.splice"), "Long chat drawings should be preserved and split into server-safe segments instead of erasing their oldest points");
+  assert(socialSource.includes('document.addEventListener("pointerdown", handlePagePointerDown)') && socialSource.includes("!root.contains(event.target)"), "Clicking away from the expanded room chat should minimize it");
+  assert(socialSource.includes("drawingEnabled && !canvasRef.current?.contains(event.target)") && socialSource.includes("onClick={stopDrawing}"), "Clicking outside the drawing surface should use the Done drawing action");
 
   assert(customCreatorSource.includes("export function CustomGahookCreator"), "The custom Gahook creator should be exported");
   assert(customCreatorSource.includes("<SimplePaintEditor"), "Custom Gahook frames should use the shared paint editor");

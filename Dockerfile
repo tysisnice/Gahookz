@@ -5,7 +5,20 @@ FROM node:24-alpine AS dependencies
 WORKDIR /build
 
 COPY package.json package-lock.json ./
+COPY packages/accounts/package.json ./packages/accounts/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
+COPY packages/game-engine/package.json ./packages/game-engine/package.json
 RUN npm ci --include=dev
+
+FROM node:24-alpine AS production-dependencies
+
+WORKDIR /build
+
+COPY package.json package-lock.json ./
+COPY packages/accounts/package.json ./packages/accounts/package.json
+COPY packages/contracts/package.json ./packages/contracts/package.json
+COPY packages/game-engine/package.json ./packages/game-engine/package.json
+RUN npm ci --omit=dev
 
 # The development target keeps esbuild available and runs the project's file
 # watchers. Compose bind-mounts standalone/ over this copy so source edits are
@@ -21,6 +34,8 @@ WORKDIR /app
 
 COPY --chown=node:node package.json package-lock.json ./
 COPY --from=dependencies --chown=node:node /build/node_modules ./node_modules
+COPY --chown=node:node packages ./packages
+COPY --chown=node:node infra ./infra
 COPY --chown=node:node standalone ./standalone
 
 USER node
@@ -50,8 +65,12 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
+COPY --chown=node:node package.json package-lock.json ./
+COPY --from=production-dependencies --chown=node:node /build/node_modules ./node_modules
 COPY --chown=node:node standalone/server.js ./standalone/server.js
 COPY --chown=node:node standalone/server ./standalone/server
+COPY --chown=node:node packages ./packages
+COPY --chown=node:node infra/postgres ./infra/postgres
 COPY --from=browser-build --chown=node:node /build/standalone/public ./standalone/public
 
 USER node

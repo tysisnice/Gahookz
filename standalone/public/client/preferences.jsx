@@ -57,7 +57,11 @@ export function applyEffectsMuted(muted) {
   document.documentElement.classList.toggle("gahookz-muted", next);
   document.documentElement.dataset.effectsMuted = next ? "true" : "false";
   applyEffectsReduced(next || reducedEffectsPreferred() || systemPrefersReducedEffects());
-  if (!next) return;
+  if (!next) {
+    const context = window.gahookzAudioContext;
+    Promise.resolve(context?.resume?.()).then(() => window.gahookzResumeMusic?.()).catch(() => {});
+    return;
+  }
   window.speechSynthesis?.cancel?.();
   try {
     window.gahookzCustomAudio?.pause?.();

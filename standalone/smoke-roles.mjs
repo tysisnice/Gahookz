@@ -52,12 +52,7 @@ async function expectError(path, body, expectedText) {
 }
 
 async function state(roomCode, role = "host", playerKey = "") {
-  const params = new URLSearchParams({ code: roomCode, role });
-  if (playerKey) {
-    params.set("playerKey", playerKey);
-  }
-  const response = await fetch(BASE_URL + "/api/state?" + params.toString());
-  const data = await response.json();
+  const { response, data } = await rawPost("/api/state", { code: roomCode, role, playerKey });
   assert(response.ok, "State request failed for " + roomCode);
   return data;
 }
@@ -335,7 +330,7 @@ async function runHostPlayerActionsSmoke() {
 
 async function runForceStartSmoke() {
   const results = {};
-  for (const mode of ["quiz", "herd"]) {
+  for (const mode of ["quiz", "majority"]) {
     const roomCode = code(mode.slice(0, 1));
     const hostKey = key("force-" + mode + "-host");
     const firstKey = key("force-" + mode + "-first");
@@ -346,8 +341,8 @@ async function runForceStartSmoke() {
     await post("/api/player/join", { code: roomCode, playerKey: secondKey, name: "Second Player", avatarId: "banana" });
     await post("/api/host/lock-setup", { code: roomCode, playerKey: hostKey });
 
-    const questionPayload = mode === "herd"
-      ? { text: "Name something everyone brings to a party." }
+    const questionPayload = mode === "majority"
+      ? { text: "Which snack disappears first?", answers: [{ text: "Pizza", predicted: true }, { text: "Chips", predicted: false }] }
       : { text: "Which answer is definitely correct?", answers: [{ text: "This one", correct: true }, { text: "Not this one", correct: false }] };
     const submitted = await post("/api/question", { code: roomCode, playerKey: firstKey, ...questionPayload });
     await post("/api/host/question/approve", { code: roomCode, playerKey: hostKey, questionId: submitted.questionId });
@@ -410,9 +405,9 @@ async function runHostPlayerExitAndResetSmoke() {
   await post("/api/host/reset", { code: roomCode, playerKey: hostKey });
   snapshot = await state(roomCode, "host", hostKey);
   assert(snapshot.phase === "lobby" && snapshot.isHost, "Reset should return the same host to a configurable lobby");
-  await post("/api/host/settings", { code: roomCode, playerKey: hostKey, gameMode: "herd", maxQuestionsPerPlayer: 2 });
+  await post("/api/host/settings", { code: roomCode, playerKey: hostKey, gameMode: "majority", maxQuestionsPerPlayer: 2 });
   snapshot = await state(roomCode, "host", hostKey);
-  assert(snapshot.gameMode === "herd" && snapshot.maxQuestionsPerPlayer === 2, "Host should be able to choose the same question count options for Herd after reset");
+  assert(snapshot.gameMode === "majority" && snapshot.maxQuestionsPerPlayer === 2, "Host should be able to choose the same question count options for Majority Rulz after reset");
   return { roomCode, phase: snapshot.phase, gameMode: snapshot.gameMode, profileEditedWithoutRejoin: true };
 }
 

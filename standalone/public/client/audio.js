@@ -39,7 +39,10 @@ export function warmGahookEffects(options = {}) {
     [0.14, 0.18, 0.24, 0.26, 0.28].forEach(duration => getNoiseBuffer(ctx, duration));
     if (fromGesture) {
       window.gahookzGestureWarmed = true;
-      Promise.resolve(ctx.resume?.()).then(() => playSilentGahookWarmup(ctx)).catch(() => {});
+      Promise.resolve(ctx.resume?.()).then(() => {
+        playSilentGahookWarmup(ctx);
+        resumeGameMusic();
+      }).catch(() => {});
     } else {
       window.gahookzPassiveWarmed = true;
       if (ctx.state === "running") {
@@ -187,6 +190,70 @@ export function playNoiseBurst(ctx, start, duration, volume = 0.12, destination 
   source.connect(gain).connect(destination);
   source.start(start);
 }
+
+const GAME_MUSIC = Object.freeze({
+  welcome: { length: 4.8, notes: [[220, 0, 0.55], [329.63, 0.7, 0.38], [277.18, 1.45, 0.45], [369.99, 2.35, 0.42], [329.63, 3.15, 0.7]], type: "sine", volume: 0.018 },
+  lobby: { length: 3.6, notes: [[261.63, 0, 0.24], [329.63, 0.42, 0.24], [392, 0.84, 0.3], [523.25, 1.32, 0.22], [392, 1.82, 0.26], [440, 2.28, 0.22], [523.25, 2.74, 0.45]], type: "triangle", volume: 0.021 },
+  prep: { length: 3.2, notes: [[196, 0, 0.18], [293.66, 0.36, 0.16], [246.94, 0.72, 0.18], [329.63, 1.08, 0.16], [220, 1.55, 0.18], [329.63, 1.91, 0.16], [293.66, 2.27, 0.2], [392, 2.63, 0.32]], type: "triangle", volume: 0.022 },
+  live: { length: 2.4, notes: [[130.81, 0, 0.16], [261.63, 0.24, 0.12], [130.81, 0.6, 0.16], [311.13, 0.84, 0.12], [146.83, 1.2, 0.16], [293.66, 1.44, 0.12], [164.81, 1.8, 0.2], [329.63, 2.04, 0.22]], type: "square", volume: 0.014 },
+  finale: { length: 4.2, notes: [[261.63, 0, 0.28], [329.63, 0.34, 0.28], [392, 0.68, 0.28], [523.25, 1.04, 0.38], [659.25, 1.55, 0.28], [523.25, 1.92, 0.24], [783.99, 2.34, 0.45], [659.25, 3.05, 0.7]], type: "triangle", volume: 0.023 }
+});
+
+export function setGameMusicState(state) {
+  const next = GAME_MUSIC[state] ? state : "off";
+  if (window.gahookzMusicState === next) return;
+  window.gahookzMusicState = next;
+  window.clearTimeout(window.gahookzMusicTimer);
+  window.gahookzMusicTimer = null;
+  fadeOutMusicGain();
+  if (next !== "off") resumeGameMusic();
+}
+
+export function resumeGameMusic() {
+  const state = window.gahookzMusicState;
+  if (!GAME_MUSIC[state] || effectsMuted()) return;
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state !== "running") return;
+  window.clearTimeout(window.gahookzMusicTimer);
+  const previous = window.gahookzMusicGain;
+  if (!previous || previous.context !== ctx) {
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(1, ctx.currentTime + 0.35);
+    gain.connect(ctx.destination);
+    window.gahookzMusicGain = gain;
+  }
+  scheduleMusicPhrase(ctx, state);
+}
+
+function scheduleMusicPhrase(ctx, state) {
+  const pattern = GAME_MUSIC[state];
+  const destination = window.gahookzMusicGain;
+  if (!pattern || !destination || effectsMuted() || window.gahookzMusicState !== state || ctx.state !== "running") return;
+  const start = ctx.currentTime + 0.08;
+  pattern.notes.forEach(([frequency, offset, duration], index) => {
+    playTone(ctx, frequency, start + offset, duration, pattern.type, pattern.volume, destination);
+    if (state === "finale" && index % 3 === 0) playTone(ctx, frequency / 2, start + offset, duration * 1.2, "sine", 0.009, destination);
+  });
+  window.gahookzMusicTimer = window.setTimeout(() => {
+    if (window.gahookzMusicState === state) scheduleMusicPhrase(ctx, state);
+  }, pattern.length * 1000);
+}
+
+function fadeOutMusicGain() {
+  const ctx = window.gahookzAudioContext;
+  const gain = window.gahookzMusicGain;
+  if (!ctx || !gain) return;
+  window.gahookzMusicGain = null;
+  try {
+    gain.gain.cancelScheduledValues(ctx.currentTime);
+    gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.24);
+    window.setTimeout(() => gain.disconnect(), 320);
+  } catch (_error) {}
+}
+
+if (typeof window !== "undefined") window.gahookzResumeMusic = resumeGameMusic;
 
 export function playVictoryPartySound() {
   const ctx = getAudioContext();

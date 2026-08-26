@@ -44,7 +44,8 @@ export function useQuickCounter(target, durationMs = 200) {
 }
 
 export function PokeJumpScare({
-  poke
+  poke,
+  action = null
 }) {
   const fromName = poke?.from || "Someone";
   const gahookForm = getGahookForm(poke?.gahookForm);
@@ -55,6 +56,7 @@ export function PokeJumpScare({
   const isCongrats = poke?.kind === "congrats" || isUltimateCongrats;
   const isBoo = poke?.kind === "boo";
   const isCounter = poke?.kind === "counter";
+  const isDuelChallenge = poke?.kind === "duel-challenge";
   const customGahook = gahookForm.id === "custom" && Array.isArray(poke?.customGahook?.frames) && poke.customGahook.frames.length ? poke.customGahook : null;
   const isCustomForm = Boolean(customGahook) && !isGetGot && !isCongrats && !isBoo;
   const isPremiumForm = gahookForm.id !== "monkey" && gahookForm.id !== "custom" && !isGetGot && !isCongrats && !isBoo;
@@ -65,10 +67,10 @@ export function PokeJumpScare({
   const scorePenalty = Math.max(0, poke?.scorePenalty || 0);
   const pointsStolen = Math.max(0, poke?.pointsStolen || 0);
   const bananaCount = isGetGot ? 24 : isBoo ? 18 : 10;
-  const footerText = isGetGot ? (poke?.targetName ? poke.targetName + " GETS GOT" : "GET GOT") + (scorePenalty + pointsStolen ? " -" + (scorePenalty + pointsStolen) + " pts" : "") : isCounter ? "Fired back by " + fromName + (pointsStolen ? " - " + pointsStolen + " pts stolen" : "") : isCongrats || isBoo ? "by " + fromName : message || "by " + fromName + (pointsStolen ? " - " + pointsStolen + " pts stolen" : "");
+  const footerText = isGetGot ? (poke?.targetName ? poke.targetName + " GETS GOT" : "GET GOT") + (scorePenalty + pointsStolen ? " -" + (scorePenalty + pointsStolen) + " pts" : "") : isCounter ? "Fired back by " + fromName + (pointsStolen ? " - " + pointsStolen + " pts stolen" : "") : isDuelChallenge ? fromName + " wants to battle — first to 3 hits" : isCongrats || isBoo ? "by " + fromName : message || "by " + fromName + (pointsStolen ? " - " + pointsStolen + " pts stolen" : "");
   const backgroundColor = normaliseCustomColor(customGahook?.backgroundColor, customGahook?.backgroundId);
   const effectId = normaliseCustomChoice(customGahook?.effectId, ["shake", "spin", "bounce", "zoom"], "bounce");
-  return <div className={["poke-overlay", !isCongrats && !isBoo ? "is-form-" + gahookForm.id : "", isPremiumForm ? "is-premium-form" : "", isCustomForm ? "is-custom-form" : "", isUltimate ? "is-ultimate" : "", isUltimateCongrats ? "is-ultimate-congrats" : "", isGetGot ? "is-get-got" : "", isCongrats ? "is-congrats" : "", isBoo ? "is-boo" : "", isCounter ? "is-counter" : ""].filter(Boolean).join(" ")} style={isCustomForm ? { "--custom-gahook-color": backgroundColor } : undefined} role="alert" aria-live="assertive">
+  return <div className={["poke-overlay", !isCongrats && !isBoo ? "is-form-" + gahookForm.id : "", isPremiumForm ? "is-premium-form" : "", isCustomForm ? "is-custom-form" : "", isUltimate ? "is-ultimate" : "", isUltimateCongrats ? "is-ultimate-congrats" : "", isGetGot ? "is-get-got" : "", isCongrats ? "is-congrats" : "", isBoo ? "is-boo" : "", isCounter ? "is-counter" : "", isDuelChallenge ? "is-duel-challenge" : ""].filter(Boolean).join(" ")} style={isCustomForm ? { "--custom-gahook-color": backgroundColor } : undefined} role="alert" aria-live="assertive">
       {isPremiumForm ? <PremiumFormEffects formId={gahookForm.id} /> : null}
       <div className="poke-scare-card">
         {isGetGot || isBoo ? <div className="banana-burst">{Array.from({
@@ -85,9 +87,10 @@ export function PokeJumpScare({
           }, (_item, index) => index % 2 ? <ThumbsUpIcon key={index} /> : <BirdIcon key={index} />)}</div> : null}
         </div>
         {isCounter ? <strong className="counter-rebound">BACK AT YA!</strong> : null}
-        <h1>{isUltimateCongrats ? "ULTIMATE CONGRATULATIONS" : isCongrats ? "CONGRATULATIONS" : isBoo ? "BOO" : isGetGot ? "GET GOT" : isUltimate ? "ULTIMATE GAHOOK" : isCounter ? "COUNTER GAHOOK!" : "GAHOOK"}</h1>
+        <h1>{isUltimateCongrats ? "ULTIMATE CONGRATULATIONS" : isCongrats ? "CONGRATULATIONS" : isBoo ? "BOO" : isGetGot ? "GET GOT" : isUltimate ? "ULTIMATE GAHOOK" : isCounter ? "COUNTER GAHOOK!" : isDuelChallenge ? "GAHOOK ARENA?" : "GAHOOK"}</h1>
         {isUltimate || isUltimateCongrats ? <strong className="ultimate-stack-count">{ultimateCount}/{ULTIMATE_GAHOOK_MAX_STACK}</strong> : null}
         <p>{footerText}</p>
+        {action ? <button className={["poke-overlay-action", action.moving ? "is-moving" : ""].filter(Boolean).join(" ")} type="button" disabled={Boolean(action.disabled)} onClick={action.onClick}>{action.label}</button> : null}
       </div>
     </div>;
 }

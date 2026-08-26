@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Provider, useDispatch, useSelector } from "react-redux";
 import { createStore } from "redux";
 import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
-import { OfflineExperience, useServerConnection } from "./client/offline.jsx";
+import { OfflineExperience, ServerUpdateExperience, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
 import {
   installGahookWarmup,
@@ -21,6 +21,7 @@ import {
   playUltimateGahookSound,
   playVictoryPartySound,
   resetPokeSoundChannel,
+  setGameMusicState,
   stopCustomGahookAudio,
   speakText
 } from "./client/audio.js";
@@ -44,7 +45,6 @@ const SNAPSHOT_CATCHUP_MS = 0;
 const STALE_GAHOOK_MS = 4500;
 const REVEAL_ANSWER_SPOTLIGHT_MS = 4500;
 const ANSWER_IDS = ["red", "blue", "yellow", "green"];
-const HERD_PROMPT_GENERATION_LIMIT = 5;
 
 function useModalBodyLock(active) {
   useEffect(() => {
@@ -76,12 +76,14 @@ function useModalBodyLock(active) {
 
 function pokeOverlayDurationMs(poke) {
   const now = Date.now();
+  if ((poke?.counterOfferUntil || 0) > now) return Math.max(950, poke.counterOfferUntil - now);
   if (poke?.kind === "ultimate-congrats") return Math.max(ULTIMATE_GAHOOK_GRACE_MS, (poke.ultimateUntil || now + ULTIMATE_GAHOOK_GRACE_MS) - now);
   if (poke?.kind === "congrats") return CONGRATS_OVERLAY_MS;
   if (poke?.kind === "boo") return BOO_OVERLAY_MS;
+  if (poke?.kind === "counter") return 2750;
+  if (poke?.kind === "duel-challenge") return Math.max(0, (poke.duelChallengeUntil || now + 6500) - now);
   if (poke?.kind === "get-got") return Math.max(0, (poke.getGotUntil || now + GET_GOT_OVERLAY_MS) - now);
   if (poke?.kind === "ultimate") return Math.max(ULTIMATE_GAHOOK_GRACE_MS, (poke.ultimateUntil || now + ULTIMATE_GAHOOK_GRACE_MS) - now);
-  if (poke?.kind === "counter") return 1250;
   return 950;
 }
 const AVATAR_BASE = [
@@ -174,13 +176,9 @@ const PARTY_QUESTION_PRESETS = [
 { text: "What is the least useful superpower at a party?", answers: ["Making ice cubes warm", "Predicting the next song one second early"] }];
 
 const GAME_MODES = [
-{ id: "quiz", title: "Quiz", subtitle: "Classic Gahookz answers", art: "quiz" },
-{ id: "herd", title: "Herd", subtitle: "Answer, rank, compare", art: "herd" },
-{ id: "oddball", title: "Oddball", subtitle: "Pick the least-picked answer", art: "oddball" }];
-
-// Oddball remains implemented for existing rooms and an easy future return.
-const VISIBLE_GAME_MODE_IDS = ["quiz", "herd"];
-const VISIBLE_GAME_MODES = GAME_MODES.filter((mode) => VISIBLE_GAME_MODE_IDS.includes(mode.id));
+{ id: "quiz", title: "Quiz", subtitle: "Classic Gahookz answers", art: "quiz", available: true },
+{ id: "majority", title: "Majority Rulz", subtitle: "Pick what the room will pick", art: "majority", available: true },
+{ id: "herd", title: "Herd", subtitle: "Write the room's answers", art: "herd", available: true }];
 
 const ROUND_PRESETS = [
 { id: "quick", title: "Quick", subtitle: "Fast party hit", detail: "1 question each · up to 10 rounds" },
@@ -188,145 +186,47 @@ const ROUND_PRESETS = [
 { id: "custom", title: "Custom", subtitle: "Choose the size", detail: "1–5 questions per player" }
 ];
 
-const ODDBALL_QUESTION_PRESETS = [
-{ text: "Which snack is secretly the biggest party power move?", answers: ["Pickles", "Tiny cakes", "Cold pizza", "Dry cereal"] },
-{ text: "Which object would you trust least as a roommate?", answers: ["Lamp", "Toaster", "Beanbag", "Printer"] },
-{ text: "Which excuse sounds least fake?", answers: ["My shoe rebooted", "The moon looked weird", "I got trapped by laundry", "My map got shy"] },
-{ text: "Which prize would make people clap the least?", answers: ["One sock", "Wet coupon", "Tiny spoon", "Mystery key"] },
-{ text: "Which mascot would be least comforting at a hospital?", answers: ["Wizard", "Clown", "Crab", "Angry cloud"] },
-{ text: "Which item would be worst to find in your bed?", answers: ["Remote", "Soup", "Glitter", "Garden hose"] },
-{ text: "Which animal energy wins a business meeting?", answers: ["Frog", "Goose", "Moth", "Hamster"] },
-{ text: "Which word sounds most like a suspicious password?", answers: ["Plonk", "Mega", "Chair", "Noodle"] },
-{ text: "Which vehicle would be funniest to arrive in late?", answers: ["Scooter", "Boat", "Forklift", "Tiny train"] },
-{ text: "Which smell would ruin a heroic entrance?", answers: ["Egg", "Wet carpet", "Banana peel", "Old cheese"] },
-{ text: "Which fictional job is most likely to be real?", answers: ["Cloud inspector", "Vibe plumber", "Snack lawyer", "Chair detective"] },
-{ text: "Which thing would be least useful in a zombie movie?", answers: ["Kazoo", "Feather", "Nice hat", "Salad spinner"] }];
-
-const HERD_QUESTION_PRESETS = [
-"What food would everyone secretly be happy to eat right now?",
-"What is the most suspicious thing to find in a backpack?",
-"Name something people pretend to understand.",
-"What animal has the strongest chaotic energy?",
-"What is the worst thing to hear from your Uber driver?",
-"Name a snack that disappears too fast.",
-"What app steals the most time from everyone?",
-"What is the funniest thing to put on a cake?",
-"Name something that should not be crunchy.",
-"What is the best excuse for leaving a party early?",
-"What would be a terrible name for a boat?",
-"Name something people do when they are nervous.",
-"What is the most powerful smell?",
-"What song could ruin a serious moment?",
-"Name a place where someone should never clap.",
-"What is the funniest thing to win in a raffle?",
-"Name something that feels illegal but is not.",
-"What would be the worst pizza topping?",
-"What is the least scary Halloween costume?",
-"Name something you should not bring to a wedding.",
-"What is the best thing to yell before running away?",
-"Name a tiny problem that makes people furious.",
-"What is the funniest thing to find in a fridge?",
-"What celebrity would be worst at hiding in public?",
-"Name something that sounds fake but is real.",
-"What would be the worst theme park ride?",
-"What is a bad password everyone has used?",
-"Name something you would not want to step on.",
-"What is the funniest fake job title?",
-"What object would make a terrible roommate?",
-"Name something that feels fancy for no reason.",
-"What is the worst thing to say on a first date?",
-"What item would be useless in a zombie movie?",
-"Name a food that is louder than it should be.",
-"What would be the worst school subject to add?",
-"What is the best fake band name?",
-"Name something people lose immediately.",
-"What is the funniest thing to see someone carry proudly?",
-"What would be the worst superpower?",
-"Name something that gets blamed for everything.",
-"What is the most dramatic household item?",
-"What is the worst prize for first place?",
-"Name a word that sounds rude but is not.",
-"What would be the worst thing to find in your shoe?",
-"What is the most suspicious color for a drink?",
-"Name something everyone says they will do tomorrow.",
-"What is the funniest place to fall asleep?",
-"What would be the worst mascot for a bank?",
-"Name something that should not be warm.",
-"What is the most powerful sandwich filling?",
-"What would be the worst way to start a speech?",
-"Name something people pretend is comfortable.",
-"What is the funniest item to bring through airport security?",
-"What would be the worst name for a gym?",
-"Name something that gets worse when wet.",
-"What is the most cursed breakfast food?",
-"What would be the worst thing to hear from a dentist?",
-"Name a place where whispering is weird.",
-"What is the funniest thing to write on a trophy?",
-"What would be the worst thing to put in a vending machine?",
-"Name something everyone has dropped at least once.",
-"What is the most suspicious way to say hello?",
-"What would be the worst holiday tradition?",
-"Name something that should never have wheels.",
-"What is the funniest sound effect for walking?",
-"What would be the worst thing to wear to court?",
-"Name a food that feels like a dare.",
-"What is the worst thing to hear from a pilot?",
-"What would be the funniest low budget movie title?",
-"Name something people check even when they know it is empty.",
-"What is the most dramatic way to open a door?",
-"What would be the worst cereal mascot?",
-"Name something everyone overestimates about themselves.",
-"What is the funniest thing to whisper in a lift?",
-"What would be the worst thing to make scented?",
-"Name something that should not be sticky.",
-"What is the most suspicious thing to order at a cafe?",
-"What would be the worst slogan for a hospital?",
-"Name something people save but never use.",
-"What is the funniest thing to see on a business card?",
-"What would be the worst room in a haunted house?",
-"Name something that gets louder at night.",
-"What is the most unnecessary kitchen gadget?",
-"What would be the worst flavor of ice cream?",
-"Name something people pretend is a personality trait.",
-"What is the funniest thing to call a group chat?",
-"What would be the worst thing to hear from a barber?",
-"Name something that is always somehow tangled.",
-"What is the most suspicious thing to keep in a drawer?",
-"What would be the worst thing to put on a billboard?",
-"Name something people do when they are trying to look busy.",
-"What is the funniest thing to pack for a one-night trip?",
-"What would be the worst name for a detective?",
-"Name something that should not be fizzy.",
-"What is the most powerful party snack?",
-"What would be the worst item to inherit?",
-"Name something people say when they have no idea.",
-"What is the funniest place for a dramatic pause?",
-"What would be the worst thing to find under a couch?",
-"Name something that feels like it judges you.",
-"What is the best wrong answer to any question?",
-"Name something people pretend not to be competitive about.",
-"What is the most chaotic thing to put inside a pinata?",
-"Name a tiny object that could start a huge argument.",
-"What would be the funniest warning label on a person?",
-"Name something everyone suddenly becomes an expert on.",
-"What is the worst sound to hear from the next room?",
-"Name the most suspicious item to bring on a picnic.",
-"What would be the funniest thing for a dog to say first?",
-"Name something that should have a dramatic theme song.",
-"What is the best fake excuse for leaving a group chat?"];
-
-const EDUCATION_HERD_PROMPTS = [
-  "Name one invention that changed everyday life and explain why.",
-  "What is the most important habit for learning something difficult?",
-  "Name a natural process that people see in everyday life.",
-  "What historical discovery had the biggest effect on the modern world?",
-  "Which skill should every student learn before leaving school?",
-  "Name a word that describes a strong scientific explanation.",
-  "What is one practical way to reduce waste at home?",
-  "Which part of a healthy routine matters most to the group?",
-  "Name a place where mathematics is used unexpectedly.",
-  "What makes a source trustworthy when researching a topic?"
-];
+const MAJORITY_QUESTION_PRESETS = [
+{ text: "Which snack disappears first at every party?", answers: ["Hot chips", "Pizza", "Chocolate", "Cheese"] },
+{ text: "Which tiny inconvenience causes the biggest overreaction?", answers: ["Slow Wi-Fi", "Wet socks", "Low battery", "A squeaky door"] },
+{ text: "Which animal has the most chaotic energy?", answers: ["Goose", "Raccoon", "Monkey", "Seagull"] },
+{ text: "What is the best excuse for leaving a party early?", answers: ["Early morning", "Pet emergency", "Battery is dying", "Social battery is empty"] },
+{ text: "Which food is hardest to eat while looking dignified?", answers: ["Spaghetti", "Tacos", "Corn on the cob", "A giant burger"] },
+{ text: "What is the most suspicious sentence to hear from a friend?", answers: ["Trust me", "Don't look behind you", "I can explain", "It was like that already"] },
+{ text: "Which household object would make the worst roommate?", answers: ["Printer", "Alarm clock", "Blender", "Vacuum"] },
+{ text: "What would be the worst name for a boat?", answers: ["Unsinkable 2", "Tax Return", "Probably Fine", "Moist Vessel"] },
+{ text: "Which song choice ends karaoke night fastest?", answers: ["A ten-minute ballad", "Baby Shark", "An opera solo", "The same song again"] },
+{ text: "What should never be described as moist?", answers: ["A handshake", "A pillow", "A wallet", "The carpet"] },
+{ text: "Which smell ruins a heroic entrance most?", answers: ["Old cheese", "Wet carpet", "Burnt popcorn", "Mystery fridge"] },
+{ text: "Who in the room is most likely to accidentally become famous?", answers: ["The loud one", "The quiet wildcard", "The oversharer", "The snack expert"] },
+{ text: "Which prize would earn the weakest applause?", answers: ["One sock", "A damp coupon", "A tiny spoon", "A mystery key"] },
+{ text: "What is the most cursed pizza topping?", answers: ["Warm grapes", "Mint toothpaste", "Cold peas", "Banana slices"] },
+{ text: "Which app steals the most time?", answers: ["TikTok", "YouTube", "Instagram", "The weather app somehow"] },
+{ text: "What is the least reassuring thing a pilot could say?", answers: ["Which button lands us?", "This is probably fine", "Anyone seen my glasses?", "That's a new noise"] },
+{ text: "Which object is judging you the hardest?", answers: ["Bathroom scale", "Unread book", "Smoke alarm", "Empty laundry basket"] },
+{ text: "What is the strongest sign a party has gone wrong?", answers: ["The lights are on", "Someone brought a spreadsheet", "The host is asleep", "A chair is missing"] },
+{ text: "Which fake job sounds most believable?", answers: ["Cloud inspector", "Snack lawyer", "Chair detective", "Vibe plumber"] },
+{ text: "What is the funniest thing to put on a trophy?", answers: ["Best at sitting", "Most improved napper", "World's okayest effort", "Participation champion"] },
+{ text: "Which superpower would be least useful?", answers: ["Warm ice cubes", "Invisible socks", "One-second time travel", "Talking to printers"] },
+{ text: "What is the worst thing to find in your shoe?", answers: ["Soup", "A note", "One cold pea", "Another smaller shoe"] },
+{ text: "Which food has the strongest main-character energy?", answers: ["Lasagne", "Tacos", "Sushi", "Garlic bread"] },
+{ text: "What is the most dramatic household appliance?", answers: ["Toaster", "Blender", "Smoke alarm", "Robot vacuum"] },
+{ text: "Which animal would be the worst boss?", answers: ["Goose", "Cat", "Dolphin", "Horse"] },
+{ text: "What is the funniest emergency announcement?", answers: ["The cake can drive", "The balloons unionised", "We lost Tuesday", "The floor is optional"] },
+{ text: "Which item is least useful in an action movie?", answers: ["Kazoo", "Feather", "Nice hat", "Salad spinner"] },
+{ text: "What is the worst slogan for a fancy restaurant?", answers: ["Probably edible", "Forks cost extra", "Food may vary", "Chew at your own risk"] },
+{ text: "Which word sounds most like a secret password?", answers: ["Plonk", "Noodle", "Chair", "Mega"] },
+{ text: "What is the most suspicious housewarming gift?", answers: ["A key to nothing", "A toaster portrait", "One glove", "An unlabelled map"] },
+{ text: "Which vehicle makes the funniest dramatic arrival?", answers: ["Forklift", "Scooter", "Tiny train", "Pedal boat"] },
+{ text: "What is the worst theme for a birthday party?", answers: ["Tax audit", "Airport security", "Dentist waiting room", "Mandatory meeting"] },
+{ text: "Which snack is hardest to share fairly?", answers: ["Hot chips", "Nachos", "Chocolate", "Popcorn"] },
+{ text: "What is the best wrong answer to almost any question?", answers: ["A goose", "Tuesday", "More cheese", "Ask the dog"] },
+{ text: "Which room in a house becomes haunted first?", answers: ["Basement", "Bathroom", "Spare room", "Laundry"] },
+{ text: "What is the worst thing to hear from a dentist?", answers: ["That's interesting", "Hold my sandwich", "This is new", "Do you smell smoke?"] },
+{ text: "Which social mistake is hardest to recover from?", answers: ["Wrong group chat", "Forgot their name", "Waved at a stranger", "Replied all"] },
+{ text: "What is the funniest low-budget movie title?", answers: ["Slightly Fast", "Jurassic Car Park", "Mission: Possible", "The Okay Escape"] },
+{ text: "Which breakfast food is most overrated?", answers: ["Cereal", "Pancakes", "Avocado toast", "Cold pizza"] },
+{ text: "What would make the worst group-chat name?", answers: ["Definitely Not Gossip", "Mum Is Typing", "Reply All", "The Incident"] }];
 
 const EDUCATION_QUESTION_PRESETS = [
   { text: "Which planet is closest to the Sun?", correct: "Mercury", wrong: ["Venus", "Earth", "Mars"] },
@@ -420,20 +320,22 @@ const emptyLobby = {
   canStart: false,
   activePlayerCount: 0,
   answerCount: 0,
-  rankingCount: 0,
   answerSelections: [],
   currentQuestion: null,
   ownPlayer: null,
   ownQuestions: [],
+  ownHerdAssignments: [],
+  herdAnswerReview: [],
+  herdPreparation: null,
   ownPoke: null,
+  ownCounterOffer: null,
+  gahookDuel: null,
   ownAnswer: null,
-  ownHerdRanking: null,
   ownGahookUses: { question: [], round: [], reveal: [] },
   phaseDurations: {
     reading: 5000,
     answering: 14000,
-    ranking: 60000,
-    reveal: 10000
+    reveal: 12000
   }
 };
 
@@ -451,6 +353,7 @@ function questionsPerPlayerForPreset(preset, playerCount, customLimit = 3) {
 function plannedQuestionsForLobby(lobby, playerCount = lobby.players.filter((player) => player.connected).length) {
   const serverPlan = Number(lobby.plannedTotalQuestions);
   if (serverPlan > 0 || !playerCount) return Math.max(0, serverPlan || 0);
+  if (lobby.gameMode === "herd") return playerCount;
   const perPlayer = questionsPerPlayerForPreset(lobby.roundPreset, playerCount, lobby.maxQuestionsPerPlayer);
   const submittedPlan = playerCount * perPlayer;
   if (lobby.roundPreset === "quick") return Math.min(10, submittedPlan);
@@ -461,7 +364,7 @@ function plannedQuestionsForLobby(lobby, playerCount = lobby.players.filter((pla
 function estimatedRoundDurationMs(lobby, totalQuestions = plannedQuestionsForLobby(lobby)) {
   if (Number(lobby.estimatedDurationMs) > 0) return Number(lobby.estimatedDurationMs);
   const durations = lobby.phaseDurations || emptyLobby.phaseDurations;
-  const phases = lobby.gameMode === "herd" ? ["reading", "answering", "ranking", "reveal"] : ["reading", "answering", "reveal"];
+  const phases = ["reading", "answering", "reveal"];
   return totalQuestions * phases.reduce((total, phase) => total + Number(durations[phase] || 0), 0);
 }
 
@@ -518,9 +421,15 @@ function updateServerClockOffset(serverTime) {
   window.gahookzServerClockOffset = Math.round(previousOffset * 0.65 + nextOffset * 0.35);
 }
 
-function reducer(state = { connected: false, error: "", lobby: emptyLobby }, action) {
+function reducer(state = { connected: false, connectionError: "", error: "", lobby: emptyLobby }, action) {
   if (action.type === "CONNECTED") {
     return { ...state, connected: action.value };
+  }
+  if (action.type === "ROOM_CONNECTION_RESET") {
+    return { ...state, connectionError: "" };
+  }
+  if (action.type === "ROOM_CONNECTION_ERROR") {
+    return { ...state, connected: false, connectionError: action.value || "The room could not be loaded." };
   }
   if (action.type === "SNAPSHOT") {
     const incomingLobby = { ...emptyLobby, ...action.value };
@@ -534,7 +443,7 @@ function reducer(state = { connected: false, error: "", lobby: emptyLobby }, act
       const isFreshLocalPoke = isLocalPoke && now - (current.latestPokeAt || 0) < 1600;
       const incomingPokeAt = player?.latestPokeAt || 0;
       const currentPokeAt = current?.latestPokeAt || 0;
-      const incomingSpecial = ["ultimate", "ultimate-congrats", "get-got", "congrats", "boo", "counter"].includes(player?.latestPokeKind || "");
+      const incomingSpecial = ["ultimate", "ultimate-congrats", "get-got", "congrats", "boo", "counter", "duel-challenge"].includes(player?.latestPokeKind || "");
       const shouldPreserveLocalPoke = !incomingSpecial && isFreshLocalPoke && (!player?.latestPokeId || incomingPokeAt < currentPokeAt);
       if (forceRollback || !current || !shouldPreserveLocalPoke) {
         return player;
@@ -562,7 +471,7 @@ function reducer(state = { connected: false, error: "", lobby: emptyLobby }, act
     const isFreshOwnLocalPoke = isOwnLocalPoke && now - (state.lobby.ownPoke?.createdAt || 0) < 1600;
     const incomingOwnPokeAt = incomingLobby.ownPoke?.createdAt || 0;
     const currentOwnPokeAt = state.lobby.ownPoke?.createdAt || 0;
-    const incomingOwnSpecial = ["ultimate", "ultimate-congrats", "get-got", "congrats", "boo", "counter"].includes(incomingLobby.ownPoke?.kind || "");
+    const incomingOwnSpecial = ["ultimate", "ultimate-congrats", "get-got", "congrats", "boo", "counter", "duel-challenge"].includes(incomingLobby.ownPoke?.kind || "");
     const ownLocalPokeEcho = !incomingOwnSpecial && isFreshOwnLocalPoke && (!incomingLobby.ownPoke?.id || incomingOwnPokeAt < currentOwnPokeAt);
     const ownPoke = !forceRollback && ownLocalPokeEcho ?
     state.lobby.ownPoke :
@@ -576,7 +485,7 @@ function reducer(state = { connected: false, error: "", lobby: emptyLobby }, act
       ownAnswer,
       answerCount
     };
-    return { ...state, lobby: mergedLobby };
+    return { ...state, connectionError: "", lobby: mergedLobby };
   }
   if (action.type === "OPTIMISTIC_POKE") {
     const poke = action.value || {};
@@ -924,7 +833,13 @@ function getClientKey() {
 
 function getSavedJoin() {
   try {
-    return JSON.parse(localStorage.getItem(JOIN_KEY) || "{}") || {};
+    const saved = JSON.parse(localStorage.getItem(JOIN_KEY) || "{}") || {};
+    if (Object.prototype.hasOwnProperty.call(saved, "password")) {
+      const { password: _password, ...safeJoin } = saved;
+      localStorage.setItem(JOIN_KEY, JSON.stringify(safeJoin));
+      return safeJoin;
+    }
+    return saved;
   } catch (_error) {
     return {};
   }
@@ -932,7 +847,8 @@ function getSavedJoin() {
 
 function saveJoinSession(join) {
   try {
-    localStorage.setItem(JOIN_KEY, JSON.stringify(join));
+    const { password: _password, ...safeJoin } = join || {};
+    localStorage.setItem(JOIN_KEY, JSON.stringify(safeJoin));
   } catch (_error) {
     return;
   }
@@ -942,11 +858,21 @@ function roomPasswordKey(code) {
   return "gahookz-room-password-" + normaliseRoomCode(code);
 }
 
+let migratedUrlPassword;
+
 function getUrlPassword() {
+  if (migratedUrlPassword !== undefined) return migratedUrlPassword;
   try {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("pwd") || params.get("pw") || "";
+    const url = new URL(window.location.href);
+    migratedUrlPassword = url.searchParams.get("pwd") || url.searchParams.get("pw") || "";
+    if (migratedUrlPassword) {
+      url.searchParams.delete("pwd");
+      url.searchParams.delete("pw");
+      history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+    }
+    return migratedUrlPassword;
   } catch (_error) {
+    migratedUrlPassword = "";
     return "";
   }
 }
@@ -956,7 +882,7 @@ function getWelcomePrefill() {
     const params = new URLSearchParams(window.location.search);
     return {
       code: normaliseRoomCode(params.get("room")),
-      password: params.get("pwd") || params.get("pw") || ""
+      password: getUrlPassword()
     };
   } catch (_error) {
     return { code: "", password: "" };
@@ -970,9 +896,9 @@ function saveRoomPassword(code, password) {
   }
   try {
     if (password) {
-      localStorage.setItem(roomPasswordKey(cleanCode), password);
+      sessionStorage.setItem(roomPasswordKey(cleanCode), password);
     } else {
-      localStorage.removeItem(roomPasswordKey(cleanCode));
+      sessionStorage.removeItem(roomPasswordKey(cleanCode));
     }
   } catch (_error) {
     return;
@@ -985,29 +911,27 @@ function getSavedRoomPassword(code) {
     return "";
   }
   try {
-    return localStorage.getItem(roomPasswordKey(cleanCode)) || "";
+    return sessionStorage.getItem(roomPasswordKey(cleanCode)) || "";
   } catch (_error) {
     return "";
   }
 }
 
-function buildRoomPath(code, password = getSavedRoomPassword(code)) {
+function buildRoomPath(code) {
   const cleanCode = normaliseRoomCode(code);
-  const query = password ? "?pwd=" + encodeURIComponent(password) : "";
-  return "/" + cleanCode + query;
+  return "/" + cleanCode;
 }
 
-function buildWelcomePath(code, password = "") {
+function buildWelcomePath(code) {
   const params = new URLSearchParams();
   const cleanCode = normaliseRoomCode(code);
   if (cleanCode) params.set("room", cleanCode);
-  if (password) params.set("pwd", password);
   const query = params.toString();
   return "/" + (query ? "?" + query : "");
 }
 
-function buildRoomLink(code, password = getSavedRoomPassword(code)) {
-  return window.location.origin + buildRoomPath(code, password);
+function buildRoomLink(code) {
+  return window.location.origin + buildRoomPath(code);
 }
 
 function scheduleSnapshotRefresh(delayMs = 1000) {
@@ -1057,26 +981,6 @@ function triggerClientOnlySelfGahook(dispatch, player, ownPlayer, from) {
     return false;
   }
   dispatch({ type: "OPTIMISTIC_POKE", value: optimisticPokePayload(player, from, "", "", ownPlayer.gahookForm || getStoredGahookForm()) });
-  return true;
-}
-
-function applyCounterGahookResult(dispatch, result) {
-  const counterPoke = result?.counterPoke;
-  const counterPokeId = counterPoke?.pokeId || counterPoke?.id;
-  if (result?.kind !== "counter" || !counterPokeId) {
-    return false;
-  }
-  const currentLobby = store.getState().lobby;
-  if (currentLobby.ownPoke?.id === counterPokeId || currentLobby.ownPlayer?.latestPokeId === counterPokeId) {
-    return true;
-  }
-  dispatch({
-    type: "OPTIMISTIC_POKE",
-    value: {
-      ...counterPoke,
-      pokeId: counterPokeId
-    }
-  });
   return true;
 }
 
@@ -1169,7 +1073,7 @@ async function api(path, payload = {}, options = {}) {
   try {
     const response = await fetch(path, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(body.code ? { "X-Gahookz-Room": body.code } : {}) },
       body: JSON.stringify(body),
       signal: controller?.signal
     });
@@ -1195,14 +1099,30 @@ function useEvents(mode, code, playerKey) {
       return undefined;
     }
 
-    const params = new URLSearchParams({ role: mode });
-    params.set("code", code);
-    params.set("playerKey", playerKey);
-
     let active = true;
     let pendingSnapshot = null;
     let flushTimer = null;
     let latestAppliedVersion = 0;
+    let events = null;
+    let eventReconnectTimer = null;
+    let consecutiveFailures = 0;
+
+    dispatch({ type: "ROOM_CONNECTION_RESET" });
+
+    const connectionMessage = (error) => {
+      const message = String(error?.error || error?.message || "").trim();
+      if (message === "Unknown action.") {
+        return "This screen is newer than the game server. The server needs to finish updating before this room can open.";
+      }
+      return message || "Could not reach this room. Check the server, then retry.";
+    };
+
+    const reportFailure = (error, { immediate = false } = {}) => {
+      consecutiveFailures += 1;
+      if (immediate || consecutiveFailures >= 2) {
+        dispatch({ type: "ROOM_CONNECTION_ERROR", value: connectionMessage(error) });
+      }
+    };
 
     const applySnapshot = (snapshot) => {
       if (!active) {
@@ -1213,6 +1133,7 @@ function useEvents(mode, code, playerKey) {
         return;
       }
       latestAppliedVersion = Math.max(latestAppliedVersion, version);
+      consecutiveFailures = 0;
       dispatch({ type: "CONNECTED", value: true });
       dispatch({ type: "SNAPSHOT", value: snapshot });
     };
@@ -1248,33 +1169,64 @@ function useEvents(mode, code, playerKey) {
     };
     const fetchSnapshot = async () => {
       try {
-        const response = await fetch("/api/state?" + params.toString(), { cache: "no-store" });
+        const response = await fetch("/api/state", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Gahookz-Room": code },
+          body: JSON.stringify({ code, role: mode, playerKey }),
+          cache: "no-store"
+        });
         const snapshot = await response.json();
         if (response.status === 404 && snapshot?.roomMissing) {
           if (active) {
-            const password = getUrlPassword() || getSavedRoomPassword(code);
-            navigateTo(buildWelcomePath(code, password));
+            navigateTo(buildWelcomePath(code));
           }
           return;
         }
         if (!response.ok) {
-          throw new Error(snapshot?.error || "Could not load that room.");
+          reportFailure(snapshot, { immediate: response.status >= 400 && response.status < 500 });
+          return;
         }
         queueSnapshot(snapshot);
-      } catch (_error) {
+      } catch (error) {
         if (active) {
           dispatch({ type: "CONNECTED", value: false });
+          reportFailure(error);
         }
       }
     };
     window.gahookzRefreshSnapshot = fetchSnapshot;
 
-    const events = new EventSource("/events?" + params.toString());
-    events.onopen = () => dispatch({ type: "CONNECTED", value: true });
-    events.onerror = () => dispatch({ type: "CONNECTED", value: false });
-    events.addEventListener("state", (event) => {
-      queueSnapshot(JSON.parse(event.data));
-    });
+    const connectEvents = async () => {
+      const ticketResult = await api("/api/events/ticket", { code, role: mode, playerKey }, { refresh: false });
+      if (!active) return;
+      if (!ticketResult.ok) {
+        dispatch({ type: "CONNECTED", value: false });
+        if (ticketResult.roomMissing) {
+          navigateTo(buildWelcomePath(code));
+          return;
+        }
+        reportFailure(ticketResult, { immediate: true });
+        eventReconnectTimer = setTimeout(connectEvents, 1500);
+        return;
+      }
+      events?.close();
+      events = new EventSource("/events?ticket=" + encodeURIComponent(ticketResult.ticket) + "&room=" + encodeURIComponent(code));
+      events.onopen = () => dispatch({ type: "CONNECTED", value: true });
+      events.onerror = () => {
+        if (!active) return;
+        dispatch({ type: "CONNECTED", value: false });
+        events?.close();
+        eventReconnectTimer = setTimeout(connectEvents, 1500);
+      };
+      events.addEventListener("state", (event) => {
+        try {
+          queueSnapshot(JSON.parse(event.data));
+        } catch (error) {
+          reportFailure(error, { immediate: true });
+        }
+      });
+    };
+    connectEvents();
     fetchSnapshot();
     const interval = setInterval(fetchSnapshot, 1800);
 
@@ -1286,8 +1238,11 @@ function useEvents(mode, code, playerKey) {
       if (flushTimer) {
         clearTimeout(flushTimer);
       }
+      if (eventReconnectTimer) {
+        clearTimeout(eventReconnectTimer);
+      }
       clearInterval(interval);
-      events.close();
+      events?.close();
     };
   }, [mode, code, playerKey, dispatch]);
 }
@@ -1297,15 +1252,31 @@ function App() {
   const mode = route.mode;
   const playerKey = getClientKey();
   const error = useSelector((state) => state.error);
+  const connectionError = useSelector((state) => state.connectionError);
   const lobby = useSelector((state) => state.lobby);
   const dispatch = useDispatch();
   const serverConnection = useServerConnection();
 
-  useEvents(serverConnection.offline ? "welcome" : mode, route.code, playerKey);
+  useEvents(serverConnection.offline || serverConnection.protocolMismatch ? "welcome" : mode, route.code, playerKey);
 
   useEffect(() => {
     installGahookWarmup();
   }, []);
+
+  useEffect(() => {
+    if (serverConnection.offline) {
+      setGameMusicState("off");
+      return;
+    }
+    if (mode === "welcome" || mode === "information") {
+      setGameMusicState("welcome");
+      return;
+    }
+    if (lobby.phase === "lobby") setGameMusicState("lobby");
+    else if (lobby.phase === "building" || lobby.phase === "herd-writing") setGameMusicState("prep");
+    else if (lobby.phase === "finished") setGameMusicState("finale");
+    else setGameMusicState("live");
+  }, [mode, lobby.phase, serverConnection.offline]);
 
   useEffect(() => {
     if (!error) {
@@ -1320,7 +1291,7 @@ function App() {
   }, [mode, route.code]);
 
   useEffect(() => {
-    if (!["reading", "answering", "ranking", "reveal", "finished"].includes(lobby.phase)) {
+    if (!["reading", "answering", "reveal", "finished"].includes(lobby.phase)) {
       return;
     }
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -1336,9 +1307,15 @@ function App() {
     return <OfflineExperience recovered={serverConnection.recovered} onReturnOnline={serverConnection.returnOnline} />;
   }
 
+  if (serverConnection.protocolMismatch && mode !== "information") {
+    return <ServerUpdateExperience mismatch={serverConnection.protocolMismatch} />;
+  }
+
   return (
     <>
-      {mode === "information" ? <InformationHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} /> : lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}
+      {mode === "information" ? <InformationHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}
+      {mode === "room" && lobby.code === route.code ? <GahookArenaIntro duel={lobby.gahookDuel} /> : null}
+      {mode === "room" && lobby.code === route.code ? <GahookArenaCrowdControls duel={lobby.gahookDuel} ownPlayer={lobby.ownPlayer} playerKey={playerKey} /> : null}
       {error ?
       <div className="toast" role="status" key={error}>
           <span>{error}</span>
@@ -1349,11 +1326,34 @@ function App() {
 
 }
 
-function RoomLoading({ code }) {
+function RoomLoading({ code, error = "" }) {
+  const [slow, setSlow] = useState(false);
+
+  useEffect(() => {
+    setSlow(false);
+    const timer = setTimeout(() => setSlow(true), 6500);
+    return () => clearTimeout(timer);
+  }, [code]);
+
+  const retry = async () => {
+    if (error.includes("newer than the game server")) {
+      try {
+        const registration = await navigator.serviceWorker?.getRegistration?.("/");
+        await registration?.update?.();
+      } catch (_error) {}
+      window.location.reload();
+      return;
+    }
+    setSlow(false);
+    window.gahookzRefreshSnapshot?.();
+  };
+
+  const problem = error || (slow ? "The room is taking longer than expected. The server may be restarting or this screen may need a newer release." : "");
   return (
     <main className="room-loading">
       <div className="brand-lockup welcome-brand"><strong>Gahookz</strong></div>
-      <p>Loading {code}</p>
+      <p>{problem ? "Room " + code + " isn't ready" : "Loading " + code}</p>
+      {problem ? <section className="room-loading-status" role="alert"><span>{problem}</span><div><button type="button" onClick={retry}>Retry</button><button type="button" onClick={() => navigateTo(buildWelcomePath(code))}>Back to home</button></div></section> : null}
     </main>);
 
 }
@@ -1414,7 +1414,7 @@ function WelcomeScreen() {
     }
     if (password) {
       saveRoomPassword(result.code, password);
-      saveJoinSession({ ...getSavedJoin(), code: result.code, password });
+      saveJoinSession({ ...getSavedJoin(), code: result.code });
     }
     navigateTo(buildRoomPath(result.code, password));
   };
@@ -1445,11 +1445,94 @@ function WelcomeScreen() {
         open={showTutorial}
         onClose={() => setShowTutorial(false)}
         includeHost
-        allowedModes={["overview", "quiz", "herd", "host"]}
+        allowedModes={["overview", "quiz", "majority", "herd", "host"]}
       />
       {wrongPasswordPoke ? <PokeJumpScare key={wrongPasswordPoke.id} poke={wrongPasswordPoke} /> : null}
     </main>);
 
+}
+
+const CAREER_STATS = [
+  ["gamesPlayed", "Games"],
+  ["wins", "Wins"],
+  ["podiums", "Podiums"],
+  ["totalScore", "Total points"],
+  ["highScore", "Best game"],
+  ["answersSubmitted", "Answers"],
+  ["correctAnswers", "Quiz correct"],
+  ["popularChoices", "Crowd picks"],
+  ["questionsAuthored", "Questions"],
+  ["herdVotesReceived", "Herd votes"],
+  ["gahooksSent", "Gahooks sent"],
+  ["gahooksReceived", "Gahooks got"]
+];
+
+function accountLoginHref() {
+  const returnUrl = new URL(window.location.href);
+  returnUrl.hash = "";
+  returnUrl.searchParams.delete("account");
+  return "/auth/google/start?returnTo=" + encodeURIComponent(returnUrl.pathname + returnUrl.search);
+}
+
+function AccountPanel() {
+  const dispatch = useDispatch();
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const accountMessage = new URL(window.location.href).searchParams.get("account");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/account", { headers: { accept: "application/json" } });
+      setStatus(await response.json());
+    } catch {
+      setStatus({ ok: false, signedIn: false, googleAvailable: false });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    if (accountMessage) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("account");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      if (accountMessage === "connected") dispatch({ type: "ERROR", value: "Google account connected. Your game stats can now follow you." });
+      if (accountMessage === "error") dispatch({ type: "ERROR", value: "Google sign-in did not finish. Guest play still works." });
+    }
+  }, []);
+
+  const signOut = async () => {
+    const result = await api("/api/account/logout", {}, { refresh: false });
+    if (!result.ok) {
+      dispatch({ type: "ERROR", value: result.error });
+      return;
+    }
+    await load();
+  };
+
+  if (loading) return null;
+  if (status?.signedIn && status.account) {
+    const account = status.account;
+    return (
+      <section className="account-panel account-panel-signed-in" aria-label="Gahookz account">
+        <header>
+          <div className="account-avatar" aria-hidden="true"><span>{account.displayName.slice(0, 1).toUpperCase()}</span></div>
+          <div><small>Career profile</small><h2>{account.displayName}</h2><p>{account.customGahookSlots} cloud Gahook {account.customGahookSlots === 1 ? "slot" : "slots"}</p></div>
+          <button type="button" onClick={signOut}>Sign out</button>
+        </header>
+        <div className="career-stat-grid">
+          {CAREER_STATS.map(([key, label]) => <div key={key}><strong>{Number(account.stats?.[key] || 0).toLocaleString()}</strong><span>{label}</span></div>)}
+        </div>
+        <p className="account-privacy-note">Signing in saves career totals and custom Gahooks. A room still works for every guest.</p>
+      </section>);
+  }
+  return (
+    <section className="account-panel account-panel-guest" aria-label="Optional Gahookz account">
+      <div><small>Optional player profile</small><h2>Keep your wins and custom Gahooks</h2><p>Guest play stays instant. Sign in only if you want stats and unlocks to follow you.</p></div>
+      {status?.googleAvailable ? <a className="google-sign-in-button" href={accountLoginHref()}>Continue with Google</a> : <span className="account-unavailable">Account sign-in is not configured on this server yet.</span>}
+    </section>);
 }
 
 function EntryModeArt({ art }) {
@@ -1472,6 +1555,17 @@ function LobbyCodeBand({ code, playerLink, shareNotice, onClick, className = "" 
       {shareNotice ? <em>{shareNotice}</em> : null}
     </button>
   );
+}
+
+function PreviousGameSummary({ summary, ownPlayerId = "" }) {
+  const leaderboard = summary?.leaderboard || [];
+  if (!leaderboard.length) return null;
+  const winners = leaderboard.filter((player) => player.rank === 1);
+  return (
+    <section className="previous-game-summary" aria-label="Previous game results">
+      <header><div><small>Last game · {gameModeTitle(summary.gameMode)}</small><h2>{winners.length > 1 ? "Shared win" : "Winner"}: {winners.map((player) => player.name).join(" & ")}</h2></div><strong>{Math.max(...winners.map((player) => player.score), 0).toLocaleString()} pts</strong></header>
+      <div>{leaderboard.slice(0, 8).map((player) => <span className={player.id === ownPlayerId ? "is-own-player" : ""} key={player.id}><b>#{player.rank}</b><AvatarBadge player={player} small /><em>{player.name}</em><strong>{player.score.toLocaleString()}</strong></span>)}</div>
+    </section>);
 }
 
 function HostMode({ playerKey, code }) {
@@ -1563,7 +1657,7 @@ function HostMode({ playerKey, code }) {
       avatarImageDataUrl: saved.avatarImageDataUrl || "",
       gahookForm: saved.gahookForm || getStoredGahookForm(),
       playerKey,
-      password: getSavedRoomPassword(code) || saved.password || getUrlPassword() || ""
+      password: getSavedRoomPassword(code) || getUrlPassword() || ""
     }, { refresh: false });
     setRejoiningAsPlayer(false);
     if (!result.ok) {
@@ -1642,7 +1736,7 @@ function RoomSocialHub({ lobby, ownPlayer = null, playerKey = "" }) {
   return <WaitingRoomSocial
     snapshot={lobby}
     ownPlayerId={ownPlayer?.id || "host"}
-    disabled={!lobby.code || !["lobby", "building"].includes(lobby.phase)}
+    disabled={!lobby.code || !["lobby", "building", "herd-writing"].includes(lobby.phase)}
     title="Room chat"
     onSendMessage={(text) => send("/api/room/chat", { text })}
     onDrawStroke={(stroke) => send("/api/room/whiteboard/stroke", { stroke })}
@@ -1651,16 +1745,337 @@ function RoomSocialHub({ lobby, ownPlayer = null, playerKey = "" }) {
   />;
 }
 
+function ArenaHitPips({ duel, playerId }) {
+  const hits = Math.max(0, Number(duel?.hits?.[playerId]) || 0);
+  const total = Math.max(1, Number(duel?.hitsToWin) || 3);
+  return <span className="gahook-arena-hit-pips" aria-label={`${hits} of ${total} hits received`}>
+    {Array.from({ length: total }, (_item, index) => <i className={index < hits ? "is-hit" : ""} key={index} />)}
+  </span>;
+}
+
+function ArenaGahookBall({ player, label = "", small = false }) {
+  if (!player) return null;
+  return <span className={["gahook-arena-ball-visual", small ? "is-small" : ""].filter(Boolean).join(" ")} aria-hidden="true">
+    <GahookOverlayVisual form={getGahookForm(player.gahookForm)} customGahook={player.customGahook} small />
+    {label ? <b>{label}</b> : null}
+  </span>;
+}
+
+function GahookArenaIntro({ duel }) {
+  const [expired, setExpired] = useState(false);
+  const players = Array.isArray(duel?.players) ? duel.players : [];
+  const first = players[0];
+  const second = players[1];
+  useEffect(() => {
+    setExpired(false);
+    if (!duel?.id || duel.status !== "active" || !duel.introEndsAt) return undefined;
+    const soundChannel = resetPokeSoundChannel();
+    playCounterGahookSound(soundChannel);
+    speakText("Gahook Arena", { rate: 0.88, pitch: 0.66, volume: 1, lang: "en-US" });
+    const timer = setTimeout(() => setExpired(true), Math.max(0, duel.introEndsAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [duel?.id, duel?.introEndsAt]);
+  if (!first || !second || duel.status !== "active" || expired || duel.introEndsAt <= Date.now()) return null;
+  return <aside className="gahook-arena-intro" role="alert" aria-live="assertive">
+    <span>1V1 GAHOOK</span>
+    <div>
+      <article><AvatarBadge player={first} /><strong>{first.name}</strong></article>
+      <b><small>PLAYER</small>VS<small>PLAYER</small></b>
+      <article><AvatarBadge player={second} /><strong>{second.name}</strong></article>
+    </div>
+    <h2>GAHOOK ARENA</h2>
+    <p>First to land 3 Gahook Ballz wins</p>
+  </aside>;
+}
+
+function GahookArenaCrowdControls({ duel, ownPlayer, playerKey }) {
+  const dispatch = useDispatch();
+  const [busy, setBusy] = useState("");
+  const [expired, setExpired] = useState(false);
+  const isCompetitor = [duel?.challengerId, duel?.challengedId].includes(ownPlayer?.id);
+  useEffect(() => {
+    setExpired(false);
+    if (!duel?.reactionEndsAt) return undefined;
+    const timer = setTimeout(() => setExpired(true), Math.max(0, duel.reactionEndsAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [duel?.id, duel?.reactionEndsAt]);
+  if (!duel || duel.status !== "finished" || !ownPlayer || isCompetitor || expired || duel.reactionEndsAt <= Date.now()) return null;
+  const players = Array.isArray(duel.players) ? duel.players : [];
+  const winner = players.find((player) => player.id === duel.winnerId);
+  const loser = players.find((player) => player.id === duel.loserId);
+  const react = async (reaction) => {
+    if (busy) return;
+    setBusy(reaction);
+    const result = await api("/api/player/duel-react", { playerKey, duelId: duel.id, reaction }, { refresh: false, timeoutMs: 1800 });
+    setBusy("");
+    if (!result.ok) {
+      dispatch({ type: "ERROR", value: result.error });
+      return;
+    }
+    window.gahookzRefreshSnapshot?.();
+  };
+  return <aside className="gahook-arena-crowd-controls" aria-label="Gahook Arena crowd reactions">
+    <span>THE CROWD HAS 10 SECONDS</span>
+    <button type="button" disabled={Boolean(busy)} onClick={() => react("congrats")}>
+      <AvatarBadge player={winner} small /><strong>👏 Congratulate {winner?.name || "winner"}</strong><b>{duel.reactionCounts?.congrats || 0}</b>
+    </button>
+    <button className="is-boo" type="button" disabled={Boolean(busy)} onClick={() => react("boo")}>
+      <AvatarBadge player={loser} small /><strong>👎 Boo {loser?.name || "loser"}</strong><b>{duel.reactionCounts?.boos || 0}</b>
+    </button>
+  </aside>;
+}
+
+function GahookDuelArena({ duel }) {
+  if (!duel || (duel.status !== "active" && duel.status !== "finished")) return null;
+  const players = Array.isArray(duel.players) ? duel.players : [];
+  const first = players[0];
+  const second = players[1];
+  if (!first || !second) return null;
+  const winner = players.find((player) => player.id === duel.winnerId);
+  const attackPlayer = players.find((player) => player.id === duel.attack?.attackerId);
+  return <section className={["gahook-duel-arena", duel.status === "finished" ? "is-finished" : "", duel.introEndsAt > Date.now() ? "is-intro" : ""].filter(Boolean).join(" ")} aria-label="Gahook Arena">
+    <div className={["gahook-duel-banner", duel.attack?.attackerId === first.id ? "is-attacking" : "", duel.lastHit?.playerId === first.id ? "is-hit" : "", duel.winnerId === first.id ? "is-winner" : "", duel.loserId === first.id ? "is-loser" : ""].filter(Boolean).join(" ")} key={`${first.id}-${duel.lastHit?.id || "ready"}`}>
+      <AvatarBadge player={first} /><strong>{first.name}</strong>
+      <small>{duel.status === "finished" && duel.winnerId === first.id ? "ARENA CHAMPION" : `${duel.ballStock?.[first.id] || 0} Ballz ready`}</small>
+      <ArenaHitPips duel={duel} playerId={first.id} />
+    </div>
+    <div className="gahook-duel-arena__middle">
+      <span>GAHOOK ARENA</span>
+      {duel.status === "finished" ? <strong>{winner?.name || "Player"} WINS!</strong> : <strong>{duel.hits?.[first.id] || 0} — {duel.hits?.[second.id] || 0}</strong>}
+      {duel.attack ? <div className={["gahook-duel-spectator-attack", duel.attack.attackerId === second.id ? "is-reverse" : ""].filter(Boolean).join(" ")} style={{ "--duel-window": (duel.reactionWindowMs || 1000) + "ms" }} key={duel.attack.id}><ArenaGahookBall player={attackPlayer} small /></div> : null}
+    </div>
+    <div className={["gahook-duel-banner", duel.attack?.attackerId === second.id ? "is-attacking" : "", duel.lastHit?.playerId === second.id ? "is-hit" : "", duel.winnerId === second.id ? "is-winner" : "", duel.loserId === second.id ? "is-loser" : ""].filter(Boolean).join(" ")} key={`${second.id}-${duel.lastHit?.id || "ready"}`}>
+      <AvatarBadge player={second} /><strong>{second.name}</strong>
+      <small>{duel.status === "finished" && duel.winnerId === second.id ? "ARENA CHAMPION" : `${duel.ballStock?.[second.id] || 0} Ballz ready`}</small>
+      <ArenaHitPips duel={duel} playerId={second.id} />
+    </div>
+  </section>;
+}
+
+function GahookDuelOverlay({ duel, ownPlayer, ownPoke, playerKey }) {
+  const dispatch = useDispatch();
+  const [busy, setBusy] = useState(false);
+  const [clock, setClock] = useState(Date.now());
+  const [launchPoint, setLaunchPoint] = useState(null);
+  const [defencePoint, setDefencePoint] = useState(null);
+  const [distractions, setDistractions] = useState([]);
+  const launchRef = useRef(null);
+  const defenceRef = useRef(null);
+  const seenDistractionRef = useRef(ownPoke?.id || "");
+  const distractionTimersRef = useRef([]);
+  const finishSoundRef = useRef("");
+  const ownId = ownPlayer?.id || "";
+  const isParticipant = Boolean(duel?.isParticipant && ownId);
+  useEffect(() => setBusy(false), [duel?.id, duel?.attack?.id, duel?.status, duel?.ballStock?.[ownId], duel?.lastBlock?.id]);
+  useEffect(() => {
+    if (!isParticipant || duel?.status !== "active") return undefined;
+    const timer = setInterval(() => setClock(Date.now()), 100);
+    return () => clearInterval(timer);
+  }, [duel?.id, duel?.status, isParticipant]);
+  useEffect(() => () => distractionTimersRef.current.forEach((timer) => clearTimeout(timer)), []);
+  useEffect(() => {
+    if (!isParticipant || !ownPoke?.id || seenDistractionRef.current === ownPoke.id) return undefined;
+    seenDistractionRef.current = ownPoke.id;
+    if (ownPoke.kind === "counter" || ownPoke.kind === "duel-challenge") return undefined;
+    const distraction = {
+      id: ownPoke.id,
+      kind: ownPoke.kind || "normal",
+      from: ownPoke.from || "Someone",
+      form: getGahookForm(ownPoke.gahookForm),
+      customGahook: ownPoke.customGahook || null,
+      left: 7 + Math.random() * 76,
+      top: 18 + Math.random() * 50,
+      rotate: -18 + Math.random() * 36
+    };
+    setDistractions((current) => [...current.slice(-3), distraction]);
+    const timer = setTimeout(() => setDistractions((current) => current.filter((item) => item.id !== distraction.id)), 1450);
+    distractionTimersRef.current.push(timer);
+    return undefined;
+  }, [ownPoke?.id, isParticipant]);
+  useEffect(() => {
+    if (!isParticipant || duel?.status !== "finished" || finishSoundRef.current === duel.id) return;
+    finishSoundRef.current = duel.id;
+    if (duel.loserId === ownId) {
+      playGetGotSound(resetPokeSoundChannel());
+      speakText("get got", { rate: 0.84, pitch: 0.44, volume: 1, lang: "en-US" });
+    } else {
+      playVictoryPartySound();
+      speakText("Gahook Arena champion", { rate: 0.9, pitch: 1.18, volume: 1, lang: "en-US" });
+    }
+  }, [duel?.id, duel?.status, isParticipant, ownId]);
+  if (!duel || !isParticipant || (duel.status !== "active" && duel.status !== "finished")) return null;
+  const players = Array.isArray(duel.players) ? duel.players : [];
+  const opponent = players.find((player) => player.id !== ownId);
+  const ownArenaPlayer = players.find((player) => player.id === ownId) || ownPlayer;
+  const isDefender = duel.status === "active" && duel.attack?.defenderId === ownId;
+  const isWinner = duel.status === "finished" && duel.winnerId === ownId;
+  const attack = duel.attack;
+  const ballStock = Math.max(0, Number(duel.ballStock?.[ownId]) || 0);
+  const arenaOpen = duel.status === "active" && clock >= (duel.gameplayStartsAt || 0);
+  const nextBallSeconds = Math.max(0, ((duel.nextBallAt?.[ownId] || clock) - clock) / 1000);
+
+  const send = async (path, payload) => {
+    if (busy) return;
+    setBusy(true);
+    const result = await api(path, { playerKey, duelId: duel.id, ...payload }, { refresh: false, timeoutMs: 1800 });
+    if (!result.ok) {
+      dispatch({ type: "ERROR", value: result.error });
+      forceSnapshotRevert();
+      setBusy(false);
+      return;
+    }
+    window.gahookzRefreshSnapshot?.();
+  };
+
+  const beginLaunch = (event) => {
+    if (!arenaOpen || attack || busy || ballStock <= 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const gesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, at: performance.now() };
+    launchRef.current = gesture;
+    setLaunchPoint({ x: event.clientX, y: event.clientY });
+  };
+
+  const moveLaunch = (event) => {
+    if (!launchRef.current || launchRef.current.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    setLaunchPoint({ x: event.clientX, y: event.clientY });
+  };
+
+  const finishLaunch = (event) => {
+    const start = launchRef.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    launchRef.current = null;
+    setLaunchPoint(null);
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    const distance = Math.hypot(dx, dy);
+    const elapsed = Math.max(40, performance.now() - start.at);
+    const flickStrength = distance < 18 ? 0 : Math.min(1, distance / elapsed / 1.3);
+    const x = distance < 18 ? 0.16 + Math.random() * 0.68 : Math.max(0.08, Math.min(0.92, 0.5 + dx / Math.max(320, window.innerWidth) * 1.35));
+    const y = distance < 18 ? 0.18 + Math.random() * 0.5 : Math.max(0.08, Math.min(0.78, 0.62 + dy / Math.max(480, window.innerHeight) * 1.25));
+    send("/api/player/duel-attack", { x, y, flickStrength });
+  };
+
+  const beginDefence = (event) => {
+    if (!isDefender || !attack || busy) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    defenceRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+    setDefencePoint({ x: event.clientX, y: event.clientY });
+  };
+
+  const moveDefence = (event) => {
+    if (!defenceRef.current || defenceRef.current.pointerId !== event.pointerId) return;
+    event.preventDefault();
+    setDefencePoint({ x: event.clientX, y: event.clientY });
+  };
+
+  const finishDefence = (event) => {
+    const start = defenceRef.current;
+    if (!start || start.pointerId !== event.pointerId || !attack) return;
+    event.preventDefault();
+    event.stopPropagation();
+    defenceRef.current = null;
+    setDefencePoint(null);
+    const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+    const coreDistance = Math.hypot(event.clientX - window.innerWidth / 2, event.clientY - window.innerHeight * 0.56);
+    const reclaim = moved > 34 && coreDistance < Math.max(72, Math.min(window.innerWidth, window.innerHeight) * 0.13);
+    send("/api/player/duel-block", { attackId: attack.id, reclaim });
+  };
+
+  const instruction = duel.status === "finished" ?
+    isWinner ? "You landed 3 hits. Arena champion!" : duel.resultReason === "left" ? "You left the arena." : "Three hits. You GET GOT!" :
+    !arenaOpen ? "Lock in. Gahook Ballz are loading..." :
+    isDefender && attack ? "TAP THE BALL — or drag it into the core to steal it" :
+    attack ? "Ball in flight — get ready for the return" :
+    ballStock ? "Tap a ball for a wild shot · flick it to aim and boost" :
+    `Charging next Gahook Ball… ${nextBallSeconds.toFixed(1)}s`;
+
+  const attackStyle = defencePoint ?
+    { left: defencePoint.x + "px", top: defencePoint.y + "px", "--duel-window": "0ms" } :
+    {
+      "--duel-flight-x": ((attack?.x || 0.5) - 0.5) * 100 + "vw",
+      "--duel-flight-y": `calc(${((attack?.y || 0.5) - 1) * 100}vh + 132px)`,
+      "--duel-window": (duel.reactionWindowMs || 1000) + "ms"
+    };
+
+  return <section className={["gahook-duel-overlay", duel.status === "finished" ? "is-finished" : "", isWinner ? "is-winner" : "", defencePoint ? "is-catching" : ""].filter(Boolean).join(" ")} aria-live="assertive">
+    <header className="gahook-arena-scoreboard">
+      <article><AvatarBadge player={ownArenaPlayer} /><strong>{ownArenaPlayer?.name || "You"}</strong><ArenaHitPips duel={duel} playerId={ownId} /></article>
+      <div><span>GAHOOK ARENA</span><b>VS</b><small>FIRST TO 3</small></div>
+      <article><AvatarBadge player={opponent} /><strong>{opponent?.name || "Opponent"}</strong><ArenaHitPips duel={duel} playerId={opponent?.id} /></article>
+    </header>
+    <p className="gahook-arena-instruction">{instruction}</p>
+    <div className="gahook-arena-catch-core" aria-hidden="true"><i /><span>DRAG HERE<br />+1 BALL</span></div>
+    {isDefender && attack ? <button
+      className="gahook-duel-attack"
+      type="button"
+      style={attackStyle}
+      onPointerDown={beginDefence}
+      onPointerMove={moveDefence}
+      onPointerUp={finishDefence}
+      onPointerCancel={finishDefence}
+      aria-label="Stop incoming Gahook Ball; drag it to the centre to claim it"
+    ><ArenaGahookBall player={opponent} label="STOP!" /></button> : null}
+    {launchPoint ? <div className="gahook-arena-aim-line" style={{ "--aim-x": launchPoint.x + "px", "--aim-y": launchPoint.y + "px" }} aria-hidden="true" /> : null}
+    {duel.status === "active" ? <div className={["gahook-arena-ball-tray", ballStock ? "has-ballz" : ""].filter(Boolean).join(" ")}>
+      <span>GAHOOK BALLZ <b>{ballStock}/{duel.maxBallStock || 4}</b></span>
+      <div>
+        {Array.from({ length: ballStock }, (_item, index) => <button
+          type="button"
+          disabled={!arenaOpen || Boolean(attack) || busy}
+          onPointerDown={beginLaunch}
+          onPointerMove={moveLaunch}
+          onPointerUp={finishLaunch}
+          onPointerCancel={() => { launchRef.current = null; setLaunchPoint(null); }}
+          aria-label="Tap or flick Gahook Ball"
+          key={`${duel.id}-${index}`}
+        ><ArenaGahookBall player={ownArenaPlayer} /></button>)}
+        {!ballStock ? <i className="gahook-arena-ball-charging"><span style={{ animationDuration: (duel.ballIntervalMs || 3000) + "ms" }} /></i> : null}
+      </div>
+    </div> : null}
+    <div className="gahook-arena-distractions" aria-hidden="true">
+      {distractions.map((item) => <div className={["gahook-arena-distraction", "is-" + item.kind].join(" ")} style={{ left: item.left + "%", top: item.top + "%", "--arena-distraction-rotate": item.rotate + "deg" }} key={item.id}>
+        <GahookOverlayVisual form={item.form} customGahook={item.customGahook} small />
+        <b>{item.kind === "congrats" ? "👏 CONGRATS!" : item.kind === "boo" ? "👎 BOOO!" : "GAHOOK!"}</b>
+        <small>by {item.from}</small>
+      </div>)}
+    </div>
+  </section>;
+}
+
+function CounterGahookPrompt({ offer, busy = false, onCounter }) {
+  const [expired, setExpired] = useState(false);
+  useEffect(() => {
+    setExpired(false);
+    if (!offer?.expiresAt) return undefined;
+    const timer = setTimeout(() => setExpired(true), Math.max(0, offer.expiresAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [offer?.id, offer?.expiresAt]);
+  if (!offer?.id || expired || offer.expiresAt <= Date.now()) return null;
+  return <aside className="counter-gahook-prompt" role="alert">
+    <span>{offer.spamCount || 10} in a row!</span>
+    <strong>{offer.senderName || "That spammer"} left an opening</strong>
+    <button type="button" disabled={busy} onClick={onCounter}>{busy ? "Firing back..." : "Counter Gahook"}</button>
+  </aside>;
+}
+
 function GameModeSelector({ value = "quiz", onChange, compact = false, actions = null }) {
   return (
     <section className={compact ? "mode-selector is-compact" : "mode-selector"} aria-label="Game mode">
       {!compact ? <div className="mode-selector-heading"><span>Game mode</span>{actions}</div> : null}
       <div className="mode-selector-options">
-        {VISIBLE_GAME_MODES.map((mode) =>
-        <button className={value === mode.id ? "is-selected" : ""} type="button" key={mode.id} aria-pressed={value === mode.id} onClick={() => onChange?.(mode.id)}>
+        {GAME_MODES.map((mode) =>
+        <button className={[value === mode.id ? "is-selected" : "", !mode.available ? "is-coming-soon" : ""].filter(Boolean).join(" ")} type="button" key={mode.id} aria-pressed={value === mode.id} disabled={!mode.available} onClick={() => mode.available && onChange?.(mode.id)}>
             <ModeArt art={mode.art} />
             <strong>{mode.title}</strong>
             <small>{mode.subtitle}</small>
+            {!mode.available ? <em>Coming soon</em> : null}
           </button>
         )}
       </div>
@@ -1713,7 +2128,7 @@ function gameModeTitle(mode = "quiz") {
 }
 
 function ModeTutorialLauncher({ mode = "quiz", autoOpen = false, autoOpenMode = "", includeHost = false, showButton = true }) {
-  const normaliseMode = (value) => value === "host" ? "host" : value === "herd" ? "herd" : "quiz";
+  const normaliseMode = (value) => value === "host" ? "host" : value === "majority" ? "majority" : value === "herd" ? "herd" : "quiz";
   const selectedMode = normaliseMode(mode);
   const automaticMode = normaliseMode(autoOpenMode || selectedMode);
   const storageKey = "gahookz-how-to-play-seen-v2-" + automaticMode;
@@ -1746,6 +2161,16 @@ function ModeTutorialLauncher({ mode = "quiz", autoOpen = false, autoOpenMode = 
 }
 
 function ModeArt({ art }) {
+  if (art === "majority") {
+    return (
+      <svg className="mode-art" viewBox="0 0 96 76" aria-hidden="true">
+        <rect x="11" y="48" width="15" height="18" rx="4" />
+        <rect x="31" y="35" width="15" height="31" rx="4" />
+        <rect x="51" y="18" width="15" height="48" rx="4" />
+        <path d="M72 22l6 6 12-14M11 11h34" />
+      </svg>);
+
+  }
   if (art === "herd") {
     return (
       <svg className="mode-art" viewBox="0 0 96 76" aria-hidden="true">
@@ -1754,17 +2179,6 @@ function ModeArt({ art }) {
         <circle cx="68" cy="35" r="13" />
         <path d="M14 70c2-17 12-28 29-28 11 0 20 4 25 12 4-2 8-3 13-2 10 2 16 8 18 18z" />
         <path d="M36 55c10 6 22 6 34 0" />
-      </svg>);
-
-  }
-  if (art === "oddball") {
-    return (
-      <svg className="mode-art" viewBox="0 0 96 76" aria-hidden="true">
-        <circle cx="28" cy="38" r="15" />
-        <circle cx="52" cy="25" r="11" />
-        <circle cx="68" cy="48" r="13" />
-        <path d="M22 17c12 10 27 10 48 0M19 62c17-7 36-7 58 0" />
-        <path d="M28 38l22-13M52 25l16 23" />
       </svg>);
 
   }
@@ -1933,6 +2347,9 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
     };
     return <HostBuildingLobby lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onStart={() => hostAction("/api/host/start")} onForceStart={() => hostAction("/api/host/force-start")} onPoke={pokePlayer} onKick={kickPlayer} onMakeHost={makePlayerHost} onRandomizeIdentity={randomizePlayerIdentity} onUnban={(player) => hostAction("/api/host/unban", { playerId: player.id })} onApproveQuestion={(question) => hostAction("/api/host/question/approve", { questionId: question.id })} onRejectQuestion={(question) => hostAction("/api/host/question/reject", { questionId: question.id })} onPlayAsPlayer={onPlayAsPlayer} />;
   }
+  if (lobby.phase === "herd-writing") {
+    return <HostHerdPreparation lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onStart={() => hostAction("/api/host/start")} onForceStart={() => hostAction("/api/host/force-start")} />;
+  }
   if (lobby.phase === "finished") {
     return <FinishedScreen lobby={lobby} connected={connected} hostMenu={hostMenu} onReset={() => hostAction("/api/host/reset")} onNewGame={() => hostAction("/api/host/new-game")} />;
   }
@@ -1955,13 +2372,13 @@ function HostMoreOptions({ lobby, onSettings }) {
       <label className="host-checkbox"><input type="checkbox" checked={Boolean(lobby.approveQuestions)} onChange={(event) => onSettings?.({ approveQuestions: event.target.checked })} /><span>Approve questions</span></label>
       <label className="host-checkbox"><input type="checkbox" checked={lobby.allowCustomProfiles !== false} onChange={(event) => onSettings?.({ allowCustomProfiles: event.target.checked })} /><span>Allow custom profiles</span></label>
       <label className="host-checkbox"><input type="checkbox" checked={lobby.allowCustomGahooks !== false} onChange={(event) => onSettings?.({ allowCustomGahooks: event.target.checked })} /><span>Allow custom Gahooks</span></label>
-      <div className="host-prompt-style" role="group" aria-label="Default prompt style">
+      {lobby.gameMode === "quiz" ? <div className="host-prompt-style" role="group" aria-label="Default prompt style">
         <span>Prompt style</span>
         <div>
           <button className={lobby.promptStyle !== "education" ? "is-selected" : ""} type="button" aria-pressed={lobby.promptStyle !== "education"} onClick={() => onSettings?.({ promptStyle: "fun" })}>For fun</button>
           <button className={lobby.promptStyle === "education" ? "is-selected" : ""} type="button" aria-pressed={lobby.promptStyle === "education"} onClick={() => onSettings?.({ promptStyle: "education" })}>Education</button>
         </div>
-      </div>
+      </div> : null}
       <EffectsPreferenceButtons />
     </div>
   </details>;
@@ -2020,14 +2437,17 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
 
   return (
     <main className="host-screen host-lobby setup-lobby">
-      <HostLobbyPokeEffects ownPlayer={lobby.ownPlayer} ownPoke={lobby.ownPoke} />
+      <HostLobbyPokeEffects lobby={lobby} ownPlayer={lobby.ownPlayer} ownPoke={lobby.ownPoke} playerKey={playerKey} />
       <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={hostMenu} />
       <LobbyCodeBand code={lobby.code} playerLink={playerLink} shareNotice={shareNotice} onClick={shareLobby} />
+      <AccountPanel />
       <section className="host-lobby-layout has-room-status">
         <RoomStatusBanner code={lobby.code} tone="is-host-status" eyebrow="Game lobby" title="Pick the game, then bring everyone in">
           Players can join and Gahook each other while you choose the mode and options.
         </RoomStatusBanner>
+        <PreviousGameSummary summary={lobby.lastGameSummary} ownPlayerId={lobby.ownPlayer?.id} />
         <div className="player-wall">
+          <GahookDuelArena duel={lobby.gahookDuel} />
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
@@ -2041,7 +2461,7 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
         </div>
         <aside className="host-control-panel">
           <GameModeSelector value={lobby.gameMode} onChange={onModeChange} actions={<ModeTutorialLauncher mode={lobby.gameMode} autoOpen autoOpenMode="host" includeHost />} />
-          <RoundPresetSelector lobby={lobby} value={visibleRoundPreset} playerCount={connectedPlayers.length} customLimit={visibleQuestionLimit} onChange={selectRoundPreset} onQuestionLimit={selectQuestionLimit} />
+          {lobby.gameMode === "herd" ? <section className="herd-length-summary"><span>Herd game length</span><strong>One question per player</strong><small>Everyone writes up to four answers, then every player-created question goes live.</small></section> : <RoundPresetSelector lobby={lobby} value={visibleRoundPreset} playerCount={connectedPlayers.length} customLimit={visibleQuestionLimit} onChange={selectRoundPreset} onQuestionLimit={selectQuestionLimit} />}
           <HostMoreOptions lobby={lobby} onSettings={onSettings} />
           <button className="primary-button start-button lock-setup-button" type="button" disabled={!canLockSetup} onClick={lockSetup}>Begin Game</button>
           <p className={canLockSetup ? "start-status is-ready" : "start-status"}>{canLockSetup ? "Options will lock when question making begins" : "Wait for a player, or join as a player yourself"}</p>
@@ -2052,8 +2472,9 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
 
 }
 
-function HostLobbyPokeEffects({ ownPlayer, ownPoke }) {
+function HostLobbyPokeEffects({ lobby, ownPlayer, ownPoke, playerKey }) {
   const [selfPoke, setSelfPoke] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
   const [miniPokes, setMiniPokes] = useState([]);
   const playerIdRef = useRef("");
   const seenPokeIdRef = useRef("");
@@ -2081,17 +2502,21 @@ function HostLobbyPokeEffects({ ownPlayer, ownPoke }) {
     seenPokeIdRef.current = ownPoke.id;
 
     const isLocalSelfPoke = String(ownPoke.id).startsWith("local-poke-") && ownPoke.playerId === ownPlayer.id;
-    if (isLocalSelfPoke) {
+    const needsInteraction = Boolean(lobby.ownCounterOffer?.id) || ownPoke.kind === "counter" || ownPoke.kind === "duel-challenge";
+    if (isLocalSelfPoke || needsInteraction) {
       const nextPoke = { ...ownPoke, renderId: ownPoke.id + "-host-self" };
       setSelfPoke(nextPoke);
       const soundChannel = resetPokeSoundChannel();
-      playGahookFormSound(nextPoke.gahookForm, soundChannel, nextPoke.customGahook, 950);
-      playGahookVoiceCue(soundChannel);
+      if (nextPoke.kind === "counter" || nextPoke.kind === "duel-challenge") playCounterGahookSound(soundChannel);
+      else {
+        playGahookFormSound(nextPoke.gahookForm, soundChannel, nextPoke.customGahook, pokeOverlayDurationMs(nextPoke));
+        playGahookVoiceCue(soundChannel);
+      }
       clearTimeout(selfTimerRef.current);
       selfTimerRef.current = setTimeout(() => {
         setSelfPoke(null);
         if (nextPoke.gahookForm === "custom") stopCustomGahookAudio();
-      }, 950);
+      }, pokeOverlayDurationMs(nextPoke));
       return undefined;
     }
 
@@ -2109,22 +2534,40 @@ function HostLobbyPokeEffects({ ownPlayer, ownPoke }) {
     const timer = setTimeout(() => setMiniPokes((current) => current.filter((poke) => poke.id !== miniPoke.id)), 1450);
     timersRef.current.push(timer);
     return undefined;
-  }, [ownPlayer?.id, ownPoke?.id]);
+  }, [ownPlayer?.id, ownPoke?.id, lobby.ownCounterOffer?.id]);
+
+  const runAction = async (path, payload = {}) => {
+    if (actionBusy) return;
+    setActionBusy(true);
+    const result = await api(path, { playerKey, ...payload }, { refresh: false });
+    setActionBusy(false);
+    if (!result.ok) return;
+    setSelfPoke(null);
+    window.gahookzRefreshSnapshot?.();
+  };
+  let action = null;
+  if (selfPoke && lobby.ownCounterOffer?.id) {
+    action = { label: actionBusy ? "Firing back..." : "Counter Gahook", disabled: actionBusy, onClick: () => runAction("/api/player/counter-poke", { offerId: lobby.ownCounterOffer.id }) };
+  } else if (selfPoke?.kind === "counter" && (selfPoke.duelChallengeUntil || 0) > Date.now()) {
+    action = { label: actionBusy ? "Opening arena..." : "START GAHOOK ARENA", moving: true, disabled: actionBusy, onClick: () => runAction("/api/player/duel-challenge") };
+  } else if (selfPoke?.kind === "duel-challenge" && selfPoke.duelId) {
+    action = { label: actionBusy ? "Entering arena..." : "ENTER GAHOOK ARENA", moving: true, disabled: actionBusy, onClick: () => runAction("/api/player/duel-accept", { duelId: selfPoke.duelId }) };
+  }
 
   return (
     <>
       <div className="host-mini-gahook-layer" aria-hidden="true">
         {miniPokes.map((poke) => <div className="host-mini-gahook" key={poke.id} style={{ left: poke.left + "%", top: poke.top + "%", "--mini-rotate": poke.rotate + "deg" }}><GahookOverlayVisual form={poke.form} customGahook={poke.customGahook} small /><span>by {poke.from}</span></div>)}
       </div>
-      {selfPoke ? <PokeJumpScare key={selfPoke.renderId} poke={selfPoke} /> : null}
+      {selfPoke ? <PokeJumpScare key={selfPoke.renderId} poke={selfPoke} action={action} /> : null}
+      <GahookDuelOverlay duel={lobby.gahookDuel} ownPlayer={ownPlayer} ownPoke={ownPoke} playerKey={playerKey} />
     </>);
 }
 
 function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onForceStart, onPoke, onKick, onMakeHost, onRandomizeIdentity, onUnban, onApproveQuestion, onRejectQuestion, onPlayAsPlayer }) {
   const connectedPlayers = lobby.players.filter((player) => player.connected);
   const readyPlayers = connectedPlayers.filter((player) => player.ready);
-  const isHerd = lobby.gameMode === "herd";
-  const creationLabel = isHerd ? "prompt" : "question";
+  const creationLabel = "question";
   const playerLink = buildRoomLink(lobby.code);
   const [shareNotice, setShareNotice] = useState("");
 
@@ -2139,10 +2582,12 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
       <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={hostMenu} />
       <LobbyCodeBand code={lobby.code} playerLink={playerLink} shareNotice={shareNotice} onClick={shareLobby} className="compact-code-band" />
       <section className="host-lobby-layout has-room-status">
-        <RoomStatusBanner code={lobby.code} tone="is-building-status" eyebrow={isHerd ? "Prompt time" : "Question time"} title={"Players are making their " + creationLabel + "s"}>
+        <RoomStatusBanner code={lobby.code} tone="is-building-status" eyebrow="Question time" title={"Players are making their " + creationLabel + "s"}>
           The game options are locked. Start the game when every player is ready.
         </RoomStatusBanner>
+        <PreviousGameSummary summary={lobby.lastGameSummary} ownPlayerId={lobby.ownPlayer?.id} />
         <div className="player-wall">
+          <GahookDuelArena duel={lobby.gahookDuel} />
           <QuestionApprovalPanel questions={lobby.pendingQuestions} onApprove={onApproveQuestion} onReject={onRejectQuestion} />
           <div className="section-heading">
             <h1>Players</h1>
@@ -2157,12 +2602,12 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
           <section className="locked-options-summary">
             <div className="locked-options-heading"><span>Locked options</span><ModeTutorialLauncher mode={lobby.gameMode} includeHost /></div>
             <strong>{gameModeTitle(lobby.gameMode)}</strong>
-            <small>{roundPresetTitle(lobby.roundPreset)} · {plannedQuestionsForLobby(lobby, connectedPlayers.length)} total · {formatDurationEstimate(estimatedRoundDurationMs(lobby), plannedQuestionsForLobby(lobby, connectedPlayers.length))}</small>
+            <small>{lobby.gameMode === "herd" ? "One question each" : roundPresetTitle(lobby.roundPreset)} · {plannedQuestionsForLobby(lobby, connectedPlayers.length)} total · {formatDurationEstimate(estimatedRoundDurationMs(lobby), plannedQuestionsForLobby(lobby, connectedPlayers.length))}</small>
             <small>{lobby.maxQuestionsPerPlayer} {creationLabel}{lobby.maxQuestionsPerPlayer === 1 ? "" : "s"} each · {lobby.approveQuestions ? "Host approval on" : "Host approval off"}</small>
           </section>
-          <Metric label={isHerd ? "Prompts" : "Questions"} value={lobby.questionCount} />
+          <Metric label="Questions" value={lobby.questionCount} />
           <Metric label="Ready" value={readyPlayers.length + "/" + connectedPlayers.length} />
-          <ForceStartControl canStart={lobby.canStart} canForceStart={connectedPlayers.length > 0} label={"Start " + gameModeTitle(lobby.gameMode)} onStart={onStart} onForceStart={onForceStart} />
+          <ForceStartControl canStart={lobby.canStart} canForceStart={connectedPlayers.length > 0} label={lobby.gameMode === "herd" ? "Deal out answer prompts" : "Start " + gameModeTitle(lobby.gameMode)} onStart={onStart} onForceStart={onForceStart} />
           <button className="secondary-button host-play-button" type="button" onClick={onPlayAsPlayer}>{lobby.ownPlayer ? "Continue as player" : "Enter as player"}</button>
           <p className={lobby.canStart ? "start-status is-ready" : "start-status"}>{lobby.canStart ? "Everyone is ready" : "Waiting for every player to finish and ready up"}</p>
         </aside>
@@ -2172,7 +2617,111 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
 
 }
 
-function ForceStartControl({ canStart, canForceStart, label = "Start game", onStart, onForceStart }) {
+function HerdPreparationProgress({ preparation }) {
+  const progress = preparation || { completed: 0, total: 0, players: [] };
+  return (
+    <section className="herd-preparation-progress">
+      <header><span>Answer workshop</span><strong>{progress.completed}/{progress.total} answers written</strong></header>
+      <div className="herd-progress-meter" aria-label={progress.completed + " of " + progress.total + " answers written"}><span style={{ width: (progress.total ? progress.completed / progress.total * 100 : 0) + "%" }} /></div>
+      <div className="herd-writer-grid">
+        {(progress.players || []).map((entry) => <article className={entry.ready ? "herd-writer-card is-ready" : "herd-writer-card"} key={entry.player.id}>
+          <AvatarBadge player={entry.player} small />
+          <span><strong>{entry.player.name}</strong><small>{entry.completed}/{entry.total} answers · {entry.ready ? "ready" : "writing"}</small></span>
+        </article>)}
+      </div>
+    </section>);
+}
+
+function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, onForceStart }) {
+  return (
+    <main className="host-screen host-lobby herd-preparation-screen">
+      <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={hostMenu} />
+      <section className="host-lobby-layout has-room-status">
+        <RoomStatusBanner code={lobby.code} tone="is-herd-status" eyebrow="Herd workshop" title="Players are writing the answer choices">
+          Each player has up to four prompts. When every answer is in and everyone is ready, start the live vote.
+        </RoomStatusBanner>
+        <div className="player-wall">
+          <HerdPreparationProgress preparation={lobby.herdPreparation} />
+          <section className="herd-host-review">
+            <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span></div>
+            <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
+              <span>{item.question.text}</span><strong>{item.text || "Waiting for an answer…"}</strong><small>Answer by {item.answerAuthor.name}</small>
+            </article>)}</div>
+          </section>
+        </div>
+        <aside className="host-control-panel">
+          <span className="phase-chip">Final preparation</span>
+          <h2>Ready for the room vote?</h2>
+          <p>Answers stay anonymous during voting. Their writers are revealed with the points.</p>
+          <ForceStartControl canStart={lobby.canStart} canForceStart={(lobby.herdPreparation?.total || 0) > 0} label="Start live Herd" onStart={onStart} onForceStart={onForceStart} forceTitle="Fill missing answers and start?" forceCopy="Any blank answer slots will get a safe generated answer before the live game begins." />
+          <p className={lobby.canStart ? "start-status is-ready" : "start-status"}>{lobby.canStart ? "Every answer writer is ready" : "Waiting for the Herd to finish writing"}</p>
+        </aside>
+        <RoomSocialHub lobby={lobby} playerKey={playerKey} />
+      </section>
+    </main>);
+}
+
+function HerdAnswerWriter({ assignment, playerKey }) {
+  const dispatch = useDispatch();
+  const [text, setText] = useState(assignment.text || "");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => setText(assignment.text || ""), [assignment.text, assignment.questionId, assignment.answerId]);
+  const save = async (event) => {
+    event.preventDefault();
+    if (!text.trim() || saving) return;
+    setSaving(true);
+    const result = await api("/api/herd/answer", { playerKey, questionId: assignment.questionId, text });
+    setSaving(false);
+    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+  };
+  return (
+    <form className={assignment.submitted ? "herd-answer-writer is-submitted" : "herd-answer-writer"} onSubmit={save}>
+      <span>Question by {assignment.question.author.name}</span>
+      <h2>{assignment.question.text}</h2>
+      {assignment.question.imageDataUrl ? <img src={assignment.question.imageDataUrl} alt="Question" /> : null}
+      <label><span>Your answer</span><input value={text} onChange={(event) => setText(event.target.value)} maxLength="80" placeholder="Make it the answer everyone wants to pick" /></label>
+      <button className="primary-button" type="submit" disabled={!text.trim() || saving || text.trim() === assignment.text}>{saving ? "Saving" : assignment.submitted ? "Update answer" : "Lock this answer"}</button>
+    </form>);
+}
+
+function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
+  const dispatch = useDispatch();
+  const assignments = lobby.ownHerdAssignments || [];
+  const allSubmitted = assignments.length > 0 && assignments.every((assignment) => assignment.submitted);
+  const toggleReady = async () => {
+    const previousReady = Boolean(ownPlayer.ready);
+    const nextReady = !previousReady;
+    dispatch({ type: "OPTIMISTIC_READY", value: nextReady });
+    const result = await api("/api/player/ready", { playerKey, ready: nextReady });
+    if (!result.ok) {
+      dispatch({ type: "OPTIMISTIC_READY", value: previousReady });
+      dispatch({ type: "ERROR", value: result.error });
+    }
+  };
+  const hostStart = async (force = false) => {
+    const result = await api(force ? "/api/host/force-start" : "/api/host/start");
+    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+    return result;
+  };
+  return (
+    <main className="host-screen host-lobby player-herd-preparation">
+      <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={hostMenu} />
+      <section className="herd-player-layout has-room-status">
+        <RoomStatusBanner code={lobby.code} tone="is-herd-status" eyebrow="Herd workshop" title={assignments.length ? "Write " + assignments.length + " possible answers" : "The Herd is writing answers"}>
+          Keep them funny, short, and tempting. Nobody sees who wrote an answer until the vote is over.
+        </RoomStatusBanner>
+        <HerdPreparationProgress preparation={lobby.herdPreparation} />
+        <section className="herd-answer-workspace">
+          {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} playerKey={playerKey} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
+          {allSubmitted ? <button className={ownPlayer.ready ? "ready-button is-ready" : "ready-button needs-ready"} type="button" onClick={toggleReady}>{ownPlayer.ready ? "Ready for the live vote" : "I’m done — ready up"}</button> : null}
+          {lobby.isHost ? <div className="party-start-button"><ForceStartControl canStart={lobby.canStart} canForceStart={(lobby.herdPreparation?.total || 0) > 0} label="Start live Herd" onStart={() => hostStart(false)} onForceStart={() => hostStart(true)} forceTitle="Fill missing answers and start?" forceCopy="Any blank answer slots will get a safe generated answer before the live game begins." /></div> : null}
+        </section>
+        <RoomSocialHub lobby={lobby} ownPlayer={ownPlayer} playerKey={playerKey} />
+      </section>
+    </main>);
+}
+
+function ForceStartControl({ canStart, canForceStart, label = "Start game", onStart, onForceStart, forceTitle = "Players are not ready, start anyway with generated questions?", forceCopy = "Completed questions will stay. Missing questions will be filled with safe defaults for this game mode." }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [starting, setStarting] = useState(false);
 
@@ -2211,8 +2760,8 @@ function ForceStartControl({ canStart, canForceStart, label = "Start game", onSt
       <div className="force-start-modal" role="presentation" onPointerDown={(event) => {if (event.target === event.currentTarget && !starting) setConfirmOpen(false);}}>
           <section className="force-start-dialog" role="dialog" aria-modal="true" aria-labelledby="force-start-title">
             <span className="force-start-mark" aria-hidden="true">!</span>
-            <h2 id="force-start-title">Players are not ready, start anyway with generated questions?</h2>
-            <p>Completed questions will stay. Missing questions will be filled with safe defaults for this game mode.</p>
+            <h2 id="force-start-title">{forceTitle}</h2>
+            <p>{forceCopy}</p>
             <div>
               <button className="secondary-button" type="button" disabled={starting} onClick={() => setConfirmOpen(false)}>Wait for players</button>
               <button className="primary-button force-start-confirm" type="button" disabled={starting} onClick={forceStart}>{starting ? "Generating..." : "Force start game"}</button>
@@ -2262,9 +2811,9 @@ function QuestionApprovalPanel({ questions, onApprove, onReject }) {
           {question.imageDataUrl ? <img src={question.imageDataUrl} alt="Pending question" /> : null}
           {question.answers?.length ?
         <ol>
-              {question.answers.map((answer) => <li className={answer.correct ? "is-correct" : ""} key={answer.id}>{answer.label}: {answer.text}</li>)}
+              {question.answers.map((answer) => <li className={answer.correct || answer.predicted ? "is-correct" : ""} key={answer.id}>{answer.label}: {answer.text}{answer.predicted ? " · author prediction" : ""}</li>)}
             </ol> :
-        <p className="approval-mode-note">Herd prompt</p>}
+        null}
           <div>
             <button className="host-menu-primary" type="button" onClick={() => onApprove(question)}>Approve</button>
             <button type="button" onClick={() => onReject(question)}>Reject</button>
@@ -2293,8 +2842,6 @@ function ReadonlyPartyView({ lobby, connected, ownPlayer, playerKey, onBack }) {
       if (!result.ok) {
         dispatch({ type: "ERROR", value: result.error });
         forceSnapshotRevert();
-      } else {
-        applyCounterGahookResult(dispatch, result);
       }
     });
   };
@@ -2307,12 +2854,11 @@ function ReadonlyPartyView({ lobby, connected, ownPlayer, playerKey, onBack }) {
     return <ReadonlyFinishedScreen lobby={lobby} connected={connected} backButton={backButton} onBack={onBack} playerKey={playerKey} />;
   }
   if (lobby.phase !== "lobby" && lobby.phase !== "building") {
-    return <HostGame lobby={lobby} connected={connected} hostMenu={backButton} onProgressComplete={() => api("/api/player/progress", { playerKey, phase: lobby.phase, questionIndex: lobby.currentQuestionIndex }, { refresh: false })} onLeaderboardPoke={pokePlayer} />;
+    return <HostGame lobby={lobby} connected={connected} hostMenu={backButton} onSkip={lobby.isHost ? () => api("/api/host/skip") : undefined} onProgressComplete={() => api("/api/player/progress", { playerKey, phase: lobby.phase, questionIndex: lobby.currentQuestionIndex }, { refresh: false })} onLeaderboardPoke={pokePlayer} />;
   }
 
   const isBuilding = lobby.phase === "building";
-  const isHerd = lobby.gameMode === "herd";
-  const creationLabel = isHerd ? "prompt" : "question";
+  const creationLabel = "question";
   const connectedPlayers = lobby.players.filter((player) => player.connected);
   const readyPlayers = connectedPlayers.filter((player) => player.ready);
 
@@ -2321,10 +2867,11 @@ function ReadonlyPartyView({ lobby, connected, ownPlayer, playerKey, onBack }) {
       <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={backButton} />
       <LobbyCodeBand code={lobby.code} playerLink={playerLink} shareNotice={shareNotice} onClick={shareLobby} className="is-readonly" />
       <section className="host-lobby-layout has-room-status">
-        <RoomStatusBanner code={lobby.code} tone={isBuilding ? "is-building-status" : ""} eyebrow={isBuilding ? isHerd ? "Prompt time" : "Question time" : "Game lobby"} title={isBuilding ? "Players are making their " + creationLabel + "s" : "The host is choosing the game"} actions={<ModeTutorialLauncher mode={lobby.gameMode} />}>
+        <RoomStatusBanner code={lobby.code} tone={isBuilding ? "is-building-status" : ""} eyebrow={isBuilding ? "Question time" : "Game lobby"} title={isBuilding ? "Players are making their " + creationLabel + "s" : "The host is choosing the game"} actions={<ModeTutorialLauncher mode={lobby.gameMode} />}>
           {isBuilding ? "Game options are locked. Watch the room get ready." : "Meet the players and Gahook freely while setup is underway."}
         </RoomStatusBanner>
         <div className="player-wall">
+          <GahookDuelArena duel={lobby.gahookDuel} />
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
@@ -2335,7 +2882,7 @@ function ReadonlyPartyView({ lobby, connected, ownPlayer, playerKey, onBack }) {
         </div>
         <aside className="host-control-panel">
           {isBuilding ? <section className="locked-options-summary"><span>Locked options</span><strong>{gameModeTitle(lobby.gameMode)}</strong><small>{roundPresetTitle(lobby.roundPreset)} · {plannedQuestionsForLobby(lobby, connectedPlayers.length)} total · {formatDurationEstimate(estimatedRoundDurationMs(lobby), plannedQuestionsForLobby(lobby, connectedPlayers.length))}</small><small>{lobby.maxQuestionsPerPlayer} {creationLabel}{lobby.maxQuestionsPerPlayer === 1 ? "" : "s"} each</small></section> : null}
-          {isBuilding ? <Metric label={isHerd ? "Prompts" : "Questions"} value={lobby.questionCount} /> : <Metric label="Players joined" value={connectedPlayers.length} />}
+          {isBuilding ? <Metric label="Questions" value={lobby.questionCount} /> : <Metric label="Players joined" value={connectedPlayers.length} />}
           {isBuilding ? <Metric label="Ready" value={readyPlayers.length + "/" + connectedPlayers.length} /> : null}
           <button className="secondary-button host-play-button" type="button" onClick={onBack}>Back to player controls</button>
         </aside>
@@ -2349,21 +2896,18 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
   const question = lobby.currentQuestion;
   const duration = lobby.phaseDurations?.[lobby.phase] || 0;
   const reveal = lobby.phase === "reveal";
-  const isHerd = lobby.gameMode === "herd";
-  const phaseLabel = isHerd && reveal ? "Herd Reveal" : isHerd && lobby.phase === "ranking" ? "Pick your top 3" : labelForPhase(lobby.phase);
-  const revealIntro = !isHerd && useRevealIntro(lobby.phase, lobby.phaseEndsAt, duration);
-  const revealVoteDuration = reveal && !isHerd ? Math.max(1000, duration - REVEAL_ANSWER_SPOTLIGHT_MS) : duration;
-  const revealIntroEndsAt = reveal && !isHerd ? lobby.phaseEndsAt - revealVoteDuration : lobby.phaseEndsAt;
-  const progressLabel = lobby.phase === "ranking" ? "Ranked" : "Answers";
-  const progressValue = lobby.phase === "ranking" ? lobby.rankingCount + "/" + lobby.activePlayerCount : lobby.answerCount + "/" + lobby.activePlayerCount;
-  const roundActive = lobby.phase === "reading" || lobby.phase === "answering" || lobby.phase === "ranking";
+  const phaseLabel = reveal && lobby.gameMode === "majority" ? "Majority Reveal" : reveal && lobby.gameMode === "herd" ? "Herd Reveal" : labelForPhase(lobby.phase);
+  const revealIntro = useRevealIntro(lobby.phase, lobby.phaseEndsAt, duration);
+  const revealVoteDuration = reveal ? Math.max(1000, duration - REVEAL_ANSWER_SPOTLIGHT_MS) : duration;
+  const revealIntroEndsAt = reveal ? lobby.phaseEndsAt - revealVoteDuration : lobby.phaseEndsAt;
+  const roundActive = lobby.phase === "reading" || lobby.phase === "answering";
 
   return (
-    <main className={"host-screen host-game phase-" + lobby.phase}>
+    <main className={"host-screen host-game phase-" + lobby.phase + " mode-" + lobby.gameMode}>
       <HostTopBar connected={connected} phase={phaseLabel} code={lobby.code} hostMenu={hostMenu} onSkip={onSkip} />
       <section className="quiz-meta-row is-two-up">
         <Metric label="Question" value={Math.max(1, lobby.currentQuestionIndex + 1) + "/" + Math.max(1, lobby.totalQuestions)} />
-        <Metric label={progressLabel} value={progressValue} />
+        <Metric label="Answers" value={lobby.answerCount + "/" + lobby.activePlayerCount} />
       </section>
       <section className="question-stage">
         {!reveal || revealIntro ? <div className="game-timer-row">
@@ -2378,12 +2922,9 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
         {question?.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}
       </section>
       {reveal && revealIntro ? <CorrectAnswerSpotlight question={question} gameMode={lobby.gameMode} answerSelections={lobby.answerSelections} players={lobby.players} /> : null}
-      {!isHerd && !reveal ? <AnswerGrid answers={question?.answers || []} reveal={false} hideText={lobby.phase === "reading"} answerSelections={lobby.answerSelections} players={lobby.players} questionId={question?.id} /> : null}
-      {isHerd && lobby.phase === "answering" ? <HerdPartyStatus title="Answers are coming in" value={lobby.answerCount + "/" + lobby.activePlayerCount} detail="The room is writing answers anonymously." /> : null}
-      {isHerd && lobby.phase === "ranking" ? <HerdPartyStatus title="Top-three picks are coming in" value={lobby.rankingCount + "/" + lobby.activePlayerCount} detail="Each player is choosing the three answers they think the room will love most." /> : null}
+      {!reveal ? <AnswerGrid answers={question?.answers || []} reveal={false} hideText={lobby.phase === "reading"} answerSelections={lobby.answerSelections} players={lobby.players} questionId={question?.id} /> : null}
       {roundActive ? <GameLeaderboardPanel lobby={lobby} hint={lobby.ownPlayer ? "Choose one friend to Gahook this question" : "Live standings"} onPoke={lobby.ownPlayer ? onLeaderboardPoke : undefined} usedPokeIds={questionUseIds(lobby)} ownPlayerId={lobby.ownPlayer?.id || ""} /> : null}
-      {isHerd && reveal ? <HerdCombinedResults question={question} lobby={lobby} onPoke={onLeaderboardPoke} readonly phaseEndsAt={lobby.phaseEndsAt} durationMs={duration} onProgressComplete={onProgressComplete} /> : null}
-      {!isHerd && reveal && !revealIntro ? <RoundRevealSummary question={question} lobby={lobby} onPoke={onLeaderboardPoke} readonly phaseEndsAt={lobby.phaseEndsAt} durationMs={revealVoteDuration} onProgressComplete={onProgressComplete} /> : null}
+      {reveal && !revealIntro ? <RevealPanel question={question} lobby={lobby} onPoke={onLeaderboardPoke} readonly phaseEndsAt={lobby.phaseEndsAt} durationMs={revealVoteDuration} onProgressComplete={onProgressComplete} /> : null}
     </main>);
 
 }
@@ -2451,6 +2992,7 @@ function FinishedScreen({ lobby, connected, hostMenu, onReset, onNewGame }) {
 }
 
 function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEditComplete }) {
+  const dispatch = useDispatch();
   const lobby = useSelector((state) => state.lobby);
   const connected = useSelector((state) => state.connected);
   const ownPlayer = lobby.ownPlayer;
@@ -2462,9 +3004,11 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
   };
   const playerMenu = hostMenu || (ownPlayer ? <PlayerQuickMenu ownPlayer={ownPlayer} mode={lobby.gameMode} customGahook={lobby.ownCustomGahook} customGahookOptions={lobby.customGahookOptions} allowCustomGahooks={lobby.allowCustomGahooks !== false} playerKey={playerKey} onEditProfile={() => setEditingLocalProfile(true)} onPartyView={() => setShowPartyView(true)} /> : null);
   const [activePoke, setActivePoke] = useState(null);
+  const [pokeActionBusy, setPokeActionBusy] = useState(false);
   const activePokeRef = useRef(null);
   const pokeTimeoutRef = useRef(null);
   const seenPokeIdRef = useRef("");
+  const seenCounterOfferIdRef = useRef("");
   const seenRoomPokeIdRef = useRef("");
   const ownPlayerIdRef = useRef("");
   const ownPokeId = lobby.ownPoke?.id;
@@ -2524,9 +3068,11 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     const isCongrats = incomingPoke.kind === "congrats";
     const isBoo = incomingPoke.kind === "boo";
     const isCounter = incomingPoke.kind === "counter";
+    const isDuelChallenge = incomingPoke.kind === "duel-challenge";
+    const hasCounterOffer = (incomingPoke.counterOfferUntil || 0) > now;
     const pokeAge = now - (incomingPoke.createdAt || now);
     const ultimateStillActive = (isUltimate || isUltimateCongrats) && (incomingPoke.ultimateUntil || 0) > now;
-    if (!isGetGot && !isCongrats && !isUltimateCongrats && !isBoo && !ultimateStillActive && pokeAge > STALE_GAHOOK_MS) {
+    if (!isGetGot && !isCongrats && !isUltimateCongrats && !isBoo && !isCounter && !isDuelChallenge && !hasCounterOffer && !ultimateStillActive && pokeAge > STALE_GAHOOK_MS) {
       return undefined;
     }
 
@@ -2574,8 +3120,10 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
       speakText("get got", { rate: 0.86, pitch: 0.42, volume: 1, lang: "en-US" });
     } else if (isCounter) {
       playCounterGahookSound(soundChannel);
-      playGahookFormSound(incomingPoke.gahookForm, soundChannel, incomingPoke.customGahook, overlayDurationMs);
-      speakText("counter gah hook", { rate: 0.88, pitch: 0.78, volume: 1, lang: "en-US" });
+      speakText("counter gah hook", { rate: 0.9, pitch: 0.62, volume: 1, lang: "en-US" });
+    } else if (isDuelChallenge) {
+      playCounterGahookSound(soundChannel);
+      speakText("Gahook Arena", { rate: 0.92, pitch: 0.72, volume: 1, lang: "en-US" });
     } else if (isUltimate) {
       playUltimateGahookSound(soundChannel);
       playGahookFormSound(incomingPoke.gahookForm, soundChannel, incomingPoke.customGahook, overlayDurationMs);
@@ -2589,6 +3137,26 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     schedulePokeHide(nextPoke);
     return undefined;
   }, [ownPokeId]);
+
+  useEffect(() => {
+    const offer = lobby.ownCounterOffer;
+    if (!offer?.id || offer.expiresAt <= Date.now() || seenCounterOfferIdRef.current === offer.id) return undefined;
+    seenCounterOfferIdRef.current = offer.id;
+    const incomingPoke = lobby.ownPoke || {};
+    const nextPoke = {
+      ...incomingPoke,
+      id: incomingPoke.id || "counter-offer-" + offer.id,
+      renderId: "counter-offer-" + offer.id,
+      counterOfferId: offer.id,
+      counterOfferUntil: offer.expiresAt
+    };
+    showPoke(nextPoke);
+    const soundChannel = resetPokeSoundChannel();
+    playGahookFormSound(nextPoke.gahookForm, soundChannel, nextPoke.customGahook, pokeOverlayDurationMs(nextPoke));
+    playGahookVoiceCue(soundChannel);
+    schedulePokeHide(nextPoke);
+    return undefined;
+  }, [lobby.ownCounterOffer?.id]);
 
   useEffect(() => {
     const incomingPoke = lobby.roomPoke;
@@ -2607,11 +3175,58 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     return undefined;
   }, [roomPokeId, ownPlayer?.id]);
 
+  const runPokeAction = async (path, payload) => {
+    if (pokeActionBusy) return;
+    setPokeActionBusy(true);
+    const result = await api(path, { playerKey, ...payload }, { refresh: false });
+    setPokeActionBusy(false);
+    if (!result.ok) {
+      dispatch({ type: "ERROR", value: result.error });
+      forceSnapshotRevert();
+      return;
+    }
+    activePokeRef.current = null;
+    setActivePoke(null);
+    clearPokeTimeout();
+    window.gahookzRefreshSnapshot?.();
+  };
+  let pokeAction = null;
+  if (activePoke && lobby.ownCounterOffer?.id && (lobby.ownCounterOffer.expiresAt || 0) > Date.now()) {
+    pokeAction = {
+      label: pokeActionBusy ? "Firing back..." : "Counter Gahook",
+      disabled: pokeActionBusy,
+      onClick: () => runPokeAction("/api/player/counter-poke", { offerId: lobby.ownCounterOffer.id })
+    };
+  } else if (activePoke?.kind === "counter" && (activePoke.duelChallengeUntil || 0) > Date.now()) {
+    pokeAction = {
+      label: pokeActionBusy ? "Opening arena..." : "START GAHOOK ARENA",
+      moving: true,
+      disabled: pokeActionBusy,
+      onClick: () => runPokeAction("/api/player/duel-challenge", {})
+    };
+  } else if (activePoke?.kind === "duel-challenge" && activePoke.duelId && (activePoke.duelChallengeUntil || 0) > Date.now()) {
+    pokeAction = {
+      label: pokeActionBusy ? "Entering arena..." : "ENTER GAHOOK ARENA",
+      moving: true,
+      disabled: pokeActionBusy,
+      onClick: () => runPokeAction("/api/player/duel-accept", { duelId: activePoke.duelId })
+    };
+  }
+  const effectsLayer = <>
+    {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} action={pokeAction} /> : null}
+    {!activePoke ? <CounterGahookPrompt
+      offer={lobby.ownCounterOffer}
+      busy={pokeActionBusy}
+      onCounter={() => runPokeAction("/api/player/counter-poke", { offerId: lobby.ownCounterOffer?.id })}
+    /> : null}
+    <GahookDuelOverlay duel={lobby.gahookDuel} ownPlayer={ownPlayer} ownPoke={lobby.ownPoke} playerKey={playerKey} />
+  </>;
+
   if (!ownPlayer) {
     return (
       <>
         <JoinScreen lobby={lobby} connected={connected} playerKey={playerKey} hostMenu={hostMenu} />
-        {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} /> : null}
+        {effectsLayer}
       </>);
 
   }
@@ -2619,7 +3234,7 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     return (
       <>
         <JoinScreen lobby={lobby} connected={connected} playerKey={playerKey} hostMenu={playerMenu} editingPlayer={ownPlayer} onEditComplete={closeProfileEditor} />
-        {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} /> : null}
+        {effectsLayer}
       </>);
 
   }
@@ -2627,7 +3242,7 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     return (
       <>
         <ReadonlyPartyView lobby={lobby} connected={connected} ownPlayer={ownPlayer} playerKey={playerKey} onBack={() => setShowPartyView(false)} />
-        {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} /> : null}
+        {effectsLayer}
       </>);
 
   }
@@ -2635,7 +3250,7 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     return (
       <>
         <PlayerWaitingLobby lobby={lobby} connected={connected} ownPlayer={ownPlayer} playerKey={playerKey} hostMenu={playerMenu} />
-        {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} /> : null}
+        {effectsLayer}
       </>);
 
   }
@@ -2643,14 +3258,21 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     return (
       <>
         <PlayerLobby lobby={lobby} connected={connected} ownPlayer={ownPlayer} playerKey={playerKey} hostMenu={playerMenu} />
-        {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} /> : null}
+        {effectsLayer}
       </>);
 
+  }
+  if (lobby.phase === "herd-writing") {
+    return (
+      <>
+        <PlayerHerdPreparation lobby={lobby} connected={connected} ownPlayer={ownPlayer} playerKey={playerKey} hostMenu={playerMenu} />
+        {effectsLayer}
+      </>);
   }
   return (
     <>
       <PlayerGame lobby={lobby} connected={connected} ownPlayer={ownPlayer} playerKey={playerKey} hostMenu={playerMenu} />
-      {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} /> : null}
+      {effectsLayer}
     </>);
 
 }
@@ -2685,6 +3307,9 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
   const [editingCustom, setEditingCustom] = useState(false);
   useModalBodyLock(editingCustom);
   const selectedForm = ownPlayer?.gahookForm || getStoredGahookForm();
+  const slotCount = Math.max(1, Number(customGahookOptions?.slotCount) || 1);
+  const selectedSlot = Math.max(0, Number(customGahookOptions?.selectedSlot) || 0);
+  const accountLinked = Boolean(customGahookOptions?.accountLinked);
   const chooseGahookForm = (gahookForm) => {
     const selected = storeGahookForm(gahookForm);
     dispatch({ type: "OPTIMISTIC_GAHOOK_FORM", value: selected });
@@ -2713,7 +3338,7 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
       customAudioDataUrl: value.soundId === "custom" ? value.customAudioDataUrl : "",
       customAudioName: value.soundId === "custom" ? value.customAudioName : ""
     };
-    const result = await api("/api/player/custom-gahook", { playerKey, customGahook: customPayload }, { refresh: false });
+    const result = await api("/api/player/custom-gahook", { playerKey, slot: selectedSlot, customGahook: customPayload }, { refresh: false });
     if (!result.ok) {
       dispatch({ type: "ERROR", value: result.error });
       throw new Error(result.error || "Your custom Gahook could not be saved.");
@@ -2728,6 +3353,15 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
     setEditingCustom(false);
     window.gahookzRefreshSnapshot?.();
   };
+  const chooseCustomSlot = async (slot) => {
+    if (slot === selectedSlot) return;
+    const result = await api("/api/player/custom-gahook-slot", { playerKey, slot }, { refresh: false });
+    if (!result.ok) {
+      dispatch({ type: "ERROR", value: result.error });
+      return;
+    }
+    window.gahookzRefreshSnapshot?.();
+  };
   const limits = customGahookOptions?.limits || {};
   const maxImageBytes = Math.max(100000, Math.floor((Number(limits.maxFrameChars) || 180000) * 0.72));
   const maxAudioBytes = Math.max(100000, Math.floor((Number(limits.maxAudioChars) || 280000) * 0.72));
@@ -2735,6 +3369,9 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
     <>
       <fieldset className="gahook-form-picker">
         <legend>Your Gahook</legend>
+        {accountLinked ? <div className="custom-gahook-slot-picker" role="group" aria-label="Saved custom Gahook slot">
+          {Array.from({ length: slotCount }, (_value, slot) => <button className={slot === selectedSlot ? "is-selected" : ""} type="button" key={slot} aria-pressed={slot === selectedSlot} onClick={() => chooseCustomSlot(slot)}>Cloud {slot + 1}</button>)}
+        </div> : null}
         <div>
           {GAHOOK_FORMS.map((form) => <button className={selectedForm === form.id ? "is-selected" : ""} type="button" key={form.id} aria-pressed={selectedForm === form.id} onClick={() => chooseGahookForm(form.id)}>
             <span className="gahook-form-monkey"><GahookFormVisual form={form} small /></span>
@@ -2800,7 +3437,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
   const [avatarId, setAvatarId] = useState(initialAvatarId);
   const avatarIdRef = useRef(initialAvatarId);
   const [avatarImageDataUrl, setAvatarImageDataUrl] = useState(allowCustomProfiles ? editingPlayer?.avatarImageDataUrl || saved.avatarImageDataUrl || "" : "");
-  const [password, setPassword] = useState(() => getUrlPassword() || getSavedRoomPassword(routeCode || saved.code) || saved.password || "");
+  const [password, setPassword] = useState(() => getUrlPassword() || getSavedRoomPassword(routeCode || saved.code) || "");
   const [wrongPasswordPoke, setWrongPasswordPoke] = useState(null);
   const [joining, setJoining] = useState(false);
   const [drawingAvatar, setDrawingAvatar] = useState(false);
@@ -2859,7 +3496,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
       return;
     }
     if (password) saveRoomPassword(normalizedCode, password);
-    saveJoinSession({ code: normalizedCode, name, avatarId: selectedAvatarId, avatarImageDataUrl, gahookForm, password });
+    saveJoinSession({ code: normalizedCode, name, avatarId: selectedAvatarId, avatarImageDataUrl, gahookForm });
     if (isEditingProfile) onEditComplete?.();
     window.gahookzRefreshSnapshot?.();
   };
@@ -2882,6 +3519,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
           <button className="primary-button" type="submit" disabled={!connected || joining || normaliseRoomCode(routeCode || code).length !== 4 || !name.trim()}>{joining ? isEditingProfile ? "Saving" : "Joining" : isEditingProfile ? "Save changes" : "Join"}</button>
         </div>
       </form>
+      <AccountPanel />
       {drawingAvatar && allowCustomProfiles ? <div className="creation-modal-backdrop" role="presentation" onPointerDown={(event) => {
         if (event.target === event.currentTarget) setDrawingAvatar(false);
       }}>
@@ -2924,8 +3562,6 @@ function PlayerWaitingLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }
       if (!result.ok) {
         dispatch({ type: "ERROR", value: result.error });
         forceSnapshotRevert();
-      } else {
-        applyCounterGahookResult(dispatch, result);
       }
     });
   };
@@ -2937,11 +3573,14 @@ function PlayerWaitingLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }
   return (
     <main className="host-screen host-lobby player-waiting-lobby">
       <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={hostMenu} />
+      <AccountPanel />
       <section className="social-lobby-layout has-room-status">
         <RoomStatusBanner code={lobby.code} eyebrow="Game lobby" title="The host is choosing the game" keepActionsWhenHidden={false} actions={<ModeTutorialLauncher mode={lobby.gameMode} includeHost={false} />}>
           Meet the room, Gahook your friends, and wait for question time to begin.
         </RoomStatusBanner>
+        <PreviousGameSummary summary={lobby.lastGameSummary} ownPlayerId={ownPlayer?.id} />
         <div className="player-wall">
+          <GahookDuelArena duel={lobby.gahookDuel} />
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
@@ -2966,8 +3605,7 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
   const remaining = Math.max(0, lobby.maxQuestionsPerPlayer - slotsUsed);
   const questionNumber = Math.min(lobby.maxQuestionsPerPlayer, slotsUsed + 1);
   const canReady = remaining === 0 && (ownPlayer.questionsPending || 0) === 0;
-  const isHerd = lobby.gameMode === "herd";
-  const creationLabel = isHerd ? "prompt" : "question";
+  const creationLabel = "question";
 
   const toggleReady = async () => {
     const previousReady = Boolean(ownPlayer.ready);
@@ -2988,8 +3626,6 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
       if (!result.ok) {
         dispatch({ type: "ERROR", value: result.error });
         forceSnapshotRevert();
-      } else {
-        applyCounterGahookResult(dispatch, result);
       }
     });
   };
@@ -3029,10 +3665,12 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
     <main className="host-screen host-lobby player-party-lobby">
       <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={hostMenu} />
       <section className="host-lobby-layout has-room-status">
-        <RoomStatusBanner code={lobby.code} tone="is-building-status" eyebrow={isHerd ? "Prompt time" : "Question time"} title={"Make " + lobby.maxQuestionsPerPlayer + " " + creationLabel + (lobby.maxQuestionsPerPlayer === 1 ? "" : "s")}>
+        <RoomStatusBanner code={lobby.code} tone="is-building-status" eyebrow="Question time" title={"Make " + lobby.maxQuestionsPerPlayer + " " + creationLabel + (lobby.maxQuestionsPerPlayer === 1 ? "" : "s")}>
           Submit each one, then ready up while everyone else finishes.
         </RoomStatusBanner>
+        <PreviousGameSummary summary={lobby.lastGameSummary} ownPlayerId={ownPlayer?.id} />
         <div className="player-wall">
+          <GahookDuelArena duel={lobby.gahookDuel} />
           {lobby.isHost ? <QuestionApprovalPanel questions={lobby.pendingQuestions} onApprove={(question) => reviewQuestion(question, "approve")} onReject={(question) => reviewQuestion(question, "reject")} /> : null}
           <div className="section-heading">
             <h1>Players</h1>
@@ -3044,14 +3682,14 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
         </div>
         <aside className="host-control-panel player-lobby-panel">
           <header className="question-creation-heading">
-            <div><span>{isHerd ? "Prompt time" : "Question time"}</span><h2>{isHerd ? "Create prompts" : "Create questions"}</h2></div>
+            <div><span>Question time</span><h2>{lobby.gameMode === "majority" ? "Create opinion questions" : lobby.gameMode === "herd" ? "Ask the Herd" : "Create questions"}</h2></div>
             <ModeTutorialLauncher mode={lobby.gameMode} autoOpen includeHost={false} />
           </header>
           {ownQuestions.length ? <SubmittedQuestionList questions={ownQuestions} editingQuestionId={editingQuestionId} onEdit={beginQuestionEdit} /> : null}
           {canReady && !editingQuestion ? <button className={ownPlayer.ready ? "ready-button ready-button-below is-ready" : "ready-button ready-button-below needs-ready"} type="button" onClick={toggleReady}>{ownPlayer.ready ? "Ready" : "Ready up"}</button> : null}
           {ownPlayer.questionsPending > 0 ? <div className="limit-panel">Waiting for host to approve {ownPlayer.questionsPending} {creationLabel}{ownPlayer.questionsPending === 1 ? "" : "s"}</div> : null}
           {editingQuestion || remaining > 0 ? <QuestionBuilder key={editingQuestion?.id || "new-" + questionNumber} questionNumber={editingQuestion ? editingQuestionIndex + 1 : questionNumber} totalQuestions={lobby.maxQuestionsPerPlayer} playerKey={playerKey} requiresApproval={lobby.approveQuestions} mode={lobby.gameMode} promptStyle={lobby.promptStyle} editingQuestion={editingQuestion} onEditComplete={() => setEditingQuestionId("")} onCancelEdit={() => setEditingQuestionId("")} /> : !lobby.isHost && ownPlayer.ready ? <p className="ready-waiting-status" role="status">Ready. Waiting for host to start game</p> : null}
-          {lobby.isHost ? <div className="party-start-button"><ForceStartControl canStart={lobby.canStart} canForceStart={lobby.activePlayerCount > 0} label="Start game" onStart={startGame} onForceStart={forceStartGame} /></div> : null}
+          {lobby.isHost ? <div className="party-start-button"><ForceStartControl canStart={lobby.canStart} canForceStart={lobby.activePlayerCount > 0} label={lobby.gameMode === "herd" ? "Deal out answer prompts" : "Start game"} onStart={startGame} onForceStart={forceStartGame} /></div> : null}
         </aside>
         <RoomSocialHub lobby={lobby} ownPlayer={ownPlayer} playerKey={playerKey} />
       </section>
@@ -3066,7 +3704,7 @@ function SubmittedQuestionList({ questions, editingQuestionId, onEdit }) {
       <article className={["submitted-question-banner", question.status === "pending" ? "is-pending" : "", question.id === editingQuestionId ? "is-editing" : ""].filter(Boolean).join(" ")} key={question.id} title={question.status === "pending" ? "Pending host approval" : "Submitted"}>
           <strong className="submitted-question-number">{index + 1}</strong>
           <p>{question.text}</p>
-          <button className="edit-question-button" type="button" aria-label={"Edit " + (question.mode === "herd" ? "prompt " : "question ") + (index + 1)} title={"Edit " + (question.mode === "herd" ? "prompt " : "question ") + (index + 1)} onClick={() => onEdit(question)}><EditMiniIcon /></button>
+          <button className="edit-question-button" type="button" aria-label={"Edit question " + (index + 1)} title={"Edit question " + (index + 1)} onClick={() => onEdit(question)}><EditMiniIcon /></button>
         </article>
       )}
     </section>);
@@ -3082,38 +3720,28 @@ function EditMiniIcon() {
 
 }
 
-function pickOddballPreset() {
-  return ODDBALL_QUESTION_PRESETS[Math.floor(Math.random() * ODDBALL_QUESTION_PRESETS.length)];
-}
-
 function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresApproval = false, mode = "quiz", promptStyle = "fun", editingQuestion = null, onEditComplete, onCancelEdit }) {
   const dispatch = useDispatch();
   const initialAnswers = editingQuestion?.answers?.map((answer) => answer.text) || [];
   const [text, setText] = useState(editingQuestion?.text || "");
   const [answers, setAnswers] = useState(initialAnswers.length >= 2 ? initialAnswers : ["", ""]);
-  const [correctIndex, setCorrectIndex] = useState(Math.max(0, editingQuestion?.answers?.findIndex((answer) => answer.correct) ?? 0));
+  const [correctIndex, setCorrectIndex] = useState(Math.max(0, editingQuestion?.answers?.findIndex((answer) => answer.correct || answer.predicted) ?? 0));
   const [imageDataUrl, setImageDataUrl] = useState(editingQuestion?.imageDataUrl || "");
   const [submitting, setSubmitting] = useState(false);
-  const [herdPromptGenerations, setHerdPromptGenerations] = useState(0);
+  const isMajority = mode === "majority";
   const isHerd = mode === "herd";
-  const isOddball = mode === "oddball";
-  const isChoiceMode = !isHerd;
   const isEditing = Boolean(editingQuestion?.id);
 
   const updateAnswer = (index, value) => setAnswers((current) => current.map((answer, answerIndex) => answerIndex === index ? value : answer));
   const addAnswer = () => setAnswers((current) => current.length >= 4 ? current : [...current, ""]);
   const useRandomPreset = () => {
     if (isHerd) {
-      if (herdPromptGenerations >= HERD_PROMPT_GENERATION_LIMIT) return;
-      const promptPool = promptStyle === "education" ? EDUCATION_HERD_PROMPTS : HERD_QUESTION_PRESETS;
-      const choices = promptPool.filter((prompt) => prompt !== text);
-      const prompt = choices[Math.floor(Math.random() * choices.length)] || promptPool[0];
-      setText(prompt);
-      setHerdPromptGenerations((count) => Math.min(HERD_PROMPT_GENERATION_LIMIT, count + 1));
+      const preset = PARTY_QUESTION_PRESETS[Math.floor(Math.random() * PARTY_QUESTION_PRESETS.length)];
+      setText(preset.text);
       return;
     }
-    if (isOddball) {
-      const preset = pickOddballPreset();
+    if (isMajority) {
+      const preset = MAJORITY_QUESTION_PRESETS[Math.floor(Math.random() * MAJORITY_QUESTION_PRESETS.length)];
       setText(preset.text);
       setAnswers(preset.answers.slice(0, 4));
       setCorrectIndex(0);
@@ -3147,26 +3775,25 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
     setAnswers(["", ""]);
     setCorrectIndex(0);
     setImageDataUrl("");
-    setHerdPromptGenerations(0);
   };
 
   const submitQuestion = async (event) => {
     event.preventDefault();
-    const draft = { text, answers, correctIndex, imageDataUrl, herdPromptGenerations };
+    const draft = { text, answers, correctIndex, imageDataUrl };
     if (!isEditing && !requiresApproval) {
       dispatch({ type: "OPTIMISTIC_QUESTION_SUBMITTED" });
     }
     if (!isEditing) resetForm();
     setSubmitting(true);
-    const payload = isHerd ? {
-      playerKey,
-      text,
-      imageDataUrl
-    } : {
+    const payload = {
       playerKey,
       text,
       imageDataUrl,
-      answers: answers.map((answer, index) => ({ text: answer, correct: !isOddball && index === correctIndex }))
+      answers: isHerd ? [] : answers.map((answer, index) => ({
+        text: answer,
+        correct: !isMajority && index === correctIndex,
+        predicted: isMajority && index === correctIndex
+      }))
     };
     if (isEditing) payload.questionId = editingQuestion.id;
     const result = await api(isEditing ? "/api/question/edit" : "/api/question", payload, { timeoutMs: 1200 });
@@ -3177,7 +3804,6 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
         setAnswers(draft.answers);
         setCorrectIndex(draft.correctIndex);
         setImageDataUrl(draft.imageDataUrl);
-        setHerdPromptGenerations(draft.herdPromptGenerations);
       }
       if (!isEditing && !requiresApproval) {
         dispatch({ type: "ROLLBACK_OPTIMISTIC_QUESTION" });
@@ -3196,10 +3822,9 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
     }
   };
 
-  const canSubmit = text.trim().length >= 4 && (!isChoiceMode || answers.length >= 2 && answers.every((answer) => answer.trim())) && !submitting;
-  const submitLabel = submitting ? "Submitting" : isEditing ? isHerd ? "Resubmit prompt" : isOddball ? "Resubmit poll" : "Resubmit question" : isHerd ? "Submit prompt" : isOddball ? "Submit poll" : "Submit question";
-  const herdPromptsRemaining = Math.max(0, HERD_PROMPT_GENERATION_LIMIT - herdPromptGenerations);
-  const itemLabel = isHerd ? "Prompt" : "Question";
+  const canSubmit = text.trim().length >= 4 && (isHerd || answers.length >= 2 && answers.every((answer) => answer.trim())) && !submitting;
+  const submitLabel = submitting ? "Submitting" : isEditing ? "Resubmit question" : "Submit question";
+  const itemLabel = "Question";
 
   return (
     <form className="question-builder" onSubmit={submitQuestion}>
@@ -3207,18 +3832,16 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
         <h2>{isEditing ? "Edit " + itemLabel.toLowerCase() + " " : itemLabel + " "}{questionNumber} of {totalQuestions}</h2>
         {isEditing ? <button className="cancel-edit-button" type="button" onClick={onCancelEdit}>Cancel edit</button> : null}
       </div>
-      <button className={isHerd ? "preset-question-button herd-prompt-generator" : "preset-question-button"} type="button" onClick={useRandomPreset} disabled={isHerd && herdPromptsRemaining === 0}>{isHerd ? herdPromptsRemaining ? (promptStyle === "education" ? "Give me a learning prompt · " : "Give me a Herd prompt · ") + herdPromptsRemaining + " left" : "Prompt ideas used" : isOddball ? "Give me an Oddball poll" : promptStyle === "education" ? "Give me a learning question" : "Give me a funny prompt"}</button>
-      <label className="question-input-label"><textarea value={text} onChange={(event) => setText(event.target.value)} maxLength="180" placeholder={isHerd ? "Write a prompt everyone can answer" : "Question text"} rows="3" /></label>
-      <ImageUploadDrawPicker value={imageDataUrl} onChange={setImageDataUrl} label={isHerd ? "Optional prompt image" : "Optional question image"} previewAlt={isHerd ? "Prompt image preview" : "Question image preview"} />
-      {isChoiceMode ?
-      <>
+      <button className="preset-question-button" type="button" onClick={useRandomPreset}>{isHerd ? "Give me a Herd question" : isMajority ? "Give me an opinion question" : promptStyle === "education" ? "Give me a learning question" : "Give me a funny prompt"}</button>
+      <label className="question-input-label"><textarea value={text} onChange={(event) => setText(event.target.value)} maxLength="180" placeholder={isHerd ? "Ask something your friends can answer badly" : isMajority ? "Ask a funny question with no factual right answer" : "Question text"} rows="3" /></label>
+      <ImageUploadDrawPicker value={imageDataUrl} onChange={setImageDataUrl} label="Optional question image" previewAlt="Question image preview" />
+      {!isHerd ? <>
           <div className="builder-answer-list">
-            {answers.map((answer, index) => <label className={isOddball ? "builder-answer is-poll-answer answer-" + ANSWER_IDS[index] : "builder-answer answer-" + ANSWER_IDS[index]} key={ANSWER_IDS[index]}>{!isOddball ? <input type="radio" name="correct" checked={correctIndex === index} onChange={() => setCorrectIndex(index)} aria-label={"Mark answer " + (index + 1) + " as correct"} /> : null}<input value={answer} onChange={(event) => updateAnswer(index, event.target.value)} maxLength="80" placeholder={isOddball ? "Poll option" : "Answer"} />{answers.length > 2 ? <button type="button" onClick={() => removeAnswer(index)} aria-label="Remove answer">x</button> : null}</label>)}
+            {answers.map((answer, index) => <label className={"builder-answer answer-" + ANSWER_IDS[index]} key={ANSWER_IDS[index]}><input type="radio" name={isMajority ? "prediction" : "correct"} checked={correctIndex === index} onChange={() => setCorrectIndex(index)} aria-label={isMajority ? "Predict answer " + (index + 1) + " as most popular" : "Mark answer " + (index + 1) + " as correct"} /><input value={answer} onChange={(event) => updateAnswer(index, event.target.value)} maxLength="80" placeholder="Answer" />{answers.length > 2 ? <button type="button" onClick={() => removeAnswer(index)} aria-label="Remove answer">x</button> : null}</label>)}
           </div>
           {answers.length < 4 ? <button className={"secondary-button add-answer-button answer-" + ANSWER_IDS[answers.length]} type="button" onClick={addAnswer}>+ Add answer</button> : null}
-        </> :
-      <p className="herd-builder-note">Everyone writes one answer, then tries to predict the room's top three.</p>}
-      {isOddball ? <p className="herd-builder-note oddball-builder-note">Players score by choosing the least popular option. Solo oddballs get a bonus.</p> : null}
+        </> : <p className="herd-builder-note">Just write the prompt. Your friends will secretly create the answer choices in the next step.</p>}
+      {isMajority ? <p className="majority-builder-note">There is no factual correct answer. Mark your prediction for the option everyone will choose; a perfect prediction earns you 100 bonus points.</p> : null}
       <button className="primary-button" type="submit" disabled={!canSubmit}>{submitLabel}</button>
     </form>);
 
@@ -3231,9 +3854,8 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
   const duration = lobby.phaseDurations?.[lobby.phase] || 0;
   const questionNumberLabel = "Question " + Math.max(1, lobby.currentQuestionIndex + 1);
   const reveal = lobby.phase === "reveal";
-  const isHerd = lobby.gameMode === "herd";
-  const phaseLabel = isHerd && reveal ? "Herd Reveal" : isHerd && lobby.phase === "ranking" ? "Pick your top 3" : labelForPhase(lobby.phase);
-  const revealIntro = !isHerd && useRevealIntro(lobby.phase, lobby.phaseEndsAt, duration);
+  const phaseLabel = reveal && lobby.gameMode === "majority" ? "Majority Reveal" : reveal && lobby.gameMode === "herd" ? "Herd Reveal" : labelForPhase(lobby.phase);
+  const revealIntro = useRevealIntro(lobby.phase, lobby.phaseEndsAt, duration);
   const visibleAnswerSelections = withOptimisticAnswerSelection(lobby.answerSelections, ownPlayer, ownAnswer);
   const acknowledgeProgress = () => api("/api/player/progress", { playerKey, phase: lobby.phase, questionIndex: lobby.currentQuestionIndex }, { refresh: false });
 
@@ -3255,24 +3877,6 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
       forceSnapshotRevert();
     }
   };
-  const submitHerdAnswer = async ({ answerText, imageDataUrl = "" }) => {
-    dispatch({ type: "OPTIMISTIC_ANSWER", value: { answerText, imageDataUrl } });
-    const result = await api("/api/answer", { playerKey, answerText, imageDataUrl }, { timeoutMs: 1600 });
-    if (!result.ok) {
-      dispatch({ type: "ROLLBACK_OPTIMISTIC_ANSWER" });
-      dispatch({ type: "ERROR", value: result.error });
-      forceSnapshotRevert();
-    }
-    return result;
-  };
-  const submitHerdRanking = async (answerIds) => {
-    const result = await api("/api/herd/rank", { playerKey, answerIds }, { timeoutMs: 1200 });
-    if (!result.ok) {
-      dispatch({ type: "ERROR", value: result.error });
-      forceSnapshotRevert();
-    }
-    return result;
-  };
   const gahookPlayer = (player) => {
     if (triggerClientOnlySelfGahook(dispatch, player, ownPlayer, ownPlayer.name)) return;
     dispatch({ type: "OPTIMISTIC_POKE", value: { ...optimisticPokePayload(player, ownPlayer.name), markUseScope: "question", senderPlayerId: ownPlayer.id, pointsStolen: GAHOOK_STEAL_POINTS } });
@@ -3280,8 +3884,6 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
       if (!result.ok) {
         dispatch({ type: "ERROR", value: result.error });
         forceSnapshotRevert();
-      } else {
-        applyCounterGahookResult(dispatch, result);
       }
     });
   };
@@ -3292,16 +3894,12 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
       if (!result.ok) {
         dispatch({ type: "ERROR", value: result.error });
         forceSnapshotRevert();
-      } else {
-        applyCounterGahookResult(dispatch, result);
       }
     });
   };
-  const roundActive = lobby.phase === "reading" || lobby.phase === "answering" || lobby.phase === "ranking";
-  const progressLabel = lobby.phase === "ranking" ? "Top 3 locked" : "Answers";
-  const progressValue = lobby.phase === "ranking" ? lobby.rankingCount + "/" + lobby.activePlayerCount : lobby.answerCount + "/" + lobby.activePlayerCount;
-  const revealVoteDuration = reveal && !isHerd ? Math.max(1000, duration - REVEAL_ANSWER_SPOTLIGHT_MS) : duration;
-  const revealIntroEndsAt = reveal && !isHerd ? lobby.phaseEndsAt - revealVoteDuration : lobby.phaseEndsAt;
+  const roundActive = lobby.phase === "reading" || lobby.phase === "answering";
+  const revealVoteDuration = reveal ? Math.max(1000, duration - REVEAL_ANSWER_SPOTLIGHT_MS) : duration;
+  const revealIntroEndsAt = reveal ? lobby.phaseEndsAt - revealVoteDuration : lobby.phaseEndsAt;
 
   if (lobby.phase === "finished") {
     return (
@@ -3313,12 +3911,15 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
   }
 
   return (
-    <main className={"host-screen host-game player-party-game phase-" + lobby.phase}>
-      <HostTopBar connected={connected} phase={phaseLabel} code={lobby.code} hostMenu={hostMenu} />
+    <main className={"host-screen host-game player-party-game phase-" + lobby.phase + " mode-" + lobby.gameMode}>
+      <HostTopBar connected={connected} phase={phaseLabel} code={lobby.code} hostMenu={hostMenu} onSkip={lobby.isHost ? async () => {
+        const result = await api("/api/host/skip");
+        if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+      } : undefined} />
       <ModeTutorialLauncher mode={lobby.gameMode} autoOpen includeHost={false} showButton={false} />
       <section className="quiz-meta-row is-two-up">
         <Metric label="Question" value={Math.max(1, lobby.currentQuestionIndex + 1) + "/" + Math.max(1, lobby.totalQuestions)} />
-        <Metric label={progressLabel} value={progressValue} />
+        <Metric label="Answers" value={lobby.answerCount + "/" + lobby.activePlayerCount} />
       </section>
       {question && lobby.phase !== "finished" ?
       <section className="question-stage">
@@ -3337,13 +3938,10 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
           {question.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}
         </section> :
       null}
-      {!isHerd && roundActive ? <AnswerGrid answers={question?.answers || []} reveal={false} hideText={lobby.phase === "reading"} interactive={lobby.phase === "answering"} disabled={Boolean(ownAnswer)} selectedAnswerId={ownAnswer?.answerId} onAnswer={submitAnswer} answerSelections={visibleAnswerSelections} players={lobby.players} questionId={question?.id} /> : null}
-      {(lobby.phase === "reading" || lobby.phase === "answering") && isHerd ? <HerdAnswerPanel phase={lobby.phase} ownAnswer={ownAnswer} onSubmit={submitHerdAnswer} /> : null}
-      {lobby.phase === "ranking" && isHerd ? <HerdRankingPanel key={question?.id || "herd-rank"} answers={question?.herdAnswerOptions || []} ownRanking={lobby.ownHerdRanking} onSubmit={submitHerdRanking} /> : null}
+      {roundActive ? <AnswerGrid answers={question?.answers || []} reveal={false} hideText={lobby.phase === "reading"} interactive={lobby.phase === "answering"} disabled={Boolean(ownAnswer)} selectedAnswerId={ownAnswer?.answerId} onAnswer={submitAnswer} answerSelections={visibleAnswerSelections} players={lobby.players} questionId={question?.id} /> : null}
       {roundActive ? <GameLeaderboardPanel lobby={lobby} hint="Choose one friend to Gahook this question" onPoke={gahookPlayer} usedPokeIds={questionUseIds(lobby)} ownPlayerId={ownPlayer.id} /> : null}
       {reveal && revealIntro ? <CorrectAnswerSpotlight question={question} gameMode={lobby.gameMode} answerSelections={lobby.answerSelections} players={lobby.players} /> : null}
-      {isHerd && reveal ? <HerdCombinedResults question={question} lobby={lobby} playerKey={playerKey} onPoke={regularGahookPlayer} phaseEndsAt={lobby.phaseEndsAt} durationMs={duration} onProgressComplete={acknowledgeProgress} /> : null}
-      {!isHerd && reveal && !revealIntro ? <RevealPanel question={question} lobby={lobby} playerKey={playerKey} onPoke={regularGahookPlayer} phaseEndsAt={lobby.phaseEndsAt} durationMs={revealVoteDuration} onProgressComplete={acknowledgeProgress} /> : null}
+      {reveal && !revealIntro ? <RevealPanel question={question} lobby={lobby} playerKey={playerKey} onPoke={regularGahookPlayer} phaseEndsAt={lobby.phaseEndsAt} durationMs={revealVoteDuration} onProgressComplete={acknowledgeProgress} /> : null}
     </main>);
 
 }
@@ -3367,137 +3965,6 @@ function GahookRoster({ lobby, ownPlayer, title, onPoke, disabled = false, mode 
       )}
     </section>);
 
-}
-
-function HerdAnswerPanel({ phase, ownAnswer, onSubmit }) {
-  const [answerText, setAnswerText] = useState("");
-  const [imageDataUrl, setImageDataUrl] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const canAnswer = phase === "answering" && !ownAnswer;
-  const submit = async (event) => {
-    event.preventDefault();
-    if (!canAnswer || !answerText.trim() || submitting) {
-      return;
-    }
-    setSubmitting(true);
-    await onSubmit({ answerText: answerText.trim(), imageDataUrl });
-    setSubmitting(false);
-  };
-
-  if (phase === "reading") {
-    return <section className="herd-answer-panel"><span>Think like the room</span><strong>Answer opens soon</strong></section>;
-  }
-
-  if (ownAnswer) {
-    return <section className="herd-answer-panel is-locked"><span>Your answer</span>{ownAnswer.imageDataUrl ? <img className="herd-own-answer-image" src={ownAnswer.imageDataUrl} alt="Your Herd answer" /> : null}<strong>{ownAnswer.answerText || "Locked"}</strong></section>;
-  }
-
-  return (
-    <form className="herd-answer-panel" onSubmit={submit}>
-      <label>
-        <span>Your crowd answer</span>
-        <input value={answerText} onChange={(event) => setAnswerText(event.target.value)} maxLength="60" placeholder="Type what everyone else will type" disabled={!canAnswer} />
-      </label>
-      <ImageUploadDrawPicker compact value={imageDataUrl} onChange={setImageDataUrl} label="Optional answer image" previewAlt="Your Herd answer image" disabled={!canAnswer || submitting} />
-      <button className="primary-button" type="submit" disabled={!canAnswer || !answerText.trim() || submitting}>{submitting ? "Locking" : "Lock answer"}</button>
-    </form>);
-
-}
-
-function HerdPartyStatus({ title, value, detail }) {
-  return <section className="herd-party-status"><span>{title}</span><strong>{value}</strong><p>{detail}</p></section>;
-}
-
-function HerdRankingPanel({ answers, ownRanking, onSubmit }) {
-  const requiredPickCount = Math.min(3, answers.length);
-  const [selectedIds, setSelectedIds] = useState(() => (ownRanking?.answerIds || []).slice(0, requiredPickCount));
-  const [submitting, setSubmitting] = useState(false);
-  const [locallyLocked, setLocallyLocked] = useState(false);
-  const locked = Boolean(ownRanking || locallyLocked);
-  const answerById = new Map(answers.map((answer) => [answer.id, answer]));
-  const lockedIds = (ownRanking?.answerIds || selectedIds).slice(0, requiredPickCount);
-  const pickAnswer = (answerId) => {
-    if (locked) return;
-    setSelectedIds((current) => {
-      const currentRankIndex = current.indexOf(answerId);
-      if (currentRankIndex < 0) {
-        if (current.length < requiredPickCount) return [...current, answerId];
-        return [...current.slice(0, Math.max(0, requiredPickCount - 1)), answerId];
-      }
-      if (current.length < 2) return current;
-      const next = [...current];
-      const nextRankIndex = (currentRankIndex + 1) % current.length;
-      [next[currentRankIndex], next[nextRankIndex]] = [next[nextRankIndex], next[currentRankIndex]];
-      return next;
-    });
-  };
-  const submit = async () => {
-    if (locked || submitting || selectedIds.length !== requiredPickCount) return;
-    setSubmitting(true);
-    setLocallyLocked(true);
-    const result = await onSubmit(selectedIds);
-    if (!result?.ok) setLocallyLocked(false);
-    setSubmitting(false);
-  };
-
-  if (locked) {
-    return <section className="herd-ranking-panel is-locked"><span>Top {requiredPickCount || 3} locked</span><strong>Your herd prediction is in</strong>{lockedIds.length ? <ol className="herd-locked-picks">{lockedIds.map((answerId, index) => {
-        const answer = answerById.get(answerId);
-        return <li key={answerId}><b>{index + 1}</b><div>{answer?.imageDataUrl ? <img src={answer.imageDataUrl} alt="" /> : null}<span>{answer?.text || "Answer selected"}{answer?.isOwn ? <small>Your answer</small> : null}</span></div></li>;
-      })}</ol> : null}<p>Waiting for the rest of the room.</p></section>;
-  }
-
-  return (
-    <section className="herd-ranking-panel">
-      <header><span>Herd prediction</span><h2>Choose your top {requiredPickCount || 3}</h2><p>Tap answers to choose them. Tap a chosen answer again to move it through ranks 1–3.</p></header>
-      <div className="herd-pick-progress" aria-label={selectedIds.length + " of " + requiredPickCount + " top answers selected"}>
-        {[0, 1, 2].slice(0, requiredPickCount).map((index) => <span className={selectedIds[index] ? "is-filled rank-" + (index + 1) : ""} key={index}><b>{index + 1}</b>{selectedIds[index] ? answerById.get(selectedIds[index])?.text : "Pick an answer"}</span>)}
-      </div>
-      <div className="herd-choice-grid">
-        {answers.length ? answers.map((answer) => {
-          const rank = selectedIds.indexOf(answer.id) + 1;
-          const className = ["herd-choice-card", rank ? "is-selected is-rank-" + rank : ""].filter(Boolean).join(" ");
-          const nextRank = rank ? rank === selectedIds.length ? 1 : rank + 1 : Math.min(selectedIds.length + 1, requiredPickCount);
-          const actionLabel = rank ? "currently ranked " + rank + "; activate to move to rank " + nextRank : "activate to rank " + nextRank;
-          return <button className={className} type="button" key={answer.id} aria-pressed={Boolean(rank)} aria-label={answer.text + (answer.isOwn ? ", your answer" : "") + ", " + actionLabel} onClick={() => pickAnswer(answer.id)}><strong>{rank || "+"}</strong><span className="herd-choice-content">{answer.imageDataUrl ? <img src={answer.imageDataUrl} alt="" /> : null}<span>{answer.text}</span>{answer.isOwn ? <small>Your answer</small> : null}</span>{rank ? <em>Your #{rank} pick</em> : <em>Tap to choose</em>}</button>;
-        }) : <p className="herd-no-answers">No answers were submitted. Continue to reveal the empty round.</p>}
-      </div>
-      <button className="primary-button herd-lock-ranking" type="button" onClick={submit} disabled={submitting || selectedIds.length !== requiredPickCount}>{submitting ? "Locking" : requiredPickCount ? "Lock top " + requiredPickCount : "Continue"}</button>
-    </section>);
-}
-
-function HerdCombinedResults({ question, lobby, playerKey = "", onPoke, readonly = false, phaseEndsAt = 0, durationMs = 0, onProgressComplete }) {
-  const results = question?.herdResults;
-  const groups = results?.groups || [];
-  const topGroupIds = new Set(results?.topGroupIds || []);
-  const personal = results?.playerResults?.find((result) => result.playerId === lobby.ownPlayer?.id);
-  const revealedTopCount = Math.min(3, groups.filter((group) => group.voteCount > 0).length);
-  return (
-    <section className="herd-combined-screen">
-      <section className="herd-combined-results">
-        <header><span>The votes are in</span><h2>The Herd's top 3</h2><p>First picks count most. Avatar size shows whether each player ranked an answer 1st, 2nd, or 3rd.</p></header>
-        <div className="herd-score-key" aria-label="Answer placement points"><span><b>1</b><strong>+500</strong> answer pts</span><span><b>2</b><strong>+300</strong> answer pts</span><span><b>3</b><strong>+100</strong> answer pts</span></div>
-        <ol className="herd-reveal-list">
-          {groups.length ? groups.map((group) => {
-            const isTopThree = topGroupIds.has(group.id);
-            return <li className={[isTopThree ? "is-top-three is-place-" + group.rank : "", group.voteCount ? "has-votes" : ""].filter(Boolean).join(" ")} key={group.id}>
-              <strong className="herd-combined-rank">{isTopThree ? group.rank : "–"}</strong>
-              <div className="herd-combined-answer">{group.imageDataUrl ? <img src={group.imageDataUrl} alt="" /> : null}<div><h3>{group.answerText}</h3><small>{group.voteCount || 0} player{group.voteCount === 1 ? "" : "s"} chose this · {group.voteScore || 0} Herd vote points</small></div></div>
-              <div className="herd-combined-authors"><span className="herd-author-label">Written by</span>{group.players.map((player) => <span key={player.id}><AvatarBadge player={player} small />{player.name}</span>)}</div>
-              <HerdRankedVoters voters={group.voters || []} />
-              <em>{group.answerPoints ? "+" + group.answerPoints + " answer pts" : "No placement points"}</em>
-            </li>;
-          }) : <li className="is-empty">No answers this round</li>}
-        </ol>
-        {personal ? <section className="herd-personal-score"><span>Your round</span><div><strong>+{personal.totalPoints}</strong><em>total pts</em></div><dl><div><dt>Your answer</dt><dd>+{personal.answerPoints ?? personal.authoredPoints ?? 0}</dd></div><div><dt>Top-3 prediction</dt><dd>+{personal.predictionPoints ?? personal.accuracyPoints ?? 0}</dd></div></dl><p>{revealedTopCount ? <>You found {personal.matchedTopThree || 0} of the Herd's top {revealedTopCount} and placed {personal.exactPlacements || 0} in the exact spot.</> : "No collective top-three picks were made this round."}</p></section> : null}
-      </section>
-      <RoundRevealSummary question={question} lobby={lobby} playerKey={playerKey} onPoke={onPoke} readonly={readonly} phaseEndsAt={phaseEndsAt} durationMs={durationMs} onProgressComplete={onProgressComplete} />
-    </section>);
-}
-
-function HerdRankedVoters({ voters = [] }) {
-  if (!voters.length) return <div className="herd-ranked-voters is-empty"><span>No top-three picks</span></div>;
-  return <div className="herd-ranked-voters" aria-label={voters.map((vote) => vote.player.name + " ranked this " + vote.rank).join(", ")}><span className="herd-voter-label">Picked by</span><div>{voters.map((vote) => <span className={"herd-ranked-voter is-rank-" + vote.rank} key={vote.player.id} title={vote.player.name + " · #" + vote.rank + " pick"}><AvatarBadge player={vote.player} small /><b>{vote.rank}</b></span>)}</div></div>;
 }
 
 function RoomStatusBanner({ code, tone = "", eyebrow, title, children, actions = null, keepActionsWhenHidden = true }) {
@@ -3533,7 +4000,7 @@ function RoomStatusBanner({ code, tone = "", eyebrow, title, children, actions =
 
 function HostTopBar({ connected, phase, code = "", hostMenu, onSkip }) {
   const stateLabel = phase === "Join" ? "Join" : phase === "Party View" ? "Lobby" : "Live";
-  return <header className="host-topbar"><div className="brand-lockup"><strong>Gahookz</strong></div><div className="host-actions">{onSkip ? <button className="icon-button" type="button" onClick={onSkip} aria-label="Skip">&gt;</button> : null}<span className={"phase-pill is-" + stateLabel.toLowerCase()}>{stateLabel}</span>{code ? <strong className="topbar-room-code" aria-label={"Room " + code}>{code}</strong> : null}{hostMenu}</div></header>;
+  return <header className="host-topbar"><div className="brand-lockup"><strong>Gahookz</strong></div><div className="host-actions">{onSkip ? <button className="host-skip-phase-button" type="button" onClick={onSkip}>Skip phase <span aria-hidden="true">→</span></button> : null}<span className={"phase-pill is-" + stateLabel.toLowerCase()}>{stateLabel}</span>{code ? <strong className="topbar-room-code" aria-label={"Room " + code}>{code}</strong> : null}{hostMenu}</div></header>;
 }
 
 function Metric({ label, value }) {
@@ -3663,7 +4130,7 @@ function AnswerGrid({ answers, reveal, hideText = false, interactive = false, di
         const answerChoices = choicesByAnswer[answer.id] || [];
         const className = ["answer-tile", "answer-" + answer.id, reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : ""].filter(Boolean).join(" ");
         const label = hideText ? "..." : answer.text || answer.label;
-        const content = <><span>{label}</span>{reveal && answer.correct ? <strong>{answer.oddball ? "ODD" : "OK"}</strong> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
+        const content = <><span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
         return interactive ?
         <button className={className} key={answer.id} type="button" disabled={disabled} onClick={() => onAnswer?.(answer.id)}>{content}</button> :
         <article className={className} key={answer.id}>{content}</article>;
@@ -3736,7 +4203,6 @@ function getPlayerForQuestionResult(lobby, result) {
 function getFinalSpotlights(lobby) {
   const best = lobby.questionResults?.best || null;
   const worst = lobby.questionResults?.worst || null;
-  const bestAnswer = lobby.questionResults?.bestAnswer || null;
   const leaderboard = lobby.leaderboard || [];
   const findRankedPlayer = (candidate) => {
     const id = typeof candidate === "string" ? candidate : candidate?.id;
@@ -3760,22 +4226,18 @@ function getFinalSpotlights(lobby) {
     loser: losers[0] || null,
     bestResult: best,
     worstResult: worst,
-    bestAnswer,
     bestPlayer: getPlayerForQuestionResult(lobby, best),
-    worstPlayer: getPlayerForQuestionResult(lobby, worst),
-    bestAnswerPlayer: getPlayerForQuestionResult(lobby, bestAnswer)
+    worstPlayer: getPlayerForQuestionResult(lobby, worst)
   };
 }
 
 function finalModeLabels(mode = "quiz") {
-  const isHerd = mode === "herd";
-  const isOddball = mode === "oddball";
   return {
-    bestTitle: isHerd ? "Best prompt" : isOddball ? "Best poll" : "Best question",
-    worstTitle: isHerd ? "Worst prompt" : isOddball ? "Worst poll" : "Worst question",
-    bestFallback: isHerd ? "Crowd favorite prompt" : isOddball ? "Best Oddball poll" : "Crowd favorite",
-    worstFallback: isHerd ? "Crowd groaned at this prompt" : isOddball ? "Crowd dodged this poll" : "Crowd groaned",
-    statLabel: isHerd ? "prompt score" : isOddball ? "poll score" : "question score"
+    bestTitle: mode === "herd" ? "Best prompt" : "Best question",
+    worstTitle: mode === "herd" ? "Worst prompt" : "Worst question",
+    bestFallback: "Crowd favorite",
+    worstFallback: "Crowd groaned",
+    statLabel: mode === "herd" ? "prompt score" : "question score"
   };
 }
 
@@ -3798,13 +4260,12 @@ function FinalSpotlightRow({ finals, apiPath = "", playerKey = "", readonly = fa
 
 function FinalShameRow({ finals, apiPath = "", playerKey = "", readonly = false }) {
   const labels = finalModeLabels(finals.gameMode);
-  const hasAwards = finals.bestAnswerPlayer || finals.bestPlayer || finals.worstPlayer || finals.losers.length;
+  const hasAwards = finals.bestPlayer || finals.worstPlayer || finals.losers.length;
   if (!hasAwards) return null;
   return (
     <section className="finale-party-awards final-shame-row">
       <header><span>Party awards</span><h2>One last cheer—and a little chaos</h2><p>The moments your room will still be arguing about tomorrow.</p></header>
       <div className="finale-awards-grid">
-        {finals.gameMode === "herd" && finals.bestAnswerPlayer ? <FinalGahookCard compact key={finals.bestAnswerPlayer.id + "-best-answer"} player={finals.bestAnswerPlayer} role="best-answer" title="Best answer of the game" stat={(finals.bestAnswer?.firstPlaceVotes || 0) + " first-place pick" + (finals.bestAnswer?.firstPlaceVotes === 1 ? "" : "s")} detail={finals.bestAnswer?.text || "The Herd's favourite answer"} mediaImage={finals.bestAnswer?.imageDataUrl || ""} apiPath={apiPath} playerKey={playerKey} buttonLabel="Congratulate" finalKind="congrats" readonly={readonly} /> : null}
         {finals.bestPlayer ? <FinalGahookCard compact key={finals.bestPlayer.id + "-" + (finals.bestPlayer.latestPokeId || "steady") + "-best"} player={finals.bestPlayer} role="best" title={labels.bestTitle} stat={(finals.bestResult?.voteScore || 0) + " " + labels.statLabel} detail={finals.bestResult?.text || labels.bestFallback} apiPath={apiPath} playerKey={playerKey} buttonLabel="Congratulate" finalKind="congrats" readonly={readonly} /> : null}
         {finals.losers.map((loser) => <FinalGahookCard compact key={loser.id + "-" + (loser.latestPokeId || "steady")} player={loser} role="loser" title={finals.losers.length > 1 ? "Joint last place" : "Last place legend"} stat={loser.score + " pts"} detail={(loser.shamePokes || 0) + " Gahooks received"} apiPath={apiPath} playerKey={playerKey} buttonLabel="Send a boo" finalKind="boo" readonly={readonly} />)}
         {finals.worstPlayer ? <FinalGahookCard compact key={finals.worstPlayer.id + "-" + (finals.worstPlayer.latestPokeId || "steady") + "-worst"} player={finals.worstPlayer} role="worst" title={labels.worstTitle} stat={(finals.worstResult?.voteScore || 0) + " " + labels.statLabel} detail={finals.worstResult?.text || labels.worstFallback} apiPath={apiPath} playerKey={playerKey} buttonLabel="Send a boo" finalKind="boo" readonly={readonly} /> : null}
@@ -3833,7 +4294,7 @@ function FinalGahookCard({ player, role, apiPath, playerKey = "", buttonLabel = 
       <span>{title || (role === "winner" ? "Winner" : "Loser")}</span>
       <AvatarBadge player={player} />
       <h2>{player.name}</h2>
-      {mediaImage ? <img className="final-award-image" src={mediaImage} alt="Best Herd answer" /> : null}
+      {mediaImage ? <img className="final-award-image" src={mediaImage} alt="Award image" /> : null}
       <strong>{stat || player.score + " pts"}</strong>
       <em>{detail || "GOT GAHOOKED ON " + (player.shamePokes || 0)}</em>
       {!readonly ? <button type="button" onClick={sendGahook}><GahookLabel player={player} text={buttonLabel} /></button> : null}
@@ -3861,19 +4322,10 @@ function useRevealIntro(phase, phaseEndsAt, durationMs) {
 
 function getRevealAnswer(question, gameMode = "quiz") {
   const mode = question?.mode || gameMode;
-  if (mode === "herd") {
-    const groups = question?.herdResults?.groups || [];
-    const topCount = question?.herdResults?.topCount || groups[0]?.count || 0;
-    const topAnswers = groups.filter((group) => group.count === topCount).map((group) => group.answerText);
-    return { label: "Top herd answer", text: topAnswers.join(" / ") || "No matching answers", colorId: "herd" };
-  }
-
   const answers = question?.answers || [];
-  const revealedAnswers = mode === "oddball" ?
-  answers.filter((answer) => answer.oddball || answer.correct) :
-  answers.filter((answer) => answer.correct || answer.id === question?.correctAnswerId);
+  const revealedAnswers = answers.filter((answer) => answer.correct || answer.id === question?.correctAnswerId);
   return {
-    label: mode === "oddball" ? "Oddball answer" : "Correct answer",
+    label: mode === "majority" ? "Majority rules" : mode === "herd" ? "The Herd favourite" : "Correct answer",
     text: revealedAnswers.map((answer) => answer.text).filter(Boolean).join(" / ") || "Answer revealed",
     colorId: revealedAnswers[0]?.id || "neutral"
   };
@@ -3908,8 +4360,7 @@ function RoundRevealSummary({ question, lobby, playerKey = "", onPoke, readonly 
       forceSnapshotRevert();
     }
   };
-  const mode = question?.mode || lobby.gameMode;
-  const itemName = mode === "herd" ? "prompt" : mode === "oddball" ? "poll" : "question";
+  const itemName = (question?.mode || lobby.gameMode) === "herd" ? "prompt" : "question";
   const voteSelections = [...(question?.voteSelections || [])];
   if (!readonly && lobby.ownVote && lobby.ownPlayer && !voteSelections.some((selection) => selection.player?.id === lobby.ownPlayer.id)) {
     voteSelections.push({ value: lobby.ownVote, player: lobby.ownPlayer });
@@ -3935,62 +4386,55 @@ function VoteChoicePlayers({ players = [] }) {
   return <span className="vote-choice-players" aria-label={players.map((player) => player.name).join(", ")}>{players.map((player) => <span key={player.id} title={player.name}><AvatarBadge player={player} small /></span>)}</span>;
 }
 
-function RevealPanel({ question, lobby, playerKey, onPoke, phaseEndsAt, durationMs, onProgressComplete }) {
-  return <RoundRevealSummary question={question} lobby={lobby} playerKey={playerKey} onPoke={onPoke} phaseEndsAt={phaseEndsAt} durationMs={durationMs} onProgressComplete={onProgressComplete} />;
+function RevealPanel({ question, lobby, playerKey, onPoke, readonly = false, phaseEndsAt, durationMs, onProgressComplete }) {
+  const isMajority = (question?.mode || lobby.gameMode) === "majority";
+  const isHerd = (question?.mode || lobby.gameMode) === "herd";
+  return (
+    <>
+      {isMajority ? <MajorityRevealBreakdown question={question} lobby={lobby} /> : null}
+      {isHerd ? <HerdRevealBreakdown question={question} lobby={lobby} /> : null}
+      <RoundRevealSummary question={question} lobby={lobby} playerKey={playerKey} onPoke={onPoke} readonly={readonly} phaseEndsAt={phaseEndsAt} durationMs={durationMs} onProgressComplete={onProgressComplete} />
+    </>);
 }
 
-function HerdResultsPanel({ question, compact = false }) {
-  const groups = question?.herdResults?.groups || [];
-  if (!groups.length) {
-    return <section className={compact ? "herd-results is-compact" : "herd-results"}><span>No herd answers yet</span></section>;
-  }
-  const topCount = question?.herdResults?.topCount || groups[0]?.count || 0;
+function HerdRevealBreakdown({ question, lobby }) {
+  const results = question?.herdResults;
+  if (!results) return null;
+  const ownVote = results.playerResults?.find((result) => result.playerId === lobby.ownPlayer?.id);
+  const ownAuthor = results.authorResults?.find((result) => result.playerId === lobby.ownPlayer?.id);
   return (
-    <section className={compact ? "herd-results is-compact" : "herd-results"}>
-      <div className="herd-results-heading">
-        <span>Herd answers</span>
-        <strong>{topCount} matched</strong>
+    <section className="majority-reveal-breakdown herd-reveal-breakdown">
+      <header>
+        <span>{results.tieBrokenBySpeed ? "Vote tie · quickest pick wins" : "The Herd has spoken"}</span>
+        <strong>{results.topCount} vote{results.topCount === 1 ? "" : "s"} for the favourite</strong>
+        <p>Up to 500 points for picking the favourite, plus up to 500 for every vote your authored answer attracted.</p>
+      </header>
+      <AnswerGrid answers={question.answers || []} reveal answerSelections={lobby.answerSelections} players={lobby.players} questionId={question.id} />
+      <div className="majority-result-footer">
+        {ownVote ? <span>Your vote: <strong>+{ownVote.points} points</strong></span> : <span>Your vote: <strong>no pick</strong></span>}
+        {ownAuthor ? <span>Your answer earned: <strong>+{ownAuthor.points} points</strong></span> : null}
       </div>
-      {groups.map((group) =>
-      <article className={group.count === topCount ? "is-top" : ""} key={group.answerText}>
-          <div>
-            <strong>{group.answerText}</strong>
-            <span>{group.count}</span>
-          </div>
-          <div className="herd-player-chips">
-            {group.players.map((player) => <span key={player.id}><AvatarBadge player={player} small />{player.name}</span>)}
-          </div>
-        </article>
-      )}
     </section>);
-
 }
 
-function OddballResultsPanel({ question, compact = false }) {
-  const groups = question?.oddballResults?.groups || [];
-  if (!groups.length) {
-    return <section className={compact ? "herd-results oddball-results is-compact" : "herd-results oddball-results"}><span>No Oddball picks yet</span></section>;
-  }
-  const lowCount = question?.oddballResults?.lowCount || 0;
+function MajorityRevealBreakdown({ question, lobby }) {
+  const results = question?.majorityResults;
+  if (!results) return null;
+  const ownResult = results.playerResults?.find((result) => result.playerId === lobby.ownPlayer?.id);
+  const prediction = question.answers?.find((answer) => answer.id === results.predictedAnswerId);
   return (
-    <section className={compact ? "herd-results oddball-results is-compact" : "herd-results oddball-results"}>
-      <div className="herd-results-heading">
-        <span>Oddball answers</span>
-        <strong>{lowCount} picked wins</strong>
+    <section className="majority-reveal-breakdown">
+      <header>
+        <span>{results.tieBrokenBySpeed ? "Vote tie · quickest pick wins" : "The room has spoken"}</span>
+        <strong>{results.topCount} vote{results.topCount === 1 ? "" : "s"} for the winner</strong>
+        <p>{results.authorBonusAwarded ? "Perfect prediction — the author earns +100 bonus points." : results.unanimous ? "Everyone agreed, but the author predicted another answer." : "The most popular answer is correct for this round."}</p>
+      </header>
+      <AnswerGrid answers={question.answers || []} reveal answerSelections={lobby.answerSelections} players={lobby.players} questionId={question.id} />
+      <div className="majority-result-footer">
+        <span>Author prediction: <strong>{prediction?.text || "Not available"}</strong></span>
+        {ownResult ? <span>Your answer: <strong>+{ownResult.points} points</strong></span> : null}
       </div>
-      {groups.map((group) =>
-      <article className={group.oddball ? "is-top is-oddball" : ""} key={group.answerId}>
-          <div>
-            <strong>{group.label}: {group.text}</strong>
-            <span>{group.count}</span>
-          </div>
-          <div className="herd-player-chips">
-            {group.players.length ? group.players.map((player) => <span key={player.id}><AvatarBadge player={player} small />{player.name}</span>) : <span>No one</span>}
-          </div>
-        </article>
-      )}
     </section>);
-
 }
 
 function QuestionResultsPanel({ results, compact = false }) {
@@ -4848,7 +5292,6 @@ function labelForPhase(phase) {
   if (phase === "building") return "Make questions";
   if (phase === "reading") return "Reading";
   if (phase === "answering") return "Answering";
-  if (phase === "ranking") return "Rank answers";
   if (phase === "reveal") return "Answer revealed";
   if (phase === "finished") return "Finished";
   return "Lobby";

@@ -124,10 +124,10 @@ function runPartyViewSmoke() {
   assertIncludes(forceStartControl, "is-force-start", "Unready start button should use its subdued visual state");
 
   const playerGame = getFunctionSection("PlayerGame");
-  assertIncludes(playerGame, 'className={"host-screen host-game player-party-game phase-" + lobby.phase}', "Player game should use the party-game shell");
+  assertIncludes(playerGame, 'className={"host-screen host-game player-party-game phase-" + lobby.phase + " mode-" + lobby.gameMode}', "Player game should use the party-game shell");
   assertIncludes(playerGame, "<HostTopBar", "Player game should use the shared party top bar");
   assertIncludes(playerGame, "<AnswerGrid", "Player game should keep private answer controls in the party layout");
-  assertIncludes(playerGame, 'lobby.phase === "reading" || lobby.phase === "answering" || lobby.phase === "ranking"', "Player read, answer, and ranking phases should share one active-round leaderboard path");
+  assertIncludes(playerGame, 'lobby.phase === "reading" || lobby.phase === "answering"', "Player read and answer phases should share one active-round leaderboard path");
   assertIncludes(playerGame, "{roundActive ? <GameLeaderboardPanel", "Player active rounds should use the shared final-style leaderboard");
   assertIncludes(playerGame, "usedPokeIds={questionUseIds(lobby)}", "Player phase leaderboard should preserve the one-Gahook-per-question lock");
   assertIncludes(playerGame, "<RevealPanel", "Player game should keep voting/reveal controls in the party layout");
@@ -141,11 +141,12 @@ function runPartyViewSmoke() {
   assertIncludes(readonlyParty, "Player controls", "Readonly party view should provide a path back to player controls");
 
   const hostGame = getFunctionSection("HostGame");
-  assertIncludes(hostGame, 'className={"host-screen host-game phase-" + lobby.phase}', "Host game should use the party-game shell");
+  assertIncludes(hostGame, 'className={"host-screen host-game phase-" + lobby.phase + " mode-" + lobby.gameMode}', "Host game should use the party-game shell");
   assertIncludes(hostGame, "hideText={lobby.phase === \"reading\"}", "Reading phase should show answer placeholders while hiding answer text");
-  assertIncludes(hostGame, 'lobby.phase === "reading" || lobby.phase === "answering" || lobby.phase === "ranking"', "Host read, answer, and ranking phases should share one active-round leaderboard path");
+  assertIncludes(hostGame, 'lobby.phase === "reading" || lobby.phase === "answering"', "Host read and answer phases should share one active-round leaderboard path");
   assertIncludes(hostGame, "{roundActive ? <GameLeaderboardPanel", "Host active rounds should show the shared leaderboard");
-  assertIncludes(hostGame, "<RoundRevealSummary", "Host reveal should retain the voting summary path");
+  assertIncludes(hostGame, "<RevealPanel", "Host reveal should retain the shared voting and mode-results path");
+  assertIncludes(hostGame, "readonly phaseEndsAt={lobby.phaseEndsAt}", "Host reveal should keep readonly voting with the shared timer");
 
   const gameLeaderboardPanel = getFunctionSection("GameLeaderboardPanel");
   assertIncludes(gameLeaderboardPanel, '"reveal-leaderboard-panel", "game-leaderboard-panel"', "Shared standings should keep the reveal leaderboard appearance in every phase");

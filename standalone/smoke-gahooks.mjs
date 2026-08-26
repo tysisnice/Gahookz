@@ -53,12 +53,7 @@ async function expectError(path, body, expectedText) {
 }
 
 async function state(roomCode, role = "host", playerKey = "") {
-  const params = new URLSearchParams({ code: roomCode, role });
-  if (playerKey) {
-    params.set("playerKey", playerKey);
-  }
-  const response = await fetch(BASE_URL + "/api/state?" + params.toString());
-  const data = await response.json();
+  const { response, data } = await rawPost("/api/state", { code: roomCode, role, playerKey });
   assert(response.ok, "State request failed for " + roomCode);
   return data;
 }
@@ -160,8 +155,12 @@ function runClientGahookContractSmoke() {
   assert(playerView.includes('currentPoke?.kind === "get-got"') && playerView.includes("currentPoke.getGotUntil"), "GET GOT should block later Gahooks until its full overlay finishes");
   assert(appSource.includes("function RoomGetGotOverlay") && playerView.includes("lobby.roomPoke"), "GET GOT should be visible to the host and every other player");
   assert(reducer.includes("poke.pointsStolen") && reducer.includes("poke.senderPlayerId"), "Live score theft should update immediately on the client");
-  assert(reducer.includes('"counter"') && appSource.includes("applyCounterGahookResult"), "Counter Gahooks should override local optimism immediately");
-  assert(playerView.includes("playCounterGahookSound") && presentationSource.includes("COUNTER GAHOOK!"), "Counter Gahooks need distinct visual and audio feedback");
+  assert(playerView.includes("/api/player/counter-poke") && playerView.includes('label: pokeActionBusy ? "Firing back..." : "Counter Gahook"'), "The receiver should be able to fire an earned Counter Gahook");
+  assert(playerView.includes("/api/player/duel-challenge") && playerView.includes("/api/player/duel-accept"), "Counter overlays should support the two-step Gahook Arena challenge");
+  assert(appSource.includes("function GahookDuelOverlay") && appSource.includes("function GahookDuelArena") && appSource.includes("function GahookArenaIntro"), "The client should provide participant, spectator, and room-wide Arena views");
+  assert(appSource.includes("flickStrength") && appSource.includes("reclaim") && appSource.includes("gahook-arena-ball-tray"), "Arena Ballz should support tap, flick, block, and drag-to-reclaim gestures");
+  assert(appSource.includes("/api/player/duel-react") && appSource.includes("GahookArenaCrowdControls"), "Spectators should be able to congratulate the winner and boo the loser");
+  assert(audioSource.includes("playCounterGahookSound"), "Counter Gahooks should have dedicated audio feedback");
 
   return {
     checked: [
@@ -176,46 +175,11 @@ function runClientGahookContractSmoke() {
       "six selectable sender-owned Gahook forms",
       "five dark premium themes with object effects and animated animal poses",
       "three-second GET GOT sound and banana barrage",
-      "immediate Counter Gahook rebound feedback",
+      "interactive Counter Gahook offers and Gahook Arena challenge",
+      "three-hit Gahook Ballz combat and spectator arena",
       "non-interruptible room-wide GET GOT",
       "immediate 50-point Gahook theft"
     ]
-  };
-}
-
-async function runCounterGahookSmoke() {
-  const roomCode = code("C");
-  const hostKey = key("counter-host");
-  const defender = { key: key("defender"), name: "Defender Dani", avatarId: "koala", gahookForm: "koala" };
-  const attacker = { key: key("attacker"), name: "Spammer Sam", avatarId: "croc", gahookForm: "croc" };
-
-  await post("/api/room", { code: roomCode, playerKey: hostKey });
-  await post("/api/player/join", { code: roomCode, playerKey: defender.key, name: defender.name, avatarId: defender.avatarId, gahookForm: defender.gahookForm });
-  await post("/api/player/join", { code: roomCode, playerKey: attacker.key, name: attacker.name, avatarId: attacker.avatarId, gahookForm: attacker.gahookForm });
-
-  for (let index = 0; index < 4; index += 1) {
-    const poke = await post("/api/player/poke", { code: roomCode, playerKey: attacker.key, playerId: defender.key });
-    assert(poke.kind === "normal", "Counter Gahook should not trigger before the fifth rapid hit");
-  }
-  const counter = await post("/api/player/poke", { code: roomCode, playerKey: attacker.key, playerId: defender.key });
-  assert(counter.kind === "counter" && counter.countered, "The fifth rapid hit should rebound as a Counter Gahook");
-  assert(counter.counterPoke?.gahookForm === defender.gahookForm, "The rebound should use the defender's selected Gahook form");
-
-  const attackerState = await state(roomCode, "player", attacker.key);
-  assert(attackerState.ownPoke?.kind === "counter", "The spammer should receive the Counter Gahook");
-  assert(attackerState.ownPoke?.from === defender.name, "Counter feedback should name the defender who fired it back");
-  const defenderState = await state(roomCode, "player", defender.key);
-  assert(defenderState.ownPoke?.kind === "normal", "The blocked fifth hit should not replay on the defender");
-  assert(defenderState.ownPlayer.pokeCount === 0, "Counter Gahook should reset the defender's spam counter");
-
-  const restarted = await post("/api/player/poke", { code: roomCode, playerKey: attacker.key, playerId: defender.key });
-  assert(restarted.kind === "normal", "The attacker-versus-defender streak should restart after a counter");
-
-  return {
-    roomCode,
-    triggerCount: 5,
-    reboundForm: counter.counterPoke.gahookForm,
-    streakRestarted: true
   };
 }
 
@@ -225,9 +189,14 @@ async function runGahookSmoke() {
   assert(serverSource.includes("ULTIMATE_GAHOOK_GRACE_MS = 1000"), "Ultimate overlay should stay for a full second after the last Gahook");
   assert(serverSource.includes("ultimateGahookThresholdMs = spam.thresholdMs + ULTIMATE_GAHOOK_THRESHOLD_STEP_MS"), "Ultimate threshold should increase after each Ultimate trigger");
   assert(serverSource.includes("function applyGetGot") && serverSource.includes("scorePenalty = applyGetGot(room, player)"), "Get Got should use one consistent hard trigger path");
-  assert(serverSource.includes("COUNTER_GAHOOK_TRIGGER_COUNT = 5") && serverSource.includes("function applyCounterGahook"), "Five rapid hits from one player should trigger a Counter Gahook");
+  assert(serverSource.includes("COUNTER_GAHOOK_TRIGGER_COUNT = 10"), "Counter Gahook should unlock on the tenth consecutive Gahook");
+  assert(serverSource.includes("COUNTER_GAHOOK_REPEAT_EVERY = 2"), "Counter Gahook should reappear every second Gahook after ten");
+  assert(serverSource.includes("COUNTER_GAHOOK_OVERLAY_MS = 2750"), "Counter Gahook should last half a second longer");
+  assert(serverSource.includes("GAHOOK_ARENA_BALL_BASE_MS = 3000") && serverSource.includes("GAHOOK_ARENA_BALL_MIN_MS = 1200"), "Arena Ballz should begin at a three-second cadence and accelerate");
+  assert(serverSource.includes("GAHOOK_ARENA_TRAVEL_BASE_MS = 1050") && serverSource.includes("GAHOOK_ARENA_TRAVEL_MIN_MS = 620"), "Arena attacks should cross the screen in about one second and get faster");
+  assert(serverSource.includes("GAHOOK_ARENA_HITS_TO_WIN = 3") && serverSource.includes("GAHOOK_DUEL_FINISH_MS = 10000"), "Arena matches should end after three hits and keep the result open for ten seconds");
+  assert(serverSource.includes("function finishGahookDuel") && serverSource.includes("function publicGahookDuel"), "Duel outcomes and spectator state should be server-authoritative");
   const clientContract = runClientGahookContractSmoke();
-  const counterGahook = await runCounterGahookSmoke();
 
   const roomCode = code("G");
   const hostKey = key("host");
@@ -241,6 +210,61 @@ async function runGahookSmoke() {
   await post("/api/player/join", { code: roomCode, playerKey: secondTarget.key, name: secondTarget.name, avatarId: secondTarget.avatarId });
   await post("/api/player/join", { code: roomCode, playerKey: sender.key, name: sender.name, avatarId: sender.avatarId });
   await post("/api/player/gahook-form", { code: roomCode, playerKey: sender.key, gahookForm: "croc" });
+
+  let counterResult = null;
+  for (let index = 1; index <= 10; index += 1) {
+    counterResult = await post("/api/player/poke", { code: roomCode, playerKey: sender.key, playerId: target.key });
+    assert(Boolean(counterResult.counterAvailable) === (index === 10), "Counter offer cadence was wrong at Gahook " + index);
+  }
+  let targetLobbyState = await state(roomCode, "player", target.key);
+  assert(targetLobbyState.ownCounterOffer?.spamCount === 10, "The receiver should see the tenth-hit Counter Gahook offer");
+  const tenthOfferId = targetLobbyState.ownCounterOffer.id;
+  await post("/api/player/counter-poke", { code: roomCode, playerKey: target.key, offerId: tenthOfferId });
+  let senderLobbyState = await state(roomCode, "player", sender.key);
+  assert(senderLobbyState.ownPoke?.kind === "counter", "The spammer should receive the interactive Counter Gahook");
+  assert(senderLobbyState.ownPoke.duelChallengeUntil - senderLobbyState.ownPoke.createdAt === 2750, "Counter overlay should expose the extended 2.75 second challenge window");
+
+  const challenge = await post("/api/player/duel-challenge", { code: roomCode, playerKey: sender.key });
+  targetLobbyState = await state(roomCode, "player", target.key);
+  assert(targetLobbyState.ownPoke?.kind === "duel-challenge" && targetLobbyState.ownPoke.duelId === challenge.duelId, "Counter recipient should be able to send a Gahook Arena challenge back");
+  await post("/api/player/duel-accept", { code: roomCode, playerKey: target.key, duelId: challenge.duelId });
+  senderLobbyState = await state(roomCode, "player", sender.key);
+  assert(senderLobbyState.gahookDuel?.status === "active" && senderLobbyState.gahookDuel.ballStock[senderLobbyState.ownPlayer.id] === 1, "Both players should enter Gahook Arena with a Ball ready");
+  assert(senderLobbyState.gahookDuel.hitsToWin === 3 && senderLobbyState.gahookDuel.introEndsAt > senderLobbyState.serverTime, "The Arena should publish its first-to-three rules and intro window");
+
+  await sleep(2500);
+  const firstAttack = await post("/api/player/duel-attack", { code: roomCode, playerKey: sender.key, duelId: challenge.duelId, x: 0.73, y: 0.21 });
+  targetLobbyState = await state(roomCode, "player", target.key);
+  assert(targetLobbyState.gahookDuel.attack.x === 0.73 && targetLobbyState.gahookDuel.attack.y === 0.21, "Arena attack coordinates should survive as normalized percentages");
+  await post("/api/player/duel-block", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, attackId: firstAttack.attackId, reclaim: true });
+  targetLobbyState = await state(roomCode, "player", target.key);
+  assert(targetLobbyState.gahookDuel.rally === 1 && targetLobbyState.gahookDuel.ballStock[targetLobbyState.ownPlayer.id] === 2, "Dragging a blocked Ball to the core should immediately add a Ball");
+  let landedAttack = await post("/api/player/duel-attack", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, x: -5, y: 8, flickStrength: 1 });
+  assert(landedAttack.reactionWindowMs < 1000, "A flicked Arena Ball should cross the screen in under a second");
+  senderLobbyState = await state(roomCode, "player", sender.key);
+  assert(senderLobbyState.gahookDuel.attack.x === 0.08 && senderLobbyState.gahookDuel.attack.y === 0.92, "Extreme coordinates should be clamped to a reachable part of every screen");
+  await sleep(1000);
+  senderLobbyState = await state(roomCode, "player", sender.key);
+  assert(senderLobbyState.gahookDuel.hits[senderLobbyState.ownPlayer.id] === 1 && senderLobbyState.gahookDuel.status === "active", "The first landed Ball should score one hit without ending the match");
+
+  landedAttack = await post("/api/player/duel-attack", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, x: 0.42, y: 0.34 });
+  await sleep(1100);
+  senderLobbyState = await state(roomCode, "player", sender.key);
+  assert(senderLobbyState.gahookDuel.hits[senderLobbyState.ownPlayer.id] === 2, "The second landed Ball should leave the defender one hit from GET GOT");
+  await sleep(1100);
+  landedAttack = await post("/api/player/duel-attack", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, x: 0.64, y: 0.28, flickStrength: 0.6 });
+  await sleep(1000);
+  const spectatorDuelState = await state(roomCode, "host", hostKey);
+  assert(spectatorDuelState.gahookDuel?.status === "finished", "The third landed Arena Ball should resolve the match for players and spectators");
+  assert(spectatorDuelState.gahookDuel.winnerId === targetLobbyState.ownPlayer.id && spectatorDuelState.gahookDuel.loserId === senderLobbyState.ownPlayer.id, "The player who lands three hits should win Gahook Arena");
+  assert(spectatorDuelState.gahookDuel.players.length === 2, "The spectator arena should publish both player banners");
+  assert(spectatorDuelState.gahookDuel.reactionEndsAt - spectatorDuelState.gahookDuel.finishedAt === 10000, "GET GOT and crowd reactions should stay open for ten seconds");
+
+  await post("/api/player/duel-react", { code: roomCode, playerKey: secondTarget.key, duelId: challenge.duelId, reaction: "congrats" });
+  await post("/api/player/duel-react", { code: roomCode, playerKey: secondTarget.key, duelId: challenge.duelId, reaction: "boo" });
+  const reactedArenaState = await state(roomCode, "host", hostKey);
+  assert(reactedArenaState.gahookDuel.reactionCounts.congrats === 1 && reactedArenaState.gahookDuel.reactionCounts.boos === 1, "The crowd should be able to congratulate the winner and boo the loser");
+
   await post("/api/host/lock-setup", { code: roomCode, playerKey: hostKey });
   await post("/api/question", {
     code: roomCode,
@@ -342,7 +366,7 @@ async function runGahookSmoke() {
   return {
     roomCode,
     clientContract,
-    counterGahook,
+    counterGahook: "interactive",
     targetScore: targetState.score,
     shamePokes: targetState.shamePokes,
     latestKind: targetState.latestPokeKind

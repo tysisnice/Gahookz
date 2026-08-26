@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": [
+    "packages/contracts/src/**/*.ts",
+    "packages/contracts/test/**/*.ts",
+    "packages/game-engine/src/**/*.ts",
+    "packages/game-engine/test/**/*.ts",
+    "packages/accounts/src/**/*.ts",
+    "packages/accounts/test/**/*.ts"
+  ]
+}

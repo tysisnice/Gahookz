@@ -1,7 +1,7 @@
 # Gahookz operations, maintenance, architecture, and future roadmap
 
-Last audited: 2026-07-20 15:21 AEST  
-Repository commit at audit: `dd449f26290f944bc0d4055f6877ac23ab5e9ca3`  
+Last audited: 2026-07-20 15:21 AEST
+Repository commit at audit: `dd449f26290f944bc0d4055f6877ac23ab5e9ca3`
 Live browser release at audit: `release-f5e95fed469a8b0e`
 
 This is the main owner and maintainer guide. It describes what exists now,

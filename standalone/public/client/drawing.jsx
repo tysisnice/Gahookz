@@ -5,6 +5,7 @@ export const DEFAULT_PAINT_PALETTE = Object.freeze([
   "#ffffff",
   "#ef4444",
   "#f97316",
+  "#8a4f21",
   "#facc15",
   "#22c55e",
   "#06b6d4",

@@ -4,7 +4,7 @@ export const TUTORIAL_CONTENT = Object.freeze({
   overview: Object.freeze({
     label: "Gahookz",
     summary: "Gahookz is a make-it-together party game: join the same room, create the chaos, then Gahook your friends at exactly the wrong moment.",
-    artworkLabel: "The complete Gahookz flow: friends join one room, make Quiz and Herd rounds together, then use a Gahook to steal points",
+    artworkLabel: "The complete Gahookz flow: friends join one room, make Quiz, Majority Rulz, and Herd rounds together, then use a Gahook to steal points",
     stepTitles: Object.freeze([
       "Join your friends",
       "Make the game together",
@@ -12,7 +12,7 @@ export const TUTORIAL_CONTENT = Object.freeze({
     ]),
     sentences: Object.freeze([
       "One person hosts and shares the four-letter room word. Everyone else joins on their own phone or computer—no account or app required.",
-      "In Quiz, everyone makes funny questions and answers. In Herd, everyone writes prompts, gives anonymous answers, and predicts the room's favourites.",
+      "Quiz has real answers, Majority Rulz predicts the crowd, and Herd lets your friends write every answer choice.",
       "Use your Gahook once per round to surprise a friend and steal 50 points. Laugh, climb the leaderboard, and see who wins the final showdown."
     ])
   }),
@@ -31,25 +31,40 @@ export const TUTORIAL_CONTENT = Object.freeze({
       "Once per question, Gahook one friend to steal 50 points. Time it well—they can still answer."
     ])
   }),
-  herd: Object.freeze({
-    label: "Herd",
-    summary: "Write wild prompts, answer anonymously, then predict the room's top three to prove you know your friends best.",
-    artworkLabel: "The complete Herd flow: writing a prompt, answering anonymously, and predicting the room's first, second, and third favourites",
+  majority: Object.freeze({
+    label: "Majority Rulz",
+    summary: "Make opinion questions, predict the room’s favourite, then score by choosing the answer most people pick.",
+    artworkLabel: "The complete Majority Rulz flow: writing an opinion question, predicting the crowd, and choosing the most popular answer",
     stepTitles: Object.freeze([
-      "Start the stampede",
-      "Answer anonymously",
-      "Predict the top three"
+      "Ask for an opinion",
+      "Predict the room",
+      "Join the majority"
     ]),
     sentences: Object.freeze([
-      "Write an open-ended prompt—or tap the generator up to five times for a ready-made idea that gets the whole room talking.",
-      "Everyone submits an answer without names attached. Be clever, strange, or suspiciously convincing before the timer runs out.",
-      "Rank the three responses you think the room will love most. Popular answers and accurate predictions score big, and a Gahook can still steal 50."
+      "Write a funny opinion question with two to four possible answers—or tap the suggestion button for a party-ready idea.",
+      "Mark the answer you predict everyone will choose. There is no factual correct answer; the room creates the result live.",
+      "Pick the answer you think will be most popular. Matching the majority scores up to 1,000 points, and a perfect author prediction earns 100 bonus points."
+    ])
+  }),
+  herd: Object.freeze({
+    label: "Herd",
+    summary: "Ask the prompt, secretly write answers for your friends’ questions, then vote for the room’s favourite.",
+    artworkLabel: "The complete Herd flow: making one prompt, secretly writing answer choices, and voting for the crowd favourite",
+    stepTitles: Object.freeze([
+      "Ask one good question",
+      "Write for the room",
+      "Vote with the Herd"
+    ]),
+    sentences: Object.freeze([
+      "Everyone starts with one funny, open-ended question. You only write the prompt—the room makes its answer choices next.",
+      "You’ll receive up to four other prompts. Write one short answer for each; answer writers stay hidden until the reveal.",
+      "Pick your favourite live. You can earn up to 500 points for backing the winner and up to 500 more from votes for the answer you wrote."
     ])
   }),
   host: Object.freeze({
     label: "Host",
     summary: "Bring everyone into one room, choose the rules, then keep the game moving all the way to the final celebration.",
-    artworkLabel: "The complete Host flow: sharing a room word, choosing Quiz or Herd options, and running the live game",
+    artworkLabel: "The complete Host flow: sharing a room word, choosing Quiz or Majority Rulz options, and running the live game",
     stepTitles: Object.freeze([
       "Bring everyone in",
       "Choose the game",
@@ -57,7 +72,7 @@ export const TUTORIAL_CONTENT = Object.freeze({
     ]),
     sentences: Object.freeze([
       "Share the room link or four-letter word, then watch the player cards appear as everyone joins.",
-      "Pick Quiz or Herd, choose the game length, and decide whether questions need your approval.",
+      "Pick Quiz, Majority Rulz, or Herd, choose the available options, and decide whether questions need your approval.",
       "Begin question making, start when everyone is ready, then use pause or skip to keep the live game flowing."
     ])
   })
@@ -124,7 +139,7 @@ function OverviewTutorialArtwork({ label }) {
         <rect y="57" width="84" height="45" rx="10" fill="#f2c230" /><rect x="96" y="57" width="84" height="45" rx="10" fill="#20b26b" />
         <path d="M123 21l8 8 16-19" fill="none" stroke="#ffffff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
       </g>
-      <text x="115" y="255" textAnchor="middle" fill="#5a2f89" fontSize="13" fontWeight="1000" fontFamily="system-ui, sans-serif">QUIZ + HERD</text>
+      <text x="115" y="255" textAnchor="middle" fill="#5a2f89" fontSize="13" fontWeight="1000" fontFamily="system-ui, sans-serif">QUIZ + MAJORITY</text>
     </g>
     <FlowArrow x={575} />
     <g transform="translate(628 55)">
@@ -174,29 +189,55 @@ function QuizTutorialArtwork({ label }) {
   </ArtworkFrame>;
 }
 
-function HerdTutorialArtwork({ label }) {
-  return <ArtworkFrame label={label} variant="herd" colours={["#075d3c", "#00a8c7", "#246bfe"]}>
+function MajorityTutorialArtwork({ label }) {
+  return <ArtworkFrame label={label} variant="majority" colours={["#075d3c", "#00a8c7", "#246bfe"]}>
     <g transform="translate(42 55)">
       <rect width="230" height="270" rx="24" fill="#f8fbff" stroke="#111214" strokeWidth="5" />
       <rect x="18" y="16" width="90" height="30" rx="15" fill="#ffdf45" /><text x="63" y="37" textAnchor="middle" fill="#111214" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">1 · ASK</text>
       <rect x="22" y="65" width="186" height="105" rx="14" fill="#ffffff" stroke="#8baabd" strokeWidth="3" />
       <text x="115" y="91" textAnchor="middle" fill="#087054" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">THE WORST THING</text><text x="115" y="111" textAnchor="middle" fill="#087054" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">TO HEAR FROM</text><text x="115" y="131" textAnchor="middle" fill="#087054" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">YOUR GPS IS...</text>
-      <rect x="43" y="190" width="144" height="38" rx="19" fill="#7c3aed" /><text x="115" y="214" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="1000" fontFamily="system-ui, sans-serif">✦ NEW PROMPT</text>
-      <text x="115" y="254" textAnchor="middle" fill="#667085" fontSize="11" fontWeight="900" fontFamily="system-ui, sans-serif">WRITE OR GENERATE</text>
+      <rect x="43" y="190" width="144" height="38" rx="19" fill="#7c3aed" /><text x="115" y="214" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="1000" fontFamily="system-ui, sans-serif">✦ OPINION IDEA</text>
+      <text x="115" y="254" textAnchor="middle" fill="#667085" fontSize="11" fontWeight="900" fontFamily="system-ui, sans-serif">ASK THE ROOM</text>
     </g>
     <FlowArrow x={282} />
     <g transform="translate(335 55)">
       <rect width="230" height="270" rx="24" fill="#f8fbff" stroke="#111214" strokeWidth="5" />
-      <rect x="18" y="16" width="120" height="30" rx="15" fill="#8ff0bc" /><text x="78" y="37" textAnchor="middle" fill="#063352" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">2 · ANSWER</text>
-      <g transform="translate(22 65)"><rect width="186" height="48" rx="12" fill="#eaf2ff" stroke="#246bfe" strokeWidth="3" /><text x="93" y="29" textAnchor="middle" fill="#063352" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">RECALCULATING LIFE...</text><rect y="61" width="186" height="48" rx="12" fill="#fff2c5" stroke="#f2c230" strokeWidth="3" /><text x="93" y="90" textAnchor="middle" fill="#063352" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">TURN BACK. TRUST ME.</text><rect y="122" width="186" height="48" rx="12" fill="#fce8f1" stroke="#ff3d8b" strokeWidth="3" /><text x="93" y="151" textAnchor="middle" fill="#063352" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">GOOD LUCK, BUDDY.</text></g>
-      <path d="M52 251h126" stroke="#8baabd" strokeWidth="3" strokeDasharray="6 6" /><text x="115" y="242" textAnchor="middle" fill="#667085" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">NO NAMES SHOWN</text>
+      <rect x="18" y="16" width="120" height="30" rx="15" fill="#8ff0bc" /><text x="78" y="37" textAnchor="middle" fill="#063352" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">2 · PREDICT</text>
+      <g transform="translate(22 65)"><rect width="186" height="48" rx="12" fill="#eaf2ff" stroke="#246bfe" strokeWidth="3" /><text x="93" y="29" textAnchor="middle" fill="#063352" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">WET SOCKS</text><rect y="61" width="186" height="48" rx="12" fill="#fff2c5" stroke="#f2c230" strokeWidth="3" /><text x="93" y="90" textAnchor="middle" fill="#063352" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">SLOW WI-FI</text><rect y="122" width="186" height="48" rx="12" fill="#fce8f1" stroke="#ff3d8b" strokeWidth="3" /><text x="93" y="151" textAnchor="middle" fill="#063352" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">LOW BATTERY</text></g>
+      <path d="M52 251h126" stroke="#8baabd" strokeWidth="3" strokeDasharray="6 6" /><text x="115" y="242" textAnchor="middle" fill="#667085" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">MARK YOUR GUESS</text>
     </g>
     <FlowArrow x={575} />
     <g transform="translate(628 55)">
       <rect width="230" height="270" rx="24" fill="#f8fbff" stroke="#111214" strokeWidth="5" />
-      <rect x="18" y="16" width="124" height="30" rx="15" fill="#ff8fb8" /><text x="80" y="37" textAnchor="middle" fill="#5b1531" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">3 · PREDICT</text>
-      <g transform="translate(25 64)"><rect x="42" width="138" height="48" rx="12" fill="#ffdf45" stroke="#111214" strokeWidth="3" /><circle cx="21" cy="24" r="19" fill="#ffdf45" stroke="#111214" strokeWidth="3" /><text x="21" y="31" textAnchor="middle" fontSize="20" fontWeight="1000" fontFamily="system-ui, sans-serif">1</text><rect x="42" y="59" width="138" height="48" rx="12" fill="#d9e3ec" stroke="#111214" strokeWidth="3" /><circle cx="21" cy="83" r="19" fill="#d9e3ec" stroke="#111214" strokeWidth="3" /><text x="21" y="90" textAnchor="middle" fontSize="20" fontWeight="1000" fontFamily="system-ui, sans-serif">2</text><rect x="42" y="118" width="138" height="48" rx="12" fill="#ffb36b" stroke="#111214" strokeWidth="3" /><circle cx="21" cy="142" r="19" fill="#ffb36b" stroke="#111214" strokeWidth="3" /><text x="21" y="149" textAnchor="middle" fontSize="20" fontWeight="1000" fontFamily="system-ui, sans-serif">3</text></g>
-      <rect x="45" y="239" width="140" height="30" rx="15" fill="#20b26b" /><text x="115" y="260" textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="1000" fontFamily="system-ui, sans-serif">+500 PREDICT</text>
+      <rect x="18" y="16" width="124" height="30" rx="15" fill="#ff8fb8" /><text x="80" y="37" textAnchor="middle" fill="#5b1531" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">3 · CHOOSE</text>
+      <g transform="translate(25 64)"><rect x="42" width="138" height="58" rx="12" fill="#ffdf45" stroke="#111214" strokeWidth="4" /><circle cx="21" cy="29" r="19" fill="#ffdf45" stroke="#111214" strokeWidth="3" /><text x="21" y="36" textAnchor="middle" fontSize="22" fontWeight="1000" fontFamily="system-ui, sans-serif">★</text><text x="111" y="35" textAnchor="middle" fill="#111214" fontSize="12" fontWeight="1000" fontFamily="system-ui, sans-serif">MY FAVOURITE</text><rect x="42" y="72" width="138" height="42" rx="12" fill="#e7eef5" stroke="#8baabd" strokeWidth="3" /><rect x="42" y="126" width="138" height="42" rx="12" fill="#e7eef5" stroke="#8baabd" strokeWidth="3" /></g>
+      <rect x="45" y="239" width="140" height="30" rx="15" fill="#20b26b" /><text x="115" y="260" textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="1000" fontFamily="system-ui, sans-serif">UP TO +1000</text>
+    </g>
+  </ArtworkFrame>;
+}
+
+function HerdTutorialArtwork({ label }) {
+  return <ArtworkFrame label={label} variant="herd" colours={["#4a1d73", "#ff3d8b", "#ff8a00"]}>
+    <g transform="translate(42 55)">
+      <rect width="230" height="270" rx="24" fill="#f8fbff" stroke="#111214" strokeWidth="5" />
+      <rect x="18" y="16" width="86" height="30" rx="15" fill="#8ff0bc" /><text x="61" y="37" textAnchor="middle" fill="#063352" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">1 · ASK</text>
+      <rect x="22" y="66" width="186" height="108" rx="14" fill="#ffffff" stroke="#8baabd" strokeWidth="3" />
+      <text x="115" y="98" textAnchor="middle" fill="#4a1d73" fontSize="12" fontWeight="1000" fontFamily="system-ui, sans-serif">WORST THING TO</text><text x="115" y="121" textAnchor="middle" fill="#4a1d73" fontSize="12" fontWeight="1000" fontFamily="system-ui, sans-serif">FIND IN A CAKE?</text>
+      <text x="115" y="218" textAnchor="middle" fill="#667085" fontSize="12" fontWeight="1000" fontFamily="system-ui, sans-serif">PROMPT ONLY</text><text x="115" y="244" textAnchor="middle" fill="#ff3d8b" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">THE HERD ANSWERS</text>
+    </g>
+    <FlowArrow x={282} />
+    <g transform="translate(335 55)">
+      <rect width="230" height="270" rx="24" fill="#f8fbff" stroke="#111214" strokeWidth="5" />
+      <rect x="18" y="16" width="100" height="30" rx="15" fill="#ffdf45" /><text x="68" y="37" textAnchor="middle" fill="#111214" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">2 · WRITE</text>
+      <g transform="translate(22 67)"><rect width="186" height="50" rx="11" fill="#fce8f1" stroke="#ff3d8b" strokeWidth="3" /><text x="93" y="30" textAnchor="middle" fill="#5b1531" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">A TINY LAWYER</text><rect y="64" width="186" height="50" rx="11" fill="#eaf2ff" stroke="#246bfe" strokeWidth="3" /><text x="93" y="94" textAnchor="middle" fill="#063352" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">AN ANGRY GOOSE</text><rect y="128" width="186" height="50" rx="11" fill="#fff2c5" stroke="#f2c230" strokeWidth="3" /><text x="93" y="158" textAnchor="middle" fill="#4a2c00" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">TUESDAY</text></g>
+      <text x="115" y="260" textAnchor="middle" fill="#667085" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">SECRET UNTIL REVEAL</text>
+    </g>
+    <FlowArrow x={575} />
+    <g transform="translate(628 55)">
+      <rect width="230" height="270" rx="24" fill="#f8fbff" stroke="#111214" strokeWidth="5" />
+      <rect x="18" y="16" width="88" height="30" rx="15" fill="#ff8fb8" /><text x="62" y="37" textAnchor="middle" fill="#5b1531" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">3 · VOTE</text>
+      <g transform="translate(23 65)"><rect width="184" height="58" rx="12" fill="#ff3d8b" stroke="#111214" strokeWidth="4" /><text x="92" y="35" textAnchor="middle" fill="#ffffff" fontSize="12" fontWeight="1000" fontFamily="system-ui, sans-serif">AN ANGRY GOOSE</text><rect y="72" width="184" height="42" rx="12" fill="#d9e3ec" /><rect y="126" width="184" height="42" rx="12" fill="#d9e3ec" /></g>
+      <rect x="38" y="237" width="154" height="31" rx="15" fill="#20b26b" /><text x="115" y="258" textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="1000" fontFamily="system-ui, sans-serif">500 + 500 PTS</text>
     </g>
   </ArtworkFrame>;
 }
@@ -214,7 +255,7 @@ function HostTutorialArtwork({ label }) {
     <g transform="translate(335 55)">
       <rect width="230" height="270" rx="24" fill="#f8fbff" stroke="#111214" strokeWidth="5" />
       <rect x="18" y="16" width="106" height="30" rx="15" fill="#ffdf45" /><text x="71" y="37" textAnchor="middle" fill="#111214" fontSize="15" fontWeight="1000" fontFamily="system-ui, sans-serif">2 · CHOOSE</text>
-      <g transform="translate(22 65)"><rect width="88" height="55" rx="12" fill="#7c3aed" stroke="#111214" strokeWidth="3" /><text x="44" y="35" textAnchor="middle" fill="#ffffff" fontSize="14" fontWeight="1000" fontFamily="system-ui, sans-serif">QUIZ</text><rect x="98" width="88" height="55" rx="12" fill="#20b26b" stroke="#111214" strokeWidth="3" /><text x="142" y="35" textAnchor="middle" fill="#ffffff" fontSize="14" fontWeight="1000" fontFamily="system-ui, sans-serif">HERD</text></g>
+      <g transform="translate(22 65)"><rect width="88" height="55" rx="12" fill="#7c3aed" stroke="#111214" strokeWidth="3" /><text x="44" y="35" textAnchor="middle" fill="#ffffff" fontSize="14" fontWeight="1000" fontFamily="system-ui, sans-serif">QUIZ</text><rect x="98" width="88" height="55" rx="12" fill="#20b26b" stroke="#111214" strokeWidth="3" /><text x="142" y="29" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="1000" fontFamily="system-ui, sans-serif">MAJORITY</text><text x="142" y="43" textAnchor="middle" fill="#ffffff" fontSize="10" fontWeight="1000" fontFamily="system-ui, sans-serif">RULZ</text></g>
       <text x="26" y="154" fill="#344054" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">GAME LENGTH</text><rect x="25" y="165" width="180" height="13" rx="6.5" fill="#d9e3ec" /><rect x="25" y="165" width="112" height="13" rx="6.5" fill="#246bfe" /><circle cx="137" cy="171.5" r="11" fill="#ffffff" stroke="#111214" strokeWidth="3" />
       <rect x="25" y="201" width="180" height="43" rx="11" fill="#e7eef5" /><text x="42" y="227" fill="#344054" fontSize="11" fontWeight="1000" fontFamily="system-ui, sans-serif">APPROVE QUESTIONS</text><rect x="159" y="211" width="36" height="22" rx="11" fill="#20b26b" /><circle cx="184" cy="222" r="8" fill="#ffffff" />
     </g>
@@ -232,11 +273,12 @@ function HostTutorialArtwork({ label }) {
 export function TutorialArtwork({ mode = "quiz", label }) {
   if (mode === "overview") return <OverviewTutorialArtwork label={label} />;
   if (mode === "host") return <HostTutorialArtwork label={label} />;
+  if (mode === "majority") return <MajorityTutorialArtwork label={label} />;
   if (mode === "herd") return <HerdTutorialArtwork label={label} />;
   return <QuizTutorialArtwork label={label} />;
 }
 
-const TUTORIAL_MODE_ORDER = Object.freeze(["overview", "quiz", "herd", "host"]);
+const TUTORIAL_MODE_ORDER = Object.freeze(["overview", "quiz", "majority", "herd", "host"]);
 
 function normaliseTutorialMode(mode) {
   return Object.prototype.hasOwnProperty.call(TUTORIAL_CONTENT, mode) ? mode : "quiz";
@@ -250,7 +292,7 @@ function availableTutorialModes(allowedModes, includeHost) {
     .map(normaliseTutorialMode)
     .filter((mode, index, values) => values.indexOf(mode) === index)
     .filter(mode => includeHost || mode !== "host");
-  return modes.length ? modes : ["quiz", "herd"];
+  return modes.length ? modes : ["quiz", "majority", "herd"];
 }
 
 export function GameTutorial({ mode = "quiz", open, onClose, includeHost = true, allowedModes = null }) {

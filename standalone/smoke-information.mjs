@@ -68,7 +68,7 @@ for (const [name, source] of [
   ["service-worker.js", workerSource],
   ["app.js", builtAppSource]
 ]) {
-  const versions = [...source.matchAll(/\?v=([A-Za-z0-9._-]+)/g)].map((match) => match[1]);
+  const versions = [...source.matchAll(/["'(](?:\/|\.)[^"')\s]*\?v=([A-Za-z0-9._-]+)/g)].map((match) => match[1]);
   assert(versions.length > 0, `${name} has no versioned assets`);
   assert.deepEqual([...new Set(versions)], [assetVersion], `${name} contains mixed asset versions`);
 }
@@ -76,19 +76,23 @@ assert(workerSource.includes(`const CACHE_NAME = "gahookz-shell-${assetVersion}"
 assert(workerSource.includes(`"/client/information.js?v=${assetVersion}"`));
 assert(workerSource.includes('caches.match("/index.html")'));
 
-// The hub should expose all planned reports and retain the core Herd analysis.
+// The hub should expose all planned reports and document both social-mode rules.
 const reportDeclaration = informationSource.slice(0, informationSource.indexOf("const REPORT_IDS"));
 const reportIds = [...reportDeclaration.matchAll(/\{ id: "([^"]+)"/g)].map((match) => match[1]);
-assert.deepEqual(reportIds, ["herd", "overview", "roadmap", "launch", "business", "operations", "about"]);
+assert.deepEqual(reportIds, ["majority", "herd", "overview", "roadmap", "launch", "business", "operations", "about"]);
 
 for (const expectedContent of [
   "Current game flow",
-  "Why it is fun",
-  "UI and clarity assessment",
-  "Most important improvements",
-  "Comparison with nearby games",
-  "Where Herd fits in Gahookz",
-  "Recommended target experience",
+  "Rules at a glance",
+  "Design guardrails",
+  "Most votes",
+  "Fastest choice",
+  "Up to 1,000",
+  "Author bonus",
+  "Herd guide",
+  "Share the writing load",
+  "Up to 500",
+  "Author points",
   "Gahookz overview",
   "Product roadmap",
   "Public launch checklist",
@@ -100,8 +104,7 @@ for (const expectedContent of [
 }
 assert(informationSource.includes('window.history.pushState(null, "", "/information#" + reportId)'));
 assert(informationSource.includes('document.getElementById("information-report-title")?.focus()'));
-assert(informationSource.includes("https://bigpotato.com/products/herd-mentality"));
-assert(informationSource.includes("https://www.jackboxgames.com/games/fibbage-4"));
+assert(informationSource.includes("function HerdReport()"));
 
 const integration = await verifyRunningServer();
 
@@ -115,8 +118,8 @@ console.log(JSON.stringify({
     "offline API bypass",
     "source-to-production information module build",
     "asset and service-worker version consistency",
-    "seven report destinations and Herd analysis content",
-    integration.checked ? "/information and /information#herd HTTP navigation" : "HTTP checks skipped because the local server is not running"
+    "eight report destinations and Majority Rulz/Herd rules",
+    integration.checked ? "/information and /information#majority HTTP navigation" : "HTTP checks skipped because the local server is not running"
   ]
 }, null, 2));
 
@@ -132,7 +135,7 @@ async function verifyRunningServer() {
     assert.equal((await healthResponse.json()).ok, true, "running server reported unhealthy");
 
     await verifyInformationNavigation("/information");
-    await verifyInformationNavigation("/information#herd");
+    await verifyInformationNavigation("/information#majority");
     return { checked: true, status: "passed" };
   } catch (error) {
     if (serverAvailable || requireServer) throw error;

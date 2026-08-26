@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 
 export const SOCIAL_CHAT_LIMIT = 60;
 export const SOCIAL_CHAT_CHARACTER_LIMIT = 240;
+const SOCIAL_DRAWING_POINTS_PER_STROKE = 128;
 
 const AVATAR_BASE_HUES = Object.freeze({
   zap: 334, pop: 188, star: 218, bolt: 263, disco: 205, rocket: 145, crown: 33,
@@ -49,6 +50,20 @@ function socialMessageKey(message, index = 0) {
   return String(message?.id || `${message?.senderId || "player"}-${message?.createdAt || index}-${index}`);
 }
 
+function drawingStrokeSegments(stroke) {
+  const points = Array.isArray(stroke?.points) ? stroke.points : [];
+  if (points.length <= SOCIAL_DRAWING_POINTS_PER_STROKE) return [stroke];
+  const segments = [];
+  let startIndex = 0;
+  while (startIndex < points.length) {
+    const segmentPoints = points.slice(startIndex, startIndex + SOCIAL_DRAWING_POINTS_PER_STROKE);
+    segments.push({ ...stroke, points: segmentPoints });
+    if (startIndex + SOCIAL_DRAWING_POINTS_PER_STROKE >= points.length) break;
+    startIndex += SOCIAL_DRAWING_POINTS_PER_STROKE - 1;
+  }
+  return segments;
+}
+
 function SocialAvatar({ message, renderAvatar }) {
   if (typeof renderAvatar === "function") {
     const rendered = renderAvatar(message);
@@ -93,8 +108,10 @@ export function WaitingRoomSocial({
   const [minimized, setMinimized] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
+  const rootRef = useRef(null);
   const messageListRef = useRef(null);
   const canvasRef = useRef(null);
+  const chatInputRef = useRef(null);
   const activeStrokeRef = useRef(null);
   const knownMessageKeysRef = useRef(new Set(visibleMessages.map(socialMessageKey)));
   const sectionTitleId = useId();
@@ -207,7 +224,6 @@ export function WaitingRoomSocial({
     if (Math.hypot(point.x - previous.x, point.y - previous.y) < 0.003) return;
     event.preventDefault();
     stroke.points.push(point);
-    if (stroke.points.length > 128) stroke.points.splice(1, stroke.points.length - 128);
     paintCanvas(stroke);
   };
 
@@ -218,7 +234,9 @@ export function WaitingRoomSocial({
     activeStrokeRef.current = null;
     setDrawingBusy(true);
     try {
-      await Promise.resolve(onDrawStroke?.(stroke));
+      for (const segment of drawingStrokeSegments(stroke)) {
+        await Promise.resolve(onDrawStroke?.(segment));
+      }
     } catch (error) {
       setChatStatus(error?.message || "Drawing not shared. Try again.");
     } finally {
@@ -257,11 +275,14 @@ export function WaitingRoomSocial({
       setChatStatus(error?.message || "Message not sent. Try again.");
     } finally {
       setChatBusy(false);
+      window.requestAnimationFrame(() => chatInputRef.current?.focus({ preventScroll: true }));
     }
   };
 
+  const stopDrawing = () => setDrawingEnabled(false);
+
   const minimizeChat = () => {
-    setDrawingEnabled(false);
+    stopDrawing();
     setMinimized(true);
   };
 
@@ -271,10 +292,25 @@ export function WaitingRoomSocial({
     setNotifications([]);
   };
 
+  useEffect(() => {
+    if (minimized) return undefined;
+    const handlePagePointerDown = event => {
+      const root = rootRef.current;
+      if (!root) return;
+      if (!root.contains(event.target)) {
+        minimizeChat();
+        return;
+      }
+      if (drawingEnabled && !canvasRef.current?.contains(event.target)) stopDrawing();
+    };
+    document.addEventListener("pointerdown", handlePagePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePagePointerDown);
+  }, [drawingEnabled, minimized]);
+
   const rootClassName = [`waiting-room-social`, minimized ? "is-minimized" : "is-expanded", className].filter(Boolean).join(" ");
 
   if (minimized) {
-    return <section className={rootClassName} aria-label={title}>
+    return <section ref={rootRef} className={rootClassName} aria-label={title}>
       <h2 className="sr-only" id={sectionTitleId}>{title}</h2>
       <div className="social-chat-notifications" aria-live="polite" aria-atomic="false">
         {notifications.map((message) => <button className="social-chat-notification" style={chatProfileStyle(message)} type="button" onClick={restoreChat} key={message.notificationKey}>
@@ -292,7 +328,7 @@ export function WaitingRoomSocial({
     </section>;
   }
 
-  return <section className={rootClassName} aria-labelledby={sectionTitleId}>
+  return <section ref={rootRef} className={rootClassName} aria-labelledby={sectionTitleId}>
     <header className="waiting-room-social__header">
       <h2 id={sectionTitleId}>{title}</h2>
       <div className="social-chat-window-actions">
@@ -327,11 +363,12 @@ export function WaitingRoomSocial({
         }) : <li className="social-chat__empty">No messages yet. Break the ice!</li>}
       </ol>
       <canvas ref={canvasRef} className={drawingEnabled ? "social-chat__drawing is-active" : "social-chat__drawing"} aria-label="Shared chat drawing surface" onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing} onWheel={event => { if (messageListRef.current) messageListRef.current.scrollTop += event.deltaY; }} />
-      {drawingEnabled ? <button className="social-chat__stop-drawing" type="button" onClick={() => setDrawingEnabled(false)}>Done drawing</button> : null}
+      {drawingEnabled ? <button className="social-chat__stop-drawing" type="button" onClick={stopDrawing}>Done drawing</button> : null}
       </div>
       <form className="social-chat__composer" onSubmit={sendMessage}>
         <label className="sr-only" htmlFor={chatInputId}>Message the room</label>
         <input
+          ref={chatInputRef}
           id={chatInputId}
           type="text"
           value={chatText}

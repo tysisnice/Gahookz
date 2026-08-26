@@ -1,4 +1,13 @@
+# Room codes are non-secret routing keys. Browser API calls send the code in a
+# header and event streams send it as `room`; both select the same authority.
+# Add more `server` lines only after every instance uses this configuration.
+map $http_x_gahookz_room $gahookz_affinity {
+    default $http_x_gahookz_room;
+    ""      $arg_room;
+}
+
 upstream gahookz_app {
+    hash $gahookz_affinity consistent;
     server 127.0.0.1:3102;
     keepalive 16;
 }
@@ -18,6 +27,7 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Gahookz-Room $http_x_gahookz_room;
         proxy_set_header Connection "";
 
         # Gahookz uses long-lived Server-Sent Events for live room state.
@@ -29,6 +39,6 @@ server {
     }
 
     add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Frame-Options "DENY" always;
 }

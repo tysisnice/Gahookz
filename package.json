@@ -3,14 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "node standalone/dev.mjs",
     "build": "node standalone/build-client.mjs",
-    "start": "node standalone/server.js",
+    "start": "node --import tsx standalone/server.js",
+    "typecheck": "tsc -p tsconfig.contracts.json && tsc -p tsconfig.server.json && tsc -p tsconfig.web.json",
+    "test:unit": "node --import tsx --test packages/*/test/*.test.ts standalone/server/*.test.mjs",
+    "test:simulation": "node --import tsx standalone/simulate-games.mjs",
+    "check": "npm run typecheck && npm run test:unit && npm run build",
     "standalone:build": "node standalone/build-client.mjs",
     "standalone:smoke:round-presets": "node standalone/smoke-round-presets.mjs",
     "standalone:smoke:onboarding": "node standalone/smoke-onboarding.mjs",
-    "standalone:smoke:herd-ranking": "node standalone/smoke-herd-ranking.mjs",
+    "standalone:smoke:majority-scoring": "node standalone/smoke-majority-scoring.mjs",
+    "standalone:smoke:majority-flow": "node standalone/smoke-majority-flow.mjs",
     "standalone:smoke:herd-flow": "node standalone/smoke-herd-flow.mjs",
     "standalone:smoke:gahooks": "node standalone/smoke-gahooks.mjs",
     "standalone:smoke:roles": "node standalone/smoke-roles.mjs",
@@ -25,6 +33,7 @@
     "standalone:smoke:social-creation": "node standalone/smoke-social-creation.mjs",
     "standalone:smoke:prompts": "node standalone/smoke-prompt-library.mjs",
     "standalone:smoke:deployment": "node standalone/smoke-deployment.mjs",
+    "standalone:smoke:security": "node standalone/smoke-security.mjs",
     "deploy:fedora": "bash scripts/docker-deploy.sh",
     "status:fedora": "bash scripts/docker-status.sh",
     "deploy:docker": "bash scripts/docker-deploy.sh",
@@ -34,13 +43,21 @@
     "start:docker": "docker compose up -d gahookz-dev gahookz",
     "start:docker:dev": "docker compose up -d gahookz-dev",
     "start:docker:prod": "docker compose up -d gahookz",
-    "standalone:smoke": "npm run standalone:smoke:herd-ranking && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment",
+    "standalone:smoke": "npm run test:simulation && npm run standalone:smoke:security && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment",
     "test": "npm run standalone:smoke"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.0.0"
   },
   "devDependencies": {
-    "esbuild": "0.21.5"
+    "@types/node": "24.13.3",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "esbuild": "0.28.1",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "pg": "8.23.0",
+    "tsx": "4.23.12"
   }
 }

@@ -32,10 +32,7 @@ async function expectError(path, body, includes) {
 }
 
 async function state(code, playerKey = "", role = "player") {
-  const params = new URLSearchParams({ code, role });
-  if (playerKey) params.set("playerKey", playerKey);
-  const response = await fetch(BASE_URL + "/api/state?" + params);
-  const data = await response.json();
+  const { response, data } = await request("/api/state", { code, role, playerKey });
   assert(response.ok, "State request failed: " + data.error);
   return data;
 }

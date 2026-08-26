@@ -8,6 +8,11 @@ const standaloneDir = path.join(rootDir, "standalone");
 const publicDir = path.join(standaloneDir, "public");
 const clientDir = path.join(publicDir, "client");
 const serverModulesDir = path.join(standaloneDir, "server");
+const serverPackageDirectories = [
+  path.join(rootDir, "packages", "accounts", "src"),
+  path.join(rootDir, "packages", "contracts", "src"),
+  path.join(rootDir, "packages", "game-engine", "src")
+];
 const port = String(process.env.PORT || 3101);
 const host = process.env.HOST || "127.0.0.1";
 const buildSources = new Set([
@@ -38,6 +43,7 @@ let reloadTimer = null;
 let restartTimer = null;
 let buildRunning = false;
 let buildAgain = false;
+let shuttingDown = false;
 const watchers = [];
 
 function run(command, args, options = {}) {
@@ -69,13 +75,17 @@ async function buildClient() {
 }
 
 function startServer() {
-  serverProcess = spawn(process.execPath, [path.join(standaloneDir, "server.js")], {
+  if (shuttingDown || serverProcess) return;
+  const child = spawn(process.execPath, ["--import", "tsx", path.join(standaloneDir, "server.js")], {
     cwd: rootDir,
     stdio: "inherit",
     env: { ...process.env, HOST: host, PORT: port, GAHOOKZ_DEV_RELOAD: "1" }
   });
-  serverProcess.on("exit", (code, signal) => {
-    if (serverProcess && code !== 0 && signal !== "SIGTERM") {
+  serverProcess = child;
+  child.on("exit", (code, signal) => {
+    if (serverProcess !== child) return;
+    serverProcess = null;
+    if (!shuttingDown && code !== 0 && signal !== "SIGTERM") {
       console.error("Development server stopped unexpectedly. Restarting...");
       setTimeout(startServer, 500);
     }
@@ -89,11 +99,15 @@ function queueBuild() {
 
 function queueReload() {
   clearTimeout(reloadTimer);
-  reloadTimer = setTimeout(async () => {
+  const notify = async (attempt = 0) => {
     try {
-      await fetch(`http://127.0.0.1:${port}/__dev/reload`, { method: "POST" });
-    } catch (_error) {}
-  }, 100);
+      const response = await fetch(`http://127.0.0.1:${port}/__dev/reload`, { method: "POST" });
+      if (!response.ok) throw new Error(String(response.status));
+    } catch (_error) {
+      if (!shuttingDown && attempt < 30) reloadTimer = setTimeout(() => notify(attempt + 1), 200);
+    }
+  };
+  reloadTimer = setTimeout(() => notify(), 250);
 }
 
 function queueServerRestart() {
@@ -101,8 +115,15 @@ function queueServerRestart() {
   restartTimer = setTimeout(() => {
     const previous = serverProcess;
     serverProcess = null;
-    if (previous && !previous.killed) previous.kill("SIGTERM");
-    setTimeout(startServer, 180);
+    if (previous && !previous.killed) {
+      previous.once("exit", () => {
+        if (!shuttingDown) setTimeout(() => { startServer(); queueReload(); }, 180);
+      });
+      previous.kill("SIGTERM");
+      return;
+    }
+    startServer();
+    queueReload();
   }, 100);
 }
 
@@ -128,6 +149,11 @@ watchDirectory(clientDir, "client", (fileName) => {
 watchDirectory(serverModulesDir, "server", (_fileName, eventType) => {
   if (eventType === "change" || eventType === "rename") queueServerRestart();
 });
+serverPackageDirectories.forEach((directory) => {
+  watchDirectory(directory, path.relative(rootDir, directory), (_fileName, eventType) => {
+    if (eventType === "change" || eventType === "rename") queueServerRestart();
+  });
+});
 watchDirectory(standaloneDir, "standalone", (fileName) => {
   if (fileName === "standalone/server.js") queueServerRestart();
 });
@@ -136,6 +162,7 @@ console.log(`Gahookz development mode: http://${host}:${port}/`);
 console.log("Client rebuilds, server restarts, and browser reloads are automatic.");
 
 function shutdown() {
+  shuttingDown = true;
   watchers.forEach((watcher) => watcher.close());
   if (serverProcess && !serverProcess.killed) serverProcess.kill("SIGTERM");
   process.exit(0);

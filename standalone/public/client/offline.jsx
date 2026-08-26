@@ -20,25 +20,29 @@ const OFFLINE_HIGH_SCORE_KEY = "gahookz-offline-high-score";
 const HEALTH_CHECK_MS = 4000;
 const HEALTH_TIMEOUT_MS = 1400;
 const DASH_JUMP_BUFFER_MS = 180;
+const EXPECTED_SNAPSHOT_SCHEMA_VERSION = 1;
 
 export function useServerConnection() {
   const startsOffline = typeof navigator !== "undefined" && !navigator.onLine;
-  const [state, setState] = useState({ offline: startsOffline, recovered: false, checked: startsOffline });
+  const [state, setState] = useState({ offline: startsOffline, recovered: false, checked: startsOffline, protocolMismatch: null });
 
   useEffect(() => {
     let active = true;
     let requestController = null;
+    let checkInFlight = false;
+    let consecutiveHealthFailures = 0;
 
     const markOffline = () => {
-      if (active) setState({ offline: true, recovered: false, checked: true });
+      if (active) setState({ offline: true, recovered: false, checked: true, protocolMismatch: null });
     };
 
     const checkServer = async () => {
+      if (checkInFlight) return;
       if (!navigator.onLine) {
         markOffline();
         return;
       }
-      requestController?.abort();
+      checkInFlight = true;
       requestController = "AbortController" in window ? new AbortController() : null;
       const timeout = requestController ? setTimeout(() => requestController.abort(), HEALTH_TIMEOUT_MS) : null;
       try {
@@ -47,15 +51,29 @@ export function useServerConnection() {
           signal: requestController?.signal
         });
         if (!response.ok) throw new Error("Server unavailable");
+        const health = await response.json();
+        const actualSchemaVersion = Number(health?.schemaVersion) || null;
+        const protocolMismatch = actualSchemaVersion === EXPECTED_SNAPSHOT_SCHEMA_VERSION ? null : {
+          expectedSchemaVersion: EXPECTED_SNAPSHOT_SCHEMA_VERSION,
+          actualSchemaVersion,
+          serverRelease: String(health?.release || "unknown")
+        };
+        consecutiveHealthFailures = 0;
         if (active) {
-          setState((previous) => previous.offline ?
-            { offline: true, recovered: true, checked: true } :
-            { offline: false, recovered: false, checked: true });
+          setState((previous) => ({
+            offline: false,
+            recovered: previous.offline,
+            checked: true,
+            protocolMismatch
+          }));
         }
       } catch (_error) {
-        markOffline();
+        consecutiveHealthFailures += 1;
+        if (consecutiveHealthFailures >= 2) markOffline();
       } finally {
         if (timeout) clearTimeout(timeout);
+        checkInFlight = false;
+        requestController = null;
       }
     };
 
@@ -75,11 +93,37 @@ export function useServerConnection() {
   }, []);
 
   const returnOnline = () => {
-    setState({ offline: false, recovered: false, checked: true });
+    setState({ offline: false, recovered: false, checked: true, protocolMismatch: null });
     window.location.assign("/");
   };
 
   return { ...state, returnOnline };
+}
+
+export function ServerUpdateExperience({ mismatch }) {
+  const retry = async () => {
+    try {
+      const registration = await navigator.serviceWorker?.getRegistration?.("/");
+      await registration?.update?.();
+    } catch (_error) {}
+    window.location.reload();
+  };
+
+  return (
+    <main className="offline-screen server-update-screen">
+      <header className="offline-brand-row">
+        <div className="brand-lockup welcome-brand"><strong>Gahookz</strong></div>
+        <span className="offline-pill">Updating</span>
+      </header>
+      <section className="offline-message" role="alert">
+        <span>One quick pit stop</span>
+        <h1>The game server and this screen are on different releases.</h1>
+        <p>Rooms are paused until the server finishes updating. Retry in a moment; no amount of waiting on a loading screen will fix a mismatched release.</p>
+        <button type="button" onClick={retry}>Check again</button>
+        <small>Expected room protocol {mismatch?.expectedSchemaVersion}; server reported {mismatch?.actualSchemaVersion || "an older protocol"}.</small>
+      </section>
+    </main>
+  );
 }
 
 export function usePwaInstall() {

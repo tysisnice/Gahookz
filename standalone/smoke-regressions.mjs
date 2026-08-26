@@ -35,16 +35,13 @@ async function post(path, body) {
 }
 
 async function state(roomCode, role = "host", playerKey = "") {
-  const params = new URLSearchParams({ code: roomCode, role });
-  if (playerKey) params.set("playerKey", playerKey);
-  const response = await fetch(BASE_URL + "/api/state?" + params.toString());
-  return { response, data: await response.json() };
+  return request("/api/state", { code: roomCode, role, playerKey });
 }
 
 async function disconnectPlayer(roomCode, playerKey) {
   const controller = new AbortController();
-  const params = new URLSearchParams({ code: roomCode, role: "player", playerKey });
-  const response = await fetch(BASE_URL + "/events?" + params.toString(), { signal: controller.signal });
+  const issued = await post("/api/events/ticket", { code: roomCode, role: "player", playerKey });
+  const response = await fetch(BASE_URL + "/events?ticket=" + encodeURIComponent(issued.ticket), { signal: controller.signal });
   assert(response.ok, "Expected the player event stream to connect before disconnecting");
   controller.abort();
   await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -73,11 +70,13 @@ async function runExactRoomLookupSmoke() {
 
   const originalState = await state(roomCode, "host", hostKey);
   assert(originalState.data.maxQuestionsPerPlayer === 3, "A wrong-room action must not mutate the active room");
-  assert(app.includes('params.get("pwd") || params.get("pw")'), "Room links should accept pwd and legacy pw passwords");
-  assert(app.includes("navigateTo(buildWelcomePath(code, password))"), "Missing rooms should navigate to a prefilled welcome URL");
+  assert(app.includes('sessionStorage.setItem(roomPasswordKey(cleanCode), password)'), "Room passwords should only persist for the current browser tab");
+  assert(!app.includes('localStorage.setItem(roomPasswordKey(cleanCode), password)'), "Room passwords must not be durably stored in localStorage");
+  assert(app.includes("navigateTo(buildWelcomePath(code))"), "Missing rooms should navigate to a code-only prefilled welcome URL");
   assert(app.includes('welcomePrefill.code || ""'), "Welcome room code should use the missing URL code prefill without inventing a Join code");
   assert(app.includes("Boolean(welcomePrefill.password)"), "Welcome password controls should open for a password prefill");
-  assert(bundle.includes("roomMissing") && bundle.includes("?pwd="), "The shipped browser bundle must include missing-room routing and pwd links");
+  assert(bundle.includes("roomMissing") && bundle.includes("/api/events/ticket"), "The shipped browser bundle must include missing-room routing and scoped live-state tickets");
+  assert(!bundle.includes('new EventSource("/events?" + params.toString())'), "The shipped browser must not place room credentials in its event-stream URL");
 
   return { roomCode, missingCode };
 }

@@ -39,11 +39,11 @@ async function post(path, body) {
 }
 
 async function state(roomCode, role = "host", playerKey = "") {
-  const params = new URLSearchParams({ code: roomCode, role });
-  if (playerKey) {
-    params.set("playerKey", playerKey);
-  }
-  const response = await fetch(BASE_URL + "/api/state?" + params.toString());
+  const response = await fetch(BASE_URL + "/api/state", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code: roomCode, role, playerKey })
+  });
   const data = await response.json();
   assert(response.ok, "State request failed for " + roomCode);
   return data;
@@ -76,11 +76,11 @@ function runFinalUiContractSmoke() {
   assert(gameLeaderboard.includes("<LeaderboardList") && gameLeaderboard.includes("actionLabel={actionLabel}"), "Shared phase leaderboard should own the reusable standings rows and action label");
 
   const hostGame = getFunctionSection("HostGame");
-  assert(hostGame.includes('lobby.phase === "reading" || lobby.phase === "answering" || lobby.phase === "ranking"'), "Host read and answer phases should share the live leaderboard");
+  assert(hostGame.includes('lobby.phase === "reading" || lobby.phase === "answering"'), "Host read and answer phases should share the live leaderboard");
   assert(hostGame.includes("{roundActive ? <GameLeaderboardPanel"), "Host active rounds should render the shared phase leaderboard");
 
   const playerGame = getFunctionSection("PlayerGame");
-  assert(playerGame.includes('lobby.phase === "reading" || lobby.phase === "answering" || lobby.phase === "ranking"'), "Player read and answer phases should share the live leaderboard");
+  assert(playerGame.includes('lobby.phase === "reading" || lobby.phase === "answering"'), "Player read and answer phases should share the live leaderboard");
   assert(playerGame.includes("{roundActive ? <GameLeaderboardPanel") && playerGame.includes("usedPokeIds={questionUseIds(lobby)}"), "Player active-round leaderboard should preserve one-Gahook actions");
 
   const reveal = getFunctionSection("RoundRevealSummary");
