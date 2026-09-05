@@ -43,6 +43,24 @@ export GAHOOKZ_REVISION GAHOOKZ_BUILT_AT
 echo "Building revision ${GAHOOKZ_REVISION}."
 
 docker compose config --quiet
+
+# Deploy into the Compose project that actually owns production. compose.yaml
+# declares `name: gahookz`, which is also the development stack's project, so a
+# machine running production from a separate clone must set COMPOSE_PROJECT_NAME
+# in its .env. Without it this script targets the wrong project: it builds the
+# image, then fails binding a port the live container already holds, leaving
+# production on the old code with a broken container beside it.
+prod_port="$(grep -E '^GAHOOKZ_PROD_PORT=' .env 2>/dev/null | cut -d= -f2- || true)"
+prod_port="${prod_port:-3102}"
+owned_container="$(docker compose ps -q gahookz 2>/dev/null || true)"
+port_holder="$(docker ps --filter "publish=${prod_port}" --format '{{.ID}}' | head -1)"
+if [[ -n "$port_holder" && ( -z "$owned_container" || "$owned_container" != "$port_holder"* ) ]]; then
+  holder_project="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$port_holder" 2>/dev/null || true)"
+  echo "Port ${prod_port} is published by Compose project '${holder_project:-unknown}', which this deploy does not own." >&2
+  echo "Set COMPOSE_PROJECT_NAME=${holder_project:-<project>} in ${ROOT_DIR}/.env, then run this again." >&2
+  exit 1
+fi
+
 docker compose build --pull gahookz
 
 # Drain before replacing. Rooms are process-local, so recreating the container
