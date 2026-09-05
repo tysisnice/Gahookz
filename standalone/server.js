@@ -28,7 +28,7 @@ import { presentPlayer } from "./server/presentation.mjs";
 import { MAX_ACTIVE_ROOMS, MAX_PLAYERS_PER_ROOM } from "./server/room.mjs";
 import { gameEligiblePlayers, quizPoints, scorePlacements } from "./server/scoring.mjs";
 import { emptyCareerStats, matchCareerDelta } from "../packages/accounts/src/index.ts";
-import { addChatMessage, addWhiteboardStroke, clearWhiteboard, clearWhiteboardForPlayer, initialiseRoomSocial, publicChatMessages, publicWhiteboardStrokes } from "./server/social.mjs";
+import { addChatMessage, addReport, addWhiteboardStroke, clearWhiteboard, clearWhiteboardForPlayer, initialiseRoomSocial, publicChatMessages, publicReports, publicWhiteboardStrokes, removeChatMessage, removeChatMessagesForPlayer, resolveReport } from "./server/social.mjs";
 import { GAME_MODES, SNAPSHOT_SCHEMA_VERSION } from "../packages/contracts/src/game.ts";
 import { applySecurityHeaders, assertSameOrigin, readJson, sendJson, writeSseState } from "./server/transport.mjs";
 
@@ -861,6 +861,25 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
       return hostCheck;
     }
     return rejectQuestion(room, payload);
+  }
+  if (pathname === "/api/host/remove-content") {
+    const hostCheck = requireHost(room, payload);
+    if (!hostCheck.ok) {
+      return hostCheck;
+    }
+    return removeContent(room, payload);
+  }
+  if (pathname === "/api/host/report/resolve") {
+    const hostCheck = requireHost(room, payload);
+    if (!hostCheck.ok) {
+      return hostCheck;
+    }
+    const result = resolveReport(room, cleanText(payload?.reportId, 80));
+    if (result.ok) broadcastState(room, { immediate: true });
+    return result;
+  }
+  if (pathname === "/api/player/report") {
+    return reportContent(room, payload);
   }
   if (pathname === "/api/host/reset") {
     const hostCheck = requireHost(room, payload);
@@ -2519,6 +2538,20 @@ function kickPlayer(room, payload, options = {}) {
   room.questions = room.questions.filter((question) => question.authorId !== playerId);
   room.pendingQuestions = room.pendingQuestions.filter((question) => question.authorId !== playerId);
   room.quizQuestions = room.quizQuestions.filter((question) => question.authorId !== playerId);
+  // A kicked player also authored answers on other people's Herd prompts. Those
+  // survive the question filter above, so without this the content the host just
+  // removed somebody for stays in the game and is still voted on.
+  room.quizQuestions.forEach((question) => {
+    (question.answers || []).forEach((answer) => {
+      if (answer.authorId === playerId) {
+        answer.text = "";
+        answer.removedByHost = true;
+        answer.authorName = "Removed player";
+        answer.authorAvatarImageDataUrl = "";
+      }
+    });
+  });
+  removeChatMessagesForPlayer(room, playerId);
   delete room.game.answers[playerId];
   delete room.voteKicks[playerId];
   Object.values(room.voteKicks).forEach((votes) => delete votes[playerId]);
@@ -2540,6 +2573,81 @@ function kickPlayer(room, payload, options = {}) {
 
   broadcastState(room, { immediate: true });
   return { ok: true };
+}
+
+// One host control for every kind of player-made content, because during a live
+// party the host needs one obvious button, not a submenu per media type.
+function removeContent(room, payload) {
+  const kind = cleanText(payload?.kind, 20);
+  const targetId = cleanText(payload?.targetId, 80);
+
+  if (kind === "chat") {
+    const result = removeChatMessage(room, targetId);
+    if (result.ok) broadcastState(room, { immediate: true });
+    return result;
+  }
+
+  if (kind === "herd-answer") {
+    // Blank the text but keep the answer slot, so the round's answer count and
+    // scoring shape stay intact mid-game.
+    let removed = 0;
+    for (const question of room.quizQuestions) {
+      for (const answer of question.answers || []) {
+        if (answer.id === targetId || answer.authorId === targetId) {
+          if (answer.text) removed += 1;
+          answer.text = "";
+          answer.removedByHost = true;
+        }
+      }
+    }
+    if (!removed) return { ok: false, error: "That answer is no longer here." };
+    pruneRoomMedia(room);
+    broadcastState(room, { immediate: true });
+    return { ok: true, removed };
+  }
+
+  if (kind === "player-media") {
+    const player = resolvePlayer(room, targetId);
+    if (!player) return { ok: false, error: "Choose a player." };
+    player.avatarImageDataUrl = "";
+    player.customGahook = null;
+    player.latestPoke = null;
+    const chatRemoved = removeChatMessagesForPlayer(room, player.id);
+    clearWhiteboardForPlayer(room, player.id);
+    pruneRoomMedia(room);
+    broadcastState(room, { immediate: true });
+    return { ok: true, player: publicPlayer(room, player), chatRemoved };
+  }
+
+  if (kind === "question") {
+    const before = room.questions.length + room.pendingQuestions.length;
+    room.questions = room.questions.filter((question) => question.id !== targetId);
+    room.pendingQuestions = room.pendingQuestions.filter((question) => question.id !== targetId);
+    if (room.questions.length + room.pendingQuestions.length === before) {
+      return { ok: false, error: "That question is no longer here." };
+    }
+    Object.values(room.players).forEach((player) => {
+      player.questionsSubmitted = countQuestionsForPlayer(room, player.id);
+    });
+    pruneRoomMedia(room);
+    broadcastState(room, { immediate: true });
+    return { ok: true };
+  }
+
+  return { ok: false, error: "Choose what to remove." };
+}
+
+function reportContent(room, payload) {
+  const reporter = getPayloadPlayer(room, payload);
+  const isHost = isHostCredential(room, cleanText(payload?.playerKey, 80));
+  if (!reporter && !isHost) {
+    return { ok: false, error: "Join the room before reporting." };
+  }
+  const actor = reporter || { id: "host", name: "Host" };
+  const result = addReport(room, actor, payload, actor.id);
+  if (!result.ok) return result;
+  broadcastState(room, { immediate: true });
+  return { ok: true, reported: true };
 }
 
 function unbanPlayer(room, payload) {
@@ -2682,6 +2790,12 @@ function submitAnswer(room, payload) {
   const selected = question?.answers.find((answer) => answer.id === answerId);
   if (!selected) {
     return { ok: false, error: "That answer does not exist." };
+  }
+  // Herd pays a voter for picking the room's favourite and pays an author for
+  // every vote their answer receives. Without this, writing an answer and then
+  // voting for it collects both from a single choice.
+  if (mode === "herd" && selected.authorId && selected.authorId === player.id) {
+    return { ok: false, error: "You wrote that answer. Pick someone else's.", ownAnswer: true };
   }
   incrementCareerStat(player, "answersSubmitted");
 
@@ -4205,6 +4319,7 @@ function buildSnapshot(room, role, playerKey) {
     whiteboardRevision: canViewRoomSocial ? room.whiteboardRevision || 0 : 0,
     players: publicPlayers(room),
     bannedPlayers: publicBannedPlayers(room),
+    reports: isHost ? publicReports(room) : [],
     pendingQuestions: isHost ? room.pendingQuestions.map((question) => publicPendingQuestion(room, question)) : publicPendingQuestionsForPlayer(room, playerKey),
     leaderboard: placements.ranked,
     winners: placements.winners,
@@ -4281,6 +4396,7 @@ function publicQuestion(room, question, role, phase, viewerPlayerId = "") {
       color: answer.color,
       shape: answer.shape,
       text: showAnswerText ? answer.text : "",
+      ownAnswer: mode === "herd" && Boolean(viewerPlayerId) && answer.authorId === viewerPlayerId,
       correct: revealAnswer ?
       mode === "majority" ? answer.id === majorityAnswerId :
       mode === "herd" ? answer.id === herdAnswerId :
@@ -4591,6 +4707,8 @@ function serveStatic(url, res) {
   pathname === "/" ||
   pathname === "/information" ||
   pathname === "/information/" ||
+  pathname === "/legal" ||
+  pathname === "/legal/" ||
   pathname === "/host" ||
   pathname === "/play" ||
   /^\/[a-z]{4}$/i.test(pathname) ||

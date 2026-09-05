@@ -87,9 +87,41 @@ while ((snapshot = await state()).phase !== "finished") {
   assert.equal(snapshot.phase, "answering");
   const choices = snapshot.currentQuestion.answers;
   assert.equal(choices.length, 4);
+
+  // Writing an answer and then voting for it would collect the voter's speed
+  // points and the author's per-vote points from one choice. Check on the first
+  // round, while the phase is already open for answers.
+  if (rounds === 0) {
+    let checkedSelfVote = false;
+    for (const player of players) {
+      const own = await state("player", player.key);
+      const mine = own.currentQuestion.answers.find((answer) => answer.ownAnswer);
+      if (!mine) continue;
+      const rejected = await request("/api/answer", { code, playerKey: player.key, answerId: mine.id });
+      assert.equal(rejected.data.ok, false, "A player must not be able to vote for their own Herd answer");
+      assert.equal(rejected.data.ownAnswer, true, "A self-vote refusal should say why");
+      checkedSelfVote = true;
+      break;
+    }
+    assert(checkedSelfVote, "At least one player should have authored an answer on the opening question");
+  }
+
+  // Nobody may vote for an answer they wrote, so each player picks from their
+  // own snapshot rather than the host's. This also exercises the per-viewer
+  // ownAnswer flag the client relies on to disable the tile.
   for (const [index, player] of players.entries()) {
-    const answerId = rounds === 0 && index >= 3 ? choices[1].id : choices[0].id;
-    await post("/api/answer", { code, playerKey: player.key, answerId });
+    const own = await state("player", player.key);
+    const selectable = own.currentQuestion.answers.filter((answer) => !answer.ownAnswer);
+    assert(
+      selectable.length >= 2,
+      "A Herd voter must always have at least two answers they did not write"
+    );
+    assert(
+      own.currentQuestion.answers.length - selectable.length <= 1,
+      "A player can author at most one answer per Herd question"
+    );
+    const preferred = rounds === 0 && index >= 3 ? selectable[1] || selectable[0] : selectable[0];
+    await post("/api/answer", { code, playerKey: player.key, answerId: preferred.id });
   }
   await post("/api/host/skip", { code, playerKey: hostKey });
   snapshot = await state();

@@ -411,9 +411,57 @@ async function runHostPlayerExitAndResetSmoke() {
   return { roomCode, phase: snapshot.phase, gameMode: snapshot.gameMode, profileEditedWithoutRejoin: true };
 }
 
+// Moderation is a release gate for an open audience, so the host controls are
+// covered here alongside the other host powers.
+async function runModerationSmoke() {
+  const roomCode = code("M");
+  const hostKey = key("mod-host");
+  const offenderKey = key("mod-offender");
+  const witnessKey = key("mod-witness");
+
+  await post("/api/room", { code: roomCode, playerKey: hostKey });
+  await post("/api/player/join", { code: roomCode, playerKey: hostKey, name: "Mod Host" });
+  const offender = await post("/api/player/join", { code: roomCode, playerKey: offenderKey, name: "Offender" });
+  await post("/api/player/join", { code: roomCode, playerKey: witnessKey, name: "Witness" });
+
+  const posted = await post("/api/room/chat", { code: roomCode, playerKey: offenderKey, text: "content a host would remove" });
+  const messageId = posted.message.id;
+
+  const notHost = await rawPost("/api/host/remove-content", { code: roomCode, playerKey: witnessKey, kind: "chat", targetId: messageId });
+  assert(!notHost.data.ok, "Only the host may remove content");
+
+  await post("/api/host/remove-content", { code: roomCode, playerKey: hostKey, kind: "chat", targetId: messageId });
+  const witnessView = await state(roomCode, "player", witnessKey);
+  const removedMessage = witnessView.chatMessages.find((message) => message.id === messageId);
+  assert(removedMessage?.removed === true, "A removed message should be marked removed for every player");
+  assert(removedMessage.text === "", "A removed message must not carry its text to any client");
+
+  const missing = await rawPost("/api/host/remove-content", { code: roomCode, playerKey: hostKey, kind: "chat", targetId: messageId });
+  assert(!missing.data.ok, "Removing the same message twice should fail cleanly");
+
+  // Reports notify the host without exposing the reporter to other players.
+  await post("/api/player/report", {
+    code: roomCode, playerKey: witnessKey, subjectKind: "player",
+    subjectId: offender.player.id, subjectName: "Offender", reason: "harassment", note: "repeated abuse"
+  });
+  const hostView = await state(roomCode, "host", hostKey);
+  assert(hostView.reports.length === 1, "The host should see an open report");
+  assert(hostView.reports[0].reason === "harassment" && hostView.reports[0].reporterName === "Witness", "A report should carry its reason and reporter");
+  const offenderView = await state(roomCode, "player", offenderKey);
+  assert(Array.isArray(offenderView.reports) && offenderView.reports.length === 0, "Players must never see reports");
+
+  await post("/api/host/remove-content", { code: roomCode, playerKey: hostKey, kind: "player-media", targetId: offender.player.id });
+  await post("/api/host/report/resolve", { code: roomCode, playerKey: hostKey, reportId: hostView.reports[0].id });
+  const settled = await state(roomCode, "host", hostKey);
+  assert(settled.reports.length === 0, "A resolved report should leave the host's open list");
+
+  return { roomCode, chatRemoval: true, reportingVisibleToHostOnly: true, mediaWipe: true };
+}
+
 const roles = await runRoleSmoke();
+const moderation = await runModerationSmoke();
 const questionEdits = await runApprovalEditSmoke();
 const hostPlayerActions = await runHostPlayerActionsSmoke();
 const forceStart = await runForceStartSmoke();
 const hostPlayerLifecycle = await runHostPlayerExitAndResetSmoke();
-console.log(JSON.stringify({ ok: true, baseUrl: BASE_URL, roles, questionEdits, hostPlayerActions, forceStart, hostPlayerLifecycle }, null, 2));
+console.log(JSON.stringify({ ok: true, baseUrl: BASE_URL, roles, moderation, questionEdits, hostPlayerActions, forceStart, hostPlayerLifecycle }, null, 2));

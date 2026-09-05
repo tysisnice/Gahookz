@@ -4,6 +4,10 @@ export const MAX_CHAT_MESSAGES = 60;
 export const MAX_CHAT_MESSAGE_CHARS = 240;
 export const MAX_WHITEBOARD_STROKES = 160;
 export const MAX_WHITEBOARD_POINTS_PER_STROKE = 128;
+export const MAX_REPORTS = 40;
+const REPORT_RATE_WINDOW_MS = 60_000;
+const REPORT_RATE_MAX = 5;
+const REPORT_REASONS = new Set(["offensive", "harassment", "spam", "other"]);
 
 const CHAT_RATE_WINDOW_MS = 10_000;
 const CHAT_RATE_MAX = 6;
@@ -26,7 +30,60 @@ export function initialiseRoomSocial(room) {
   room.whiteboardStrokes = Array.isArray(room.whiteboardStrokes) ? room.whiteboardStrokes.slice(-MAX_WHITEBOARD_STROKES) : [];
   room.whiteboardRevision = Math.max(0, Math.floor(Number(room.whiteboardRevision) || 0));
   room.socialRateLimits = room.socialRateLimits instanceof Map ? room.socialRateLimits : new Map();
+  room.reports = Array.isArray(room.reports) ? room.reports.slice(-MAX_REPORTS) : [];
   return room;
+}
+
+// Reporting exists so a player can tell the host something is wrong without
+// having to shout over a party. It notifies the host only; it does not remove
+// anything by itself, and it never reveals the reporter to other players.
+export function addReport(room, reporter, input, rateKey, now = Date.now()) {
+  initialiseRoomSocial(room);
+  if (!consumeRate(room, rateKey, "report", REPORT_RATE_WINDOW_MS, REPORT_RATE_MAX, now)) {
+    return { ok: false, error: "You have reported a few things already. Wait a moment." };
+  }
+  const reason = REPORT_REASONS.has(String(input?.reason || "")) ? String(input.reason) : "other";
+  const note = String(input?.note ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+  const subjectKind = ["player", "chat", "answer", "drawing"].includes(String(input?.subjectKind || "")) ?
+    String(input.subjectKind) : "player";
+  const report = {
+    id: crypto.randomUUID(),
+    reporterId: String(reporter?.id || "").slice(0, 80),
+    reporterName: cleanActorName(reporter?.name),
+    subjectKind,
+    subjectId: String(input?.subjectId ?? "").slice(0, 80),
+    subjectName: cleanActorName(input?.subjectName),
+    reason,
+    note,
+    createdAt: now,
+    resolved: false
+  };
+  room.reports.push(report);
+  if (room.reports.length > MAX_REPORTS) room.reports.splice(0, room.reports.length - MAX_REPORTS);
+  return { ok: true, report };
+}
+
+export function resolveReport(room, reportId) {
+  initialiseRoomSocial(room);
+  const report = room.reports.find((item) => item.id === reportId && !item.resolved);
+  if (!report) return { ok: false, error: "That report is already handled." };
+  report.resolved = true;
+  return { ok: true, reportId };
+}
+
+// Only the host sees reports, and only the host sees who raised one.
+export function publicReports(room) {
+  initialiseRoomSocial(room);
+  return room.reports.filter((report) => !report.resolved).map((report) => ({
+    id: report.id,
+    reporterName: report.reporterName,
+    subjectKind: report.subjectKind,
+    subjectId: report.subjectId,
+    subjectName: report.subjectName,
+    reason: report.reason,
+    note: report.note,
+    createdAt: report.createdAt
+  }));
 }
 
 export function addChatMessage(room, actor, value, rateKey, now = Date.now()) {
@@ -113,9 +170,45 @@ export function clearWhiteboardForPlayer(room, playerId) {
   return true;
 }
 
+// Host moderation. Removing a message keeps a tombstone so the conversation
+// does not silently reshuffle under everyone mid-read, and so players can see
+// that a host acted rather than wondering whether they imagined it.
+export function removeChatMessage(room, messageId) {
+  initialiseRoomSocial(room);
+  const message = room.chatMessages.find((item) => item.id === messageId && !item.removed);
+  if (!message) return { ok: false, error: "That message is no longer here." };
+  message.removed = true;
+  message.text = "";
+  message.senderAvatarImageDataUrl = "";
+  return { ok: true, messageId };
+}
+
+export function removeChatMessagesForPlayer(room, playerId) {
+  initialiseRoomSocial(room);
+  let removed = 0;
+  for (const message of room.chatMessages) {
+    if (message.senderId === playerId && !message.removed) {
+      message.removed = true;
+      message.text = "";
+      message.senderAvatarImageDataUrl = "";
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
 export function publicChatMessages(room) {
   initialiseRoomSocial(room);
-  return room.chatMessages.slice(-MAX_CHAT_MESSAGES);
+  return room.chatMessages.slice(-MAX_CHAT_MESSAGES).map((message) => message.removed ? {
+    id: message.id,
+    senderId: message.senderId,
+    senderName: message.senderName,
+    senderAvatarId: message.senderAvatarId,
+    senderAvatarImageDataUrl: "",
+    text: "",
+    removed: true,
+    createdAt: message.createdAt
+  } : message);
 }
 
 export function publicWhiteboardStrokes(room) {

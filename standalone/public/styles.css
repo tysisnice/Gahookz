@@ -10857,3 +10857,31 @@ button.answer-tile {
   .herd-host-review { padding: 14px; }
   .herd-preparation-progress header { align-items: flex-start; flex-direction: column; }
 }
+
+
+/* Rules, terms and privacy sit beside the tutorial link in the welcome footer.
+   Kept visually quieter than the tutorial button: it should be findable without
+   competing with the thing people actually came to do. */
+.welcome-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 18px;
+}
+
+.welcome-legal-link {
+  color: inherit;
+  opacity: 0.62;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+  transition: opacity 120ms ease;
+}
+
+.welcome-legal-link:hover,
+.welcome-legal-link:focus-visible {
+  opacity: 1;
+}

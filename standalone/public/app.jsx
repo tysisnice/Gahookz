@@ -32,6 +32,7 @@ import { WaitingRoomSocial } from "./client/social.jsx";
 import { RoomQrCode } from "./client/qr.jsx";
 import { CustomGahookCreator } from "./client/custom-gahook.jsx";
 import { InformationHub } from "./client/information.jsx";
+import { LegalHub } from "./client/legal.jsx";
 
 const CLIENT_KEY = "gahookz-client-key";
 const createPortal = (...args) => window.ReactDOM.createPortal(...args);
@@ -998,6 +999,9 @@ function getRoute() {
   if (parts[0]?.toLowerCase() === "information") {
     return { mode: "information", code: "" };
   }
+  if (parts[0]?.toLowerCase() === "legal") {
+    return { mode: "legal", code: "" };
+  }
   if (parts[0] === "host" && parts[1]) {
     return { mode: "room", code: normaliseRoomCode(parts[1]) };
   }
@@ -1308,7 +1312,7 @@ function App() {
       setGameMusicState("off");
       return;
     }
-    if (mode === "welcome" || mode === "information") {
+    if (mode === "welcome" || mode === "information" || mode === "legal") {
       setGameMusicState("welcome");
       return;
     }
@@ -1327,7 +1331,7 @@ function App() {
   }, [error, dispatch]);
 
   useEffect(() => {
-    document.title = mode === "room" ? "Gahookz " + (route.code || "") : mode === "information" ? "Gahookz Information" : "Gahookz";
+    document.title = mode === "room" ? "Gahookz " + (route.code || "") : mode === "information" ? "Gahookz Information" : mode === "legal" ? "Gahookz Rules and Privacy" : "Gahookz";
   }, [mode, route.code]);
 
   useEffect(() => {
@@ -1343,17 +1347,17 @@ function App() {
     return () => window.removeEventListener("popstate", syncRoute);
   }, []);
 
-  if (serverConnection.offline && mode !== "information") {
+  if (serverConnection.offline && mode !== "information" && mode !== "legal") {
     return <OfflineExperience recovered={serverConnection.recovered} onReturnOnline={serverConnection.returnOnline} />;
   }
 
-  if (serverConnection.protocolMismatch && mode !== "information") {
+  if (serverConnection.protocolMismatch && mode !== "information" && mode !== "legal") {
     return <ServerUpdateExperience mismatch={serverConnection.protocolMismatch} />;
   }
 
   return (
     <>
-      {mode === "information" ? <InformationHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}
+      {mode === "information" ? <InformationHub /> : mode === "legal" ? <LegalHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}
       {mode === "room" && lobby.code === route.code ? <GahookArenaIntro duel={lobby.gahookDuel} /> : null}
       {mode === "room" && lobby.code === route.code ? <GahookArenaCrowdControls duel={lobby.gahookDuel} ownPlayer={lobby.ownPlayer} playerKey={playerKey} /> : null}
       {error ?
@@ -1479,6 +1483,7 @@ function WelcomeScreen() {
       </section>
       <footer className="welcome-footer">
         <button className="welcome-tutorial-link" type="button" onClick={() => setShowTutorial(true)}>How to play &amp; tutorials</button>
+        <a className="welcome-legal-link" href="/legal">Rules, terms &amp; privacy</a>
       </footer>
       <GameTutorial
         mode="overview"

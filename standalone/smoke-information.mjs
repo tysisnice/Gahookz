@@ -108,6 +108,26 @@ assert(informationSource.includes("function HerdReport()"));
 
 const integration = await verifyRunningServer();
 
+// Terms, privacy, community rules and a takedown route are launch gates rather
+// than decoration, so they are checked here alongside the information hub.
+const legalSource = await fs.readFile(path.join(publicDir, "client", "legal.jsx"), "utf8");
+const builtLegalSource = await fs.readFile(path.join(publicDir, "client", "legal.js"), "utf8");
+for (const documentId of ["rules", "terms", "privacy", "contact"]) {
+  assert(legalSource.includes(`id: "${documentId}"`), `The legal hub is missing the ${documentId} document`);
+}
+assert(appSource.includes('href="/legal"'), "The welcome screen must link to the legal documents");
+assert(serverSource.includes('pathname === "/legal"'), "The server must serve the app shell at /legal");
+assert(buildSource.includes('transformFile("client/legal.jsx"'), "legal.jsx must be part of the browser build");
+assert(builtLegalSource.length > 2000, "The built legal module looks empty");
+assert(
+  legalSource.includes("play without an account"),
+  "The terms must state that playing does not require an account"
+);
+assert(
+  legalSource.includes("not been reviewed by a lawyer"),
+  "The legal documents must be honest that they are not professionally reviewed"
+);
+
 console.log(JSON.stringify({
   ok: true,
   baseUrl,
@@ -136,6 +156,8 @@ async function verifyRunningServer() {
 
     await verifyInformationNavigation("/information");
     await verifyInformationNavigation("/information#majority");
+    await verifyInformationNavigation("/legal");
+    await verifyInformationNavigation("/legal#privacy");
     return { checked: true, status: "passed" };
   } catch (error) {
     if (serverAvailable || requireServer) throw error;

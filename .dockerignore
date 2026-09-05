@@ -24,6 +24,7 @@ standalone/public/client/audio.runtime.js
 standalone/public/client/custom-gahook.js
 standalone/public/client/drawing.js
 standalone/public/client/information.js
+standalone/public/client/legal.js
 standalone/public/client/offline.js
 standalone/public/client/preferences.js
 standalone/public/client/presentation.js
