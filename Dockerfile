@@ -1,6 +1,17 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24-alpine AS dependencies
+# The base image is pinned by digest so a rebuild cannot silently pick up a new
+# Node release. node:24-alpine@sha256:e67514e5d0f6...
+# currently resolves to Node v24.20.0. Update it deliberately: re-resolve with
+#   docker buildx imagetools inspect node:24-alpine --format '{{.Manifest.Digest}}'
+# then rebuild and run the full smoke suite before deploying.
+
+# The Git revision of the source being built, surfaced at /api/health so a
+# server-only change is identifiable. The browser release hash cannot do this.
+ARG GAHOOKZ_REVISION=unknown
+ARG GAHOOKZ_BUILT_AT=
+
+FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS dependencies
 
 WORKDIR /build
 
@@ -10,7 +21,7 @@ COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/game-engine/package.json ./packages/game-engine/package.json
 RUN npm ci --include=dev
 
-FROM node:24-alpine AS production-dependencies
+FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS production-dependencies
 
 WORKDIR /build
 
@@ -23,9 +34,13 @@ RUN npm ci --omit=dev
 # The development target keeps esbuild available and runs the project's file
 # watchers. Compose bind-mounts standalone/ over this copy so source edits are
 # rebuilt and connected browsers reload without rebuilding the image.
-FROM node:24-alpine AS development
+FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS development
 
-ENV NODE_ENV=development \
+ARG GAHOOKZ_REVISION
+ARG GAHOOKZ_BUILT_AT
+ENV GAHOOKZ_REVISION=${GAHOOKZ_REVISION} \
+    GAHOOKZ_BUILT_AT=${GAHOOKZ_BUILT_AT} \
+    NODE_ENV=development \
     PORT=3001 \
     HOST=0.0.0.0 \
     NODE_OPTIONS=--max-old-space-size=768
@@ -56,9 +71,13 @@ COPY standalone/build-client.mjs ./standalone/build-client.mjs
 COPY standalone/public ./standalone/public
 RUN node standalone/build-client.mjs
 
-FROM node:24-alpine AS production
+FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS production
 
-ENV NODE_ENV=production \
+ARG GAHOOKZ_REVISION
+ARG GAHOOKZ_BUILT_AT
+ENV GAHOOKZ_REVISION=${GAHOOKZ_REVISION} \
+    GAHOOKZ_BUILT_AT=${GAHOOKZ_BUILT_AT} \
+    NODE_ENV=production \
     PORT=3001 \
     HOST=0.0.0.0 \
     NODE_OPTIONS=--max-old-space-size=768

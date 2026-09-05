@@ -25,8 +25,63 @@ if [[ ! -s standalone/public/app.jsx || ! -s standalone/build-client.mjs ]]; the
   exit 1
 fi
 
+# Stamp the exact source revision into the image so /api/health can report
+# which server code is running. The browser release hash cannot: it covers only
+# files under standalone/public, so a server-only change leaves it unchanged.
+if git -C "$ROOT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+  GAHOOKZ_REVISION="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
+  if ! git -C "$ROOT_DIR" diff --quiet HEAD 2>/dev/null; then
+    GAHOOKZ_REVISION="${GAHOOKZ_REVISION}-dirty"
+    echo "WARNING: deploying a working tree with uncommitted changes (${GAHOOKZ_REVISION})." >&2
+  fi
+else
+  GAHOOKZ_REVISION="unknown"
+  echo "WARNING: not a Git checkout; /api/health will report revision 'unknown'." >&2
+fi
+GAHOOKZ_BUILT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+export GAHOOKZ_REVISION GAHOOKZ_BUILT_AT
+echo "Building revision ${GAHOOKZ_REVISION}."
+
 docker compose config --quiet
 docker compose build --pull gahookz
+
+# Drain before replacing. Rooms are process-local, so recreating the container
+# ends every game it is hosting. Ask the running node to stop accepting new
+# rooms, then wait for the ones in progress to finish.
+DRAIN_WAIT_SECONDS="${GAHOOKZ_DRAIN_WAIT_SECONDS:-0}"
+current_id="$(docker compose ps -q gahookz 2>/dev/null || true)"
+if [[ -n "$current_id" && "$DRAIN_WAIT_SECONDS" -gt 0 ]]; then
+  metrics_token="$(grep -E '^GAHOOKZ_METRICS_TOKEN=' .env 2>/dev/null | cut -d= -f2- || true)"
+  if [[ -n "$metrics_token" ]]; then
+    echo "Draining: no new rooms will be accepted for up to ${DRAIN_WAIT_SECONDS}s."
+    docker exec "$current_id" node -e "
+      fetch('http://127.0.0.1:3001/api/drain', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + process.argv[1] },
+        body: JSON.stringify({ active: true })
+      }).then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))
+    " "$metrics_token" || echo "WARNING: could not put the running node into drain." >&2
+
+    for _ in $(seq 1 "$DRAIN_WAIT_SECONDS"); do
+      active="$(docker exec "$current_id" node -e "
+        fetch('http://127.0.0.1:3001/api/ready')
+          .then((r) => r.json())
+          .then((v) => process.stdout.write(String(v.activeRooms ?? '?')))
+          .catch(() => process.stdout.write('?'))
+      " 2>/dev/null || echo '?')"
+      [[ "$active" == "0" ]] && { echo "All games finished; proceeding."; break; }
+      printf '\r  %s room(s) still playing... ' "$active"
+      sleep 1
+    done
+    echo
+  else
+    echo "No GAHOOKZ_METRICS_TOKEN in .env, so the node cannot be drained first." >&2
+  fi
+elif [[ -n "$current_id" ]]; then
+  echo "Replacing production immediately. Active games will end."
+  echo "Set GAHOOKZ_DRAIN_WAIT_SECONDS=300 to let games finish first."
+fi
+
 docker compose up -d --force-recreate --remove-orphans gahookz
 
 container_id="$(docker compose ps -q gahookz)"
@@ -45,9 +100,15 @@ for _ in $(seq 1 30); do
       echo "The running container does not use the image that was just built." >&2
       exit 1
     fi
-    release="$(docker exec "$container_id" node -e "fetch('http://127.0.0.1:3001/api/health').then(r=>r.json()).then(v=>process.stdout.write(String(v.release||'unknown'))).catch(()=>process.exit(1))")"
+    health_json="$(docker exec "$container_id" node -e "fetch('http://127.0.0.1:3001/api/health').then(r=>r.text()).then(v=>process.stdout.write(v)).catch(()=>process.exit(1))")"
+    release="$(printf '%s' "$health_json" | sed -n 's/.*\"release\":\"\([^\"]*\)\".*/\1/p')"
+    revision="$(printf '%s' "$health_json" | sed -n 's/.*\"revision\":\"\([^\"]*\)\".*/\1/p')"
+    if [[ "$revision" != "$GAHOOKZ_REVISION" ]]; then
+      echo "The running server reports revision '${revision}', expected '${GAHOOKZ_REVISION}'." >&2
+      exit 1
+    fi
     docker compose ps
-    echo "Gahookz ${release} is healthy at http://127.0.0.1:${GAHOOKZ_PROD_PORT:-3102}/api/health"
+    echo "Gahookz ${release} (revision ${revision}) is healthy at http://127.0.0.1:${GAHOOKZ_PROD_PORT:-3102}/api/health"
     exit 0
   fi
   if [[ "$health" == "unhealthy" || "$health" == "exited" || "$health" == "dead" ]]; then

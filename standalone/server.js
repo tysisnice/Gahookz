@@ -45,6 +45,11 @@ const TRUST_PROXY = process.env.GAHOOKZ_TRUST_PROXY === "1";
 const admission = createAdmissionController({ relaxed: process.env.NODE_ENV !== "production" });
 const accountService = await createAccountService();
 const INSTANCE_ID = cleanInstanceId(process.env.GAHOOKZ_INSTANCE_ID) || crypto.randomBytes(6).toString("hex");
+// The browser release hash covers files under standalone/public only, so a
+// server-only change keeps the same value. This is the separate identifier that
+// says which server code is actually running.
+const SERVER_REVISION = cleanRevision(process.env.GAHOOKZ_REVISION) || readWorkingTreeRevision() || "unknown";
+const SERVER_BUILT_AT = String(process.env.GAHOOKZ_BUILT_AT || "").slice(0, 40);
 const METRICS_TOKEN = String(process.env.GAHOOKZ_METRICS_TOKEN || "").trim();
 if (process.env.GAHOOKZ_REQUIRE_POSTGRES === "1" && accountService.persistence !== "postgres") {
   throw new Error("GAHOOKZ_REQUIRE_POSTGRES is enabled but the PostgreSQL account repository is unavailable.");
@@ -195,6 +200,13 @@ const devReloadClients = new Set();
 const EVENT_TICKET_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_EVENT_TICKETS = 4096;
 let shuttingDown = false;
+// Draining is the deliberate pre-deploy state: keep every live game playable,
+// but stop accepting new rooms so the node empties on its own. Shutdown is the
+// separate, final step. Rooms are process-local, so replacing a node without
+// draining it first ends whatever games it was hosting.
+let draining = false;
+const DRAIN_TIMEOUT_MS = clamp(Number(process.env.GAHOOKZ_DRAIN_TIMEOUT_MS) || 20_000, 0, 30 * 60 * 1000);
+const DRAIN_POLL_MS = 500;
 
 // Counters, unlike gauges, survive the event they describe. Without them a
 // rejection spike or an authentication failure is invisible the moment it ends.
@@ -234,6 +246,11 @@ const server = http.createServer(async (req, res) => {
         serverTime: Date.now(),
         release: releaseInfo.version,
         builtAt: releaseInfo.builtAt,
+        revision: SERVER_REVISION,
+        serverBuiltAt: SERVER_BUILT_AT,
+        instance: INSTANCE_ID,
+        draining: draining,
+        activeRooms: lobbies.size,
         accountPersistence: accountService.persistence,
         googleLoginAvailable: accountService.googleAvailable
       });
@@ -241,8 +258,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/api/ready") {
-      const ready = !shuttingDown && lobbies.size < MAX_ACTIVE_ROOMS;
-      sendJson(res, ready ? 200 : 503, { ok: ready, instance: INSTANCE_ID, activeRooms: lobbies.size, roomCapacity: MAX_ACTIVE_ROOMS });
+      const ready = !shuttingDown && !draining && lobbies.size < MAX_ACTIVE_ROOMS;
+      sendJson(res, ready ? 200 : 503, {
+        ok: ready,
+        instance: INSTANCE_ID,
+        draining,
+        activeRooms: lobbies.size,
+        roomCapacity: MAX_ACTIVE_ROOMS
+      });
       return;
     }
 
@@ -252,6 +275,20 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       sendMetrics(res);
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/drain") {
+      if (!metricsAuthorized(req)) {
+        sendJson(res, METRICS_TOKEN ? 401 : 404, { ok: false, error: "Not found" });
+        return;
+      }
+      const body = await readJson(req);
+      draining = body?.active !== false;
+      console.log(draining ?
+        "Draining: refusing new rooms; " + lobbies.size + " active room(s) remain." :
+        "Drain cancelled; accepting new rooms again.");
+      sendJson(res, 200, { ok: true, draining, activeRooms: lobbies.size, instance: INSTANCE_ID });
       return;
     }
 
@@ -412,10 +449,26 @@ function readReleaseInfo() {
   }
 }
 
-function shutdown(signal) {
+async function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(signal + " received; closing Gahookz connections.");
+  draining = true;
+  console.log(signal + " received; refusing new rooms and draining " + lobbies.size + " active room(s).");
+
+  // Give games in progress a bounded chance to finish before their room is
+  // destroyed. The deadline must stay inside the container's stop grace period,
+  // otherwise the runtime sends SIGKILL and the drain is pointless. Operators
+  // wanting a real drain should call POST /api/drain first and wait for the
+  // active-room gauge to reach zero, rather than lengthening this.
+  const deadline = Date.now() + DRAIN_TIMEOUT_MS;
+  while (lobbies.size > 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_MS));
+  }
+  if (lobbies.size > 0) {
+    console.warn("Drain deadline reached with " + lobbies.size + " room(s) still active; ending them now.");
+  } else {
+    console.log("All rooms finished; closing cleanly.");
+  }
 
   for (const client of clients.values()) {
     client.res.end();
@@ -865,6 +918,9 @@ async function createRoomAction(payload) {
   }
   if (!existingRoom && passwordEnabled && password.length < 4) {
     return { ok: false, error: "Use at least four characters for a room password." };
+  }
+  if (!existingRoom && (draining || shuttingDown)) {
+    return { ok: false, error: "This server is finishing its current games before an update. Try again in a few minutes.", draining: true };
   }
   if (!existingRoom && lobbies.size >= MAX_ACTIVE_ROOMS) {
     return { ok: false, error: "The server has reached its active room limit. Try again shortly." };
@@ -2899,6 +2955,31 @@ function cleanHost(value) {
   return /^[a-z0-9.:-]+$/i.test(host) ? host : "";
 }
 
+function cleanRevision(value) {
+  return String(value ?? "").trim().replace(/[^A-Za-z0-9._+-]/g, "").slice(0, 64);
+}
+
+// Development convenience only. Production images have no .git, so they rely on
+// the GAHOOKZ_REVISION build argument instead.
+function readWorkingTreeRevision() {
+  try {
+    const gitDir = path.join(__dirname, "..", ".git");
+    let head = fs.readFileSync(path.join(gitDir, "HEAD"), "utf8").trim();
+    if (head.startsWith("ref: ")) {
+      const ref = head.slice(5).trim();
+      try {
+        head = fs.readFileSync(path.join(gitDir, ref), "utf8").trim();
+      } catch {
+        const packed = fs.readFileSync(path.join(gitDir, "packed-refs"), "utf8");
+        head = packed.split("\n").find((line) => line.endsWith(" " + ref))?.split(" ")[0] || "";
+      }
+    }
+    return head ? cleanRevision(head).slice(0, 12) : "";
+  } catch {
+    return "";
+  }
+}
+
 function cleanInstanceId(value) {
   const id = String(value || "").trim();
   return /^[a-z0-9_-]{1,48}$/i.test(id) ? id : "";
@@ -2922,6 +3003,9 @@ function sendMetrics(res) {
     "# HELP gahookz_rooms Active authoritative rooms in this process.",
     "# TYPE gahookz_rooms gauge",
     "gahookz_rooms " + lobbies.size,
+    "# HELP gahookz_draining 1 while this node is refusing new rooms before a deploy.",
+    "# TYPE gahookz_draining gauge",
+    "gahookz_draining " + (draining ? 1 : 0),
     "# HELP gahookz_players Players retained in active rooms.",
     "# TYPE gahookz_players gauge",
     "gahookz_players " + players,

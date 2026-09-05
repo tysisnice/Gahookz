@@ -1,8 +1,16 @@
 # Gahookz operations, maintenance, architecture, and future roadmap
 
-Last audited: 2026-07-20 15:21 AEST
-Repository commit at audit: `dd449f26290f944bc0d4055f6877ac23ab5e9ca3`
-Live browser release at audit: `release-f5e95fed469a8b0e`
+Last audited: 2026-09-06 AEST
+Repository commit at audit: `0cdd44821b29` on `main`
+Live browser release at audit: `release-73d122cef8332732`
+
+> **Read this first.** Several statements below were written on 2026-07-20 and
+> have since been overtaken. Production no longer builds from the Syncthing
+> working directory; it builds from a separate clean clone at `/srv/gahookz`.
+> `/api/health` now reports the server Git revision. CI exists. The development
+> hostname is behind an access list. Sections that were superseded are marked
+> **Superseded** inline rather than deleted, so the original reasoning stays
+> readable.
 
 This is the main owner and maintainer guide. It describes what exists now,
 how to work safely, how to bring development and production online, how to
@@ -40,21 +48,40 @@ The most important operational fact is this:
 The routine commands on the Fedora server are:
 
 ```bash
+# Development lives in the Syncthing tree.
 cd /mnt/storage/syncthing/codex/2026-07-01/Gahookz
 
 # Inspect everything without changing it.
 docker compose ps
 bash scripts/docker-status.sh
-curl -fsS http://127.0.0.1:3101/api/health
-curl -fsS http://127.0.0.1:3102/api/health
+curl -fsS http://127.0.0.1:3101/api/health   # dev
+curl -fsS http://127.0.0.1:3102/api/health   # prod
 
 # Start or rebuild development.
 docker compose up -d --build gahookz-dev
 docker compose logs -f --tail=100 gahookz-dev
+```
 
-# Intentionally promote the current source to production.
-# This replaces the production process and ends active production rooms.
+Production is a **separate clean clone**, and is promoted from there:
+
+```bash
+cd /srv/gahookz
+git pull
+
+# Optional: let games in progress finish first. Without this the deploy
+# replaces the container immediately and ends every active game.
+GAHOOKZ_DRAIN_WAIT_SECONDS=300 bash scripts/docker-update.sh
+
+# Or, accepting that active rooms end now:
 bash scripts/docker-update.sh
+```
+
+`/api/health` reports `revision`, so after a deploy you can confirm which
+server code is live rather than inferring it from the browser release hash:
+
+```bash
+curl -fsS http://127.0.0.1:3102/api/health | python3 -m json.tool
+git -C /srv/gahookz rev-parse --short=12 HEAD    # must match "revision"
 ```
 
 ## 2. Terminology and sources of truth
@@ -78,12 +105,19 @@ At the time of this audit, local `main` and `origin/main` both point to
 deployment/build changes. Always run `git status --short --branch` and review
 `git diff` before deciding what will be promoted.
 
-The current production process is built from this working directory. The safer
-target state is:
+**Superseded (2026-09-06).** This target state has been reached. Production
+builds from a separate clean clone at `/srv/gahookz`, checked out on `main`,
+and only the Syncthing directory feeds hot-reload development. The three points
+below are kept because they still describe why the split exists:
 
 1. the Syncthing directory remains the hot-reload development source;
 2. a separate clean Git clone is the production release source;
 3. only reviewed commits or tags are deployed from that production clone.
+
+Deploying is therefore `git pull` in `/srv/gahookz`, then
+`bash scripts/docker-update.sh` from that directory. Running the deploy script
+from the Syncthing tree would ship uncommitted work and is no longer the
+intended path.
 
 ## 3. Current live architecture
 
@@ -120,6 +154,44 @@ polls `/api/state` every 1.8 seconds as recovery. This is simple and works well
 through the current proxy, but it increases snapshot traffic and should be
 measured before public growth.
 
+### Verified live state on 2026-09-06
+
+The 2026-09-05 audit found and fixed several defects. Recorded here because the
+behaviour of the running system changed, not only its code:
+
+- **Rooms leaked.** `resetLobby()` cancelled a room's expiry timer without
+  scheduling a replacement, so any room reset with no client connected stayed
+  resident for the life of the process and permanently consumed one of the 32
+  room slots. Every "New Game" on production burned a slot until restart. This
+  is also why the smoke suite could not be run twice against one process.
+- **Room passwords did not protect room state.** `verifyRoomPassword()` was
+  reached only from `/api/room` and `/api/player/join`. `/api/state` and
+  `/api/events/ticket` answered anyone holding the four-letter code, exposing
+  player names, scores, the leaderboard and live question content, plus a live
+  event stream. Both now go through `roomAccessGranted()`; a verified password
+  admits the credential so the browser can read state during the gap between
+  opening a room and completing the join form.
+- **Bans applied only to joining.** A kicked player kept reading the room in
+  real time. The ban is now enforced on reads and on the event stream.
+- **GET routes bypassed admission control**, because `assertMutation()` sat
+  inside the POST branch. `/api/lobby` was an unthrottled oracle for which of
+  the 331,776 room codes were live. `/api/lobby` and `/events` now consume a
+  read bucket.
+- **Syncthing conflict copies were served**, publishing the previous build of
+  the whole application at predictable URLs on the bind-mounted development
+  host. They are refused by the static server, excluded from the image build
+  context, and removed from the tree.
+
+Guest play was not affected by any of this and must not be: creating a room,
+joining and playing a full game still require no account. See
+`docs/architecture/0001-long-term-foundation.md`.
+
+Two known gaps remain from this work: the account panel is hidden on
+production because `DATABASE_URL`, `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` are unset, so accounts, career statistics and
+entitlements are in-memory and lost on restart; and `GAHOOKZ_REQUIRE_POSTGRES`
+is still `0` on a public deployment.
+
 ### Verified live state on 2026-07-20
 
 - Both Gahookz containers were healthy and had been running for about four
@@ -138,11 +210,13 @@ measured before public growth.
 - `npm run build`, syntax checks, Compose validation, and the full 17-command
   smoke suite passed against a disposable server on port 3199.
 
-The release value hashes browser inputs only. A server-only source change can
-therefore keep the same `release-...` value. The deploy script also verifies
-the newly built Docker image ID, but public/local release equality alone does
-not prove which server commit is running. Add a Git SHA or image revision to
-`/api/health` during the reliability work.
+The release value hashes browser inputs only, so a server-only source change
+keeps the same `release-...` value.
+
+**Resolved 2026-09-06.** `/api/health` now also reports `revision`, the Git
+short SHA baked into the image at build time, so the running server commit is
+directly observable. `scripts/docker-deploy.sh` stamps it from the deploy
+source and fails the deploy if the running container reports anything else.
 
 ## 4. Repository and code map
 
@@ -643,8 +717,14 @@ details.
 - **Moderation:** live Herd answers, drawings, images, audio, chat, and custom
   Gahooks need host hide/remove controls, content rules, reporting, filtering,
   and an abuse-response process.
-- **Dev access:** `dev.gahookz.com` publishes any synced save. Put it behind an
-  access control before the domain becomes discoverable.
+- ~~**Dev access:**~~ **Done 2026-09-05.** `dev.gahookz.com` is behind Nginx
+  Proxy Manager access list #1: `satisfy any`, allowing `192.168.0.0/24` and
+  `100.64.0.0/10`, otherwise basic auth as user `gahookz`. In practice both
+  allow rules are inert, because DNS resolves to the public address and the
+  router hairpins, so nginx sees a public source and every request is
+  challenged. Access-log evidence for why this mattered: in the five days
+  before the change, 25 distinct addresses made 852 404 requests probing
+  `/wp-content/uploads/`, `/geoserver/web/`, `/admin/` and similar.
 - **Credential transport:** player/host bearer keys are placed in `/events` and
   `/api/state` query strings. Query URLs can enter proxy/access logs. Move to a
   secure session cookie or short-lived stream token and redact query strings.
@@ -663,20 +743,42 @@ details.
 
 ### P1 reliability and maintainability
 
-- Add server Git/image revision to health and build metadata.
+- ~~Add server Git/image revision to health and build metadata.~~ **Done.**
+  `/api/health` reports `revision` (the Git short SHA baked in at image build
+  time via the `GAHOOKZ_REVISION` build argument, suffixed `-dirty` when the
+  deploy source had uncommitted changes) plus `serverBuiltAt`, `instance`,
+  `draining` and `activeRooms`. `scripts/docker-deploy.sh` stamps it and then
+  refuses to report success if the running container disagrees.
 - Create immutable images and a tested rollback path.
-- Add CI for install, typecheck, build, static checks, and disposable smoke
-  tests; do not deploy directly from a dirty Syncthing tree.
-- Pin the Node base image more tightly than floating `node:24-alpine` and adopt
-  a deliberate dependency-update cadence.
+- ~~Add CI…~~ **Done.** `.github/workflows/ci.yml` runs three jobs on every
+  push and pull request to `main`: `check` (typecheck, unit tests, build, plus
+  gates on a stale browser shell, committed build output and committed
+  Syncthing conflict copies), `smoke` (all twenty smoke commands against a
+  disposable server), and `image` (both container targets built, the production
+  image booted and health-checked, verified free of Syncthing artefacts and
+  running as `node`). Deploying from a dirty tree is still possible but now
+  stamps the revision `-dirty` and warns.
+- ~~Pin the Node base image…~~ **Partly done.** The Dockerfile pins
+  `node:24-alpine` by digest (currently Node v24.20.0 on Alpine 3.24.1).
+  Re-resolve deliberately with
+  `docker buildx imagetools inspect node:24-alpine --format '{{.Manifest.Digest}}'`,
+  then rebuild and run the full smoke suite. A dependency-update cadence is
+  still not established.
 - Split the oversized server, app component, Redux reducer, and stylesheet.
 - Add runtime request/response validation. TypeScript types alone do not
   validate network input.
 - Use stronger password derivation if room passwords remain; the present salted
   SHA-256 is fast and intended state is ephemeral, but it is not a password
   hashing algorithm.
-- Add graceful draining: stop admitting new rooms, allow current games to end,
-  then deploy.
+- ~~Add graceful draining…~~ **Done.** `POST /api/drain` (bearer
+  `GAHOOKZ_METRICS_TOKEN`) puts a node into drain: `/api/ready` returns 503,
+  new rooms are refused with a player-readable message, and every game already
+  in progress keeps working. `POST /api/drain {"active": false}` cancels it.
+  SIGTERM drains first and waits up to `GAHOOKZ_DRAIN_TIMEOUT_MS` (default 30s
+  in production, inside the 45s `stop_grace_period`) for rooms to empty before
+  closing connections. Set `GAHOOKZ_DRAIN_WAIT_SECONDS` to have the deploy
+  script drain and wait before replacing the container; with it unset, the
+  deploy still ends active games and says so.
 - Decide whether `/information` is public product content or an internal report.
   It currently publishes operational limits and unresolved security/fairness
   findings on the production domain.

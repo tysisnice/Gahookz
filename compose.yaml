@@ -7,6 +7,9 @@ services:
       context: .
       dockerfile: Dockerfile
       target: development
+      args:
+        GAHOOKZ_REVISION: "${GAHOOKZ_REVISION:-unknown}"
+        GAHOOKZ_BUILT_AT: "${GAHOOKZ_BUILT_AT:-}"
     init: true
     restart: unless-stopped
     stop_grace_period: 15s
@@ -54,9 +57,13 @@ services:
       context: .
       dockerfile: Dockerfile
       target: production
+      args:
+        GAHOOKZ_REVISION: "${GAHOOKZ_REVISION:-unknown}"
+        GAHOOKZ_BUILT_AT: "${GAHOOKZ_BUILT_AT:-}"
     init: true
     restart: unless-stopped
-    stop_grace_period: 15s
+    # Must exceed GAHOOKZ_DRAIN_TIMEOUT_MS, or SIGKILL arrives mid-drain.
+    stop_grace_period: 45s
     environment:
       NODE_ENV: production
       PORT: "3001"
@@ -69,6 +76,7 @@ services:
       GAHOOKZ_AUTO_MIGRATE: "${GAHOOKZ_AUTO_MIGRATE:-1}"
       GAHOOKZ_REQUIRE_POSTGRES: "${GAHOOKZ_REQUIRE_POSTGRES:-0}"
       GAHOOKZ_INSTANCE_ID: "${GAHOOKZ_PROD_INSTANCE_ID:-prod-1}"
+      GAHOOKZ_DRAIN_TIMEOUT_MS: "${GAHOOKZ_DRAIN_TIMEOUT_MS:-30000}"
       GAHOOKZ_METRICS_TOKEN: "${GAHOOKZ_METRICS_TOKEN:-}"
       GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-}"
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-}"
