@@ -218,6 +218,13 @@ short SHA baked into the image at build time, so the running server commit is
 directly observable. `scripts/docker-deploy.sh` stamps it from the deploy
 source and fails the deploy if the running container reports anything else.
 
+`gahookz-dev` reports `revision: "unknown"`, and that is correct rather than a
+fault. The development container bind-mounts a Syncthing-fed tree whose
+contents change continuously, so no single commit describes what it is running.
+Only the immutable production image has a meaningful revision. Outside a
+container the server falls back to reading `.git/HEAD`, so `npm start` in a
+checkout does report one.
+
 ## 4. Repository and code map
 
 | Path | Responsibility | Maintenance note |
