@@ -1,0 +1,198 @@
+name: CI
+
+# Gates every change on the checks the runbook already asks for by hand:
+# strict TypeScript, unit tests, a clean browser build, and the full smoke
+# suite against a disposable server. Nothing here touches dev or production.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Node 24 matches the node:24-alpine base image the containers run.
+  NODE_VERSION: "24"
+
+jobs:
+  check:
+    name: Typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Strict TypeScript projects
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Production browser build
+        run: npm run build
+
+      # The build stamps the asset version into index.html, service-worker.js
+      # and vendor-bootstrap.js, which are tracked. If rebuilding the committed
+      # source changes them, someone committed source without rebuilding, and
+      # the release hash no longer describes what is being served. That is the
+      # confusion behind the 2026-08-26 mixed-deployment incident.
+      - name: Committed browser shell matches its source
+        run: |
+          if ! git diff --quiet -- standalone/public/index.html \
+                                   standalone/public/service-worker.js \
+                                   standalone/public/vendor-bootstrap.js; then
+            echo "::error::The browser shell is stale. Run 'npm run build' and commit the result."
+            git --no-pager diff -- standalone/public/index.html \
+                                   standalone/public/service-worker.js \
+                                   standalone/public/vendor-bootstrap.js
+            exit 1
+          fi
+          echo "Browser shell is in sync with its source."
+
+      - name: Generated browser modules are not committed
+        run: |
+          tracked=$(git ls-files 'standalone/public/app.js' \
+                                'standalone/public/release.json' \
+                                'standalone/public/client/*.js' || true)
+          # client/audio.js and client/gahook-forms.js are hand-written sources.
+          tracked=$(echo "$tracked" | grep -v -e 'client/audio\.js$' -e 'client/gahook-forms\.js$' || true)
+          if [ -n "$tracked" ]; then
+            echo "::error::Generated build output is committed:"; echo "$tracked"; exit 1
+          fi
+          echo "No generated browser modules are tracked."
+
+      - name: No Syncthing conflict copies
+        run: |
+          found=$(git ls-files | grep -- '-sync-conflict-\|\.sync-conflict-' || true)
+          if [ -n "$found" ]; then
+            echo "::error::Syncthing conflict copies are committed:"; echo "$found"; exit 1
+          fi
+          echo "No conflict copies tracked."
+
+  smoke:
+    name: Full smoke suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # NODE_ENV is deliberately left unset. Production admission limits cap
+      # room creation at 12 per address, and the suite creates far more than
+      # that, so it must run against a development-mode process.
+      - name: Start a disposable server on port 3199
+        run: |
+          HOST=127.0.0.1 PORT=3199 \
+          GAHOOKZ_INSTANCE_ID=ci-$GITHUB_RUN_ID \
+          GAHOOKZ_METRICS_TOKEN=ci-metrics-token \
+            npm start > /tmp/gahookz-ci-server.log 2>&1 &
+          echo $! > /tmp/gahookz-ci-server.pid
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3199/api/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3199/api/health || {
+            echo "::error::Server never became healthy"; cat /tmp/gahookz-ci-server.log; exit 1;
+          }
+
+      - name: Smoke suite
+        env:
+          GAHOOKZ_BASE_URL: http://127.0.0.1:3199
+          GAHOOKZ_TEST_BASE_URL: http://127.0.0.1:3199
+        run: npm test
+
+      - name: Stop the server
+        if: always()
+        run: |
+          [ -f /tmp/gahookz-ci-server.pid ] && kill "$(cat /tmp/gahookz-ci-server.pid)" 2>/dev/null || true
+
+      - name: Server log
+        if: failure()
+        run: tail -100 /tmp/gahookz-ci-server.log || true
+
+  image:
+    name: Container images build and serve
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: write   # buildx writes its layer cache to the Actions cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Compose file is valid
+        run: docker compose config --quiet
+        env:
+          GAHOOKZ_BIND_ADDRESS: 127.0.0.1
+
+      - name: Build development target
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: development
+          push: false
+          load: true
+          tags: gahookz:ci-dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build production target
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: false
+          load: true
+          tags: gahookz:ci-prod
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The production image must answer for itself: it builds its own browser
+      # assets in a throwaway stage, so a broken build only shows up at runtime.
+      - name: Production image serves a healthy release
+        run: |
+          docker run -d --name gahookz-ci -p 127.0.0.1:3199:3001 \
+            -e GAHOOKZ_INSTANCE_ID=ci-image gahookz:ci-prod
+          for _ in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3199/api/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          health=$(curl -fsS http://127.0.0.1:3199/api/health) || {
+            echo "::error::Production image is not healthy"; docker logs gahookz-ci; exit 1;
+          }
+          echo "$health"
+          echo "$health" | grep -q '"ok":true' || { echo "::error::health not ok"; exit 1; }
+          echo "$health" | grep -q '"schemaVersion":1' || { echo "::error::schemaVersion missing"; exit 1; }
+
+      - name: Image contains no Syncthing artefacts
+        run: |
+          count=$(docker run --rm --entrypoint sh gahookz:ci-prod -c \
+            'find /app -name "*sync-conflict*" -o -name ".syncthing.*" | wc -l')
+          [ "$count" = "0" ] || { echo "::error::image contains $count Syncthing artefacts"; exit 1; }
+          echo "Image is clean."
+
+      - name: Image runs as a non-root user
+        run: |
+          user=$(docker run --rm --entrypoint sh gahookz:ci-prod -c 'id -un')
+          [ "$user" = "node" ] || { echo "::error::production image runs as $user"; exit 1; }
+          echo "Runs as $user."
+
+      - name: Clean up
+        if: always()
+        run: docker rm -f gahookz-ci 2>/dev/null || true

@@ -15,6 +15,7 @@
     "test:simulation": "node --import tsx standalone/simulate-games.mjs",
     "check": "npm run typecheck && npm run test:unit && npm run build",
     "standalone:build": "node standalone/build-client.mjs",
+    "standalone:smoke:room-expiry": "node standalone/smoke-room-expiry.mjs",
     "standalone:smoke:round-presets": "node standalone/smoke-round-presets.mjs",
     "standalone:smoke:onboarding": "node standalone/smoke-onboarding.mjs",
     "standalone:smoke:majority-scoring": "node standalone/smoke-majority-scoring.mjs",
@@ -43,7 +44,7 @@
     "start:docker": "docker compose up -d gahookz-dev gahookz",
     "start:docker:dev": "docker compose up -d gahookz-dev",
     "start:docker:prod": "docker compose up -d gahookz",
-    "standalone:smoke": "npm run test:simulation && npm run standalone:smoke:security && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment",
+    "standalone:smoke": "npm run test:simulation && npm run standalone:smoke:security && npm run standalone:smoke:room-expiry && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment",
     "test": "npm run standalone:smoke"
   },
   "engines": {

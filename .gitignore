@@ -35,6 +35,7 @@ work/
 
 # Local Codex/agent notes and shared machine handoffs
 .agents/
+.claude/
 .codex/
 codexLastPrompt.md
 git.md
