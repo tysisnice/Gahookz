@@ -115,6 +115,34 @@ const wrongJoin = await request("/api/player/join", {
 });
 assert(wrongJoin.response.status === 400 && wrongJoin.data.wrongPassword, "Joining a protected room with the wrong password must fail");
 
+// Knowing the four-letter code is not authorisation. A protected room must not
+// hand its snapshot or its live stream to a caller that never proved the
+// password, because both carry player names, scores and live question content.
+const outsiderKey = key("security-outsider");
+const outsiderState = await request("/api/state", { code, role: "guest", playerKey: outsiderKey });
+assert(
+  outsiderState.response.status === 401 && outsiderState.data.roomLocked,
+  "A protected room must refuse room state to a caller that has not passed the password"
+);
+assert(
+  !Array.isArray(outsiderState.data.players),
+  "A refused room-state request must not carry any part of the snapshot"
+);
+
+const outsiderTicket = await request("/api/events/ticket", { code, role: "guest", playerKey: outsiderKey });
+assert(
+  outsiderTicket.response.status === 401 && outsiderTicket.data.roomLocked,
+  "A protected room must refuse an event ticket to a caller that has not passed the password"
+);
+assert(!outsiderTicket.data.ticket, "A refused ticket request must not issue a ticket");
+
+// Passing the password admits the credential for reading, before the join form
+// has been completed, which is what the browser actually does.
+const admitted = await post("/api/room", { code, playerKey: outsiderKey, intent: "join", password });
+assert(admitted.code === code, "The correct password must open a protected room");
+const admittedState = await request("/api/state", { code, role: "guest", playerKey: outsiderKey });
+assert(admittedState.response.ok, "A credential admitted by the password must be able to read room state");
+
 await post("/api/player/join", {
   code,
   playerKey,
@@ -153,6 +181,29 @@ assert(app.includes("ROOM_CONNECTION_ERROR") && app.includes("newer than the gam
 assert(server.includes("crypto.scrypt") && server.includes("crypto.timingSafeEqual"), "Room passwords must use a memory-hard derivation and constant-time verification");
 assert(server.includes("accountService.authenticate(req)"), "Room commands must derive account identity from the server session");
 
+// A kick that leaves the removed player watching the room in real time is not a
+// moderation control. The ban must apply to reads as well as to joining.
+const bannedKey = key("security-banned");
+await post("/api/room", { code, playerKey: bannedKey, intent: "join", password });
+const bannedJoin = await post("/api/player/join", { code, playerKey: bannedKey, name: "Removable", avatarId: "zap", password });
+await post("/api/host/kick", { code, playerKey: hostKey, playerId: bannedJoin.player.id });
+
+const bannedState = await request("/api/state", { code, role: "player", playerKey: bannedKey });
+assert(
+  bannedState.response.status === 403 && bannedState.data.banned,
+  "A banned credential must be refused room state, not only refused a new join"
+);
+const bannedTicket = await request("/api/events/ticket", { code, role: "player", playerKey: bannedKey });
+assert(
+  bannedTicket.response.status === 403 && bannedTicket.data.banned && !bannedTicket.data.ticket,
+  "A banned credential must be refused a live event ticket"
+);
+const bannedRejoin = await request("/api/room", { code, playerKey: bannedKey, intent: "join", password });
+assert(
+  bannedRejoin.response.status === 400 && bannedRejoin.data.banned,
+  "A banned credential must not be able to re-admit itself with the room password"
+);
+
 console.log(JSON.stringify({
   ok: true,
   roomCode: code,
@@ -162,6 +213,8 @@ console.log(JSON.stringify({
     "memory-hard protected-room passwords",
     "credential-free room-state transport",
     "opaque single-use event tickets",
+    "password-gated room state and event tickets",
+    "bans enforced on reads, not only on joining",
     "room-affine snapshot recovery and visible connection failure"
   ]
 }, null, 2));

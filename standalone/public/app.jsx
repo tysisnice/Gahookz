@@ -882,10 +882,11 @@ function getWelcomePrefill() {
     const params = new URLSearchParams(window.location.search);
     return {
       code: normaliseRoomCode(params.get("room")),
-      password: getUrlPassword()
+      password: getUrlPassword(),
+      locked: params.get("locked") === "1"
     };
   } catch (_error) {
-    return { code: "", password: "" };
+    return { code: "", password: "", locked: false };
   }
 }
 
@@ -922,10 +923,11 @@ function buildRoomPath(code) {
   return "/" + cleanCode;
 }
 
-function buildWelcomePath(code) {
+function buildWelcomePath(code, { locked = false } = {}) {
   const params = new URLSearchParams();
   const cleanCode = normaliseRoomCode(code);
   if (cleanCode) params.set("room", cleanCode);
+  if (locked) params.set("locked", "1");
   const query = params.toString();
   return "/" + (query ? "?" + query : "");
 }
@@ -1167,6 +1169,28 @@ function useEvents(mode, code, playerKey) {
         flushTimer = setTimeout(flushPendingSnapshot, SNAPSHOT_CATCHUP_MS);
       }
     };
+    // A protected room stops answering this credential whenever the server has
+    // forgotten it - a restart, or a password added mid-session. Re-present the
+    // password this device already holds before sending the player back out.
+    let readmitting = false;
+    const recoverLockedRoom = async () => {
+      if (readmitting) return;
+      readmitting = true;
+      const knownPassword = getSavedRoomPassword(code) || getUrlPassword();
+      if (knownPassword) {
+        const readmit = await api("/api/room", { code, playerKey, intent: "join", password: knownPassword }, { refresh: false });
+        readmitting = false;
+        if (!active) return;
+        if (readmit.ok) {
+          fetchSnapshot();
+          connectEvents();
+          return;
+        }
+      }
+      readmitting = false;
+      if (active) navigateTo(buildWelcomePath(code, { locked: true }));
+    };
+
     const fetchSnapshot = async () => {
       try {
         const response = await fetch("/api/state", {
@@ -1179,6 +1203,14 @@ function useEvents(mode, code, playerKey) {
         if (response.status === 404 && snapshot?.roomMissing) {
           if (active) {
             navigateTo(buildWelcomePath(code));
+          }
+          return;
+        }
+        if (snapshot?.roomLocked || snapshot?.banned) {
+          if (active) {
+            dispatch({ type: "CONNECTED", value: false });
+            if (snapshot.banned) navigateTo(buildWelcomePath(code));
+            else await recoverLockedRoom();
           }
           return;
         }
@@ -1203,6 +1235,14 @@ function useEvents(mode, code, playerKey) {
         dispatch({ type: "CONNECTED", value: false });
         if (ticketResult.roomMissing) {
           navigateTo(buildWelcomePath(code));
+          return;
+        }
+        if (ticketResult.banned) {
+          navigateTo(buildWelcomePath(code));
+          return;
+        }
+        if (ticketResult.roomLocked) {
+          await recoverLockedRoom();
           return;
         }
         reportFailure(ticketResult, { immediate: true });
@@ -1364,7 +1404,7 @@ function WelcomeScreen() {
   const [entryIntent, setEntryIntent] = useState("join");
   const [roomCode, setRoomCode] = useState(() => welcomePrefill.code || "");
   const [roomPlaceholder] = useState(() => randomClientCode());
-  const [passwordEnabled, setPasswordEnabled] = useState(() => Boolean(welcomePrefill.password));
+  const [passwordEnabled, setPasswordEnabled] = useState(() => Boolean(welcomePrefill.password || welcomePrefill.locked));
   const [password, setPassword] = useState(() => welcomePrefill.password);
   const [wrongPasswordPoke, setWrongPasswordPoke] = useState(null);
   const [creating, setCreating] = useState(false);
@@ -1528,10 +1568,14 @@ function AccountPanel() {
         <p className="account-privacy-note">Signing in saves career totals and custom Gahooks. A room still works for every guest.</p>
       </section>);
   }
+  // A server without a verified identity provider and durable storage cannot
+  // keep the promise this panel makes, so it offers nothing rather than
+  // advertising career stats that would not survive the next restart.
+  if (!status?.googleAvailable) return null;
   return (
     <section className="account-panel account-panel-guest" aria-label="Optional Gahookz account">
       <div><small>Optional player profile</small><h2>Keep your wins and custom Gahooks</h2><p>Guest play stays instant. Sign in only if you want stats and unlocks to follow you.</p></div>
-      {status?.googleAvailable ? <a className="google-sign-in-button" href={accountLoginHref()}>Continue with Google</a> : <span className="account-unavailable">Account sign-in is not configured on this server yet.</span>}
+      <a className="google-sign-in-button" href={accountLoginHref()}>Continue with Google</a>
     </section>);
 }
 

@@ -11,6 +11,11 @@ LAPTOP-DEPLOY-PROMPT.md
 .idea
 .vscode
 *.log
+*.sync-conflict-*
+.syncthing.*
+.stfolder
+.stversions
+.stignore
 standalone/*.log
 standalone/smoke-*.mjs
 standalone/public/app.js

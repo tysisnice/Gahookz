@@ -67,6 +67,10 @@ export function createAdmissionController({ relaxed = false } = {}) {
   const actorMutations = new TokenBucketLimiter({ capacity: 120 * scale, refillPerSecond: 20 * scale, maximumKeys: 50_000 });
   const roomCreations = new TokenBucketLimiter({ capacity: 12 * scale, refillPerSecond: 0.2 * scale, maximumKeys: 20_000 });
   const eventTickets = new TokenBucketLimiter({ capacity: 20 * scale, refillPerSecond: 1 * scale, maximumKeys: 50_000 });
+  // Unauthenticated GET routes need their own bucket: /api/lobby answers whether
+  // any given four-letter code is live, so without one it is a free room-code
+  // enumeration oracle.
+  const reads = new TokenBucketLimiter({ capacity: 120 * scale, refillPerSecond: 20 * scale, maximumKeys: 20_000 });
   const connectionsByAddress = new Map();
   const connectionsByRoom = new Map();
   let connectionTotal = 0;
@@ -78,6 +82,10 @@ export function createAdmissionController({ relaxed = false } = {}) {
       rejectRateLimit(actorMutations.consume(actor), "actor");
       if (pathname === "/api/room") rejectRateLimit(roomCreations.consume(address), "room_creation");
       if (pathname === "/api/events/ticket") rejectRateLimit(eventTickets.consume(actor), "event_ticket");
+    },
+
+    assertRead(address) {
+      rejectRateLimit(reads.consume(address), "read");
     },
 
     acquireEventStream(address, roomCode) {

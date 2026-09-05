@@ -4,10 +4,12 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  admitCredential,
   createPublicPlayerId,
   getCredentialForPlayer,
   getPlayerByCredential,
   initialiseRoomAuth,
+  isCredentialAdmitted,
   isCredentialBanned,
   isHostCredential,
   registerPlayerCredential,
@@ -87,7 +89,9 @@ const GAHOOK_STEAL_POINTS = 50;
 const STATE_BROADCAST_MS = 30;
 const PROGRESS_SETTLE_MS = 200;
 const PROGRESS_FORCE_ADVANCE_MS = 5000;
-const ROOM_EXPIRE_MS = 5 * 60 * 1000;
+// Overridable so the expiry regression test can observe a full lifecycle
+// without waiting five minutes. Clamped so a typo cannot disable room reaping.
+const ROOM_EXPIRE_MS = clamp(Number(process.env.GAHOOKZ_ROOM_EXPIRE_MS) || 5 * 60 * 1000, 250, 60 * 60 * 1000);
 const LIVE_GAME_PHASES = ["reading", "answering", "reveal"];
 const DEFAULT_QUESTIONS_PER_PLAYER = 3;
 const MIN_QUESTIONS_PER_PLAYER = 1;
@@ -192,11 +196,35 @@ const EVENT_TICKET_TTL_MS = 2 * 60 * 60 * 1000;
 const MAX_EVENT_TICKETS = 4096;
 let shuttingDown = false;
 
+// Counters, unlike gauges, survive the event they describe. Without them a
+// rejection spike or an authentication failure is invisible the moment it ends.
+const counters = {
+  requests: 0,
+  responses_2xx: 0,
+  responses_4xx: 0,
+  responses_5xx: 0,
+  rate_limited: 0,
+  event_streams_opened: 0,
+  event_streams_rejected: 0,
+  rooms_created: 0,
+  rooms_expired: 0,
+  room_access_denied: 0,
+  login_failures: 0
+};
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://" + req.headers.host);
   const address = requestAddress(req, { trustProxy: TRUST_PROXY });
   applySecurityHeaders(res, { secure: process.env.GAHOOKZ_HTTPS === "1" });
   res.setHeader("X-Gahookz-Instance", INSTANCE_ID);
+  counters.requests += 1;
+  res.on("finish", () => {
+    const status = res.statusCode;
+    if (status >= 500) counters.responses_5xx += 1;
+    else if (status >= 400) counters.responses_4xx += 1;
+    else if (status >= 200 && status < 300) counters.responses_2xx += 1;
+    if (status === 429) counters.rate_limited += 1;
+  });
 
   try {
     if (req.method === "GET" && url.pathname === "/api/health") {
@@ -252,6 +280,7 @@ const server = http.createServer(async (req, res) => {
         res.setHeader("Cache-Control", "no-store");
         res.end();
       } catch (error) {
+        counters.login_failures += 1;
         console.warn("Google sign-in callback rejected:", error?.code || error?.message || error);
         res.statusCode = 302;
         res.setHeader("Set-Cookie", accountService.clearOAuthCookie());
@@ -281,6 +310,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/events") {
       assertSameOrigin(req);
+      admission.assertRead(address);
       handleEvents(req, res, url, address);
       return;
     }
@@ -290,6 +320,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/api/lobby") {
+      admission.assertRead(address);
       const room = getLobbyFromCode(url.searchParams.get("code"));
       if (!room) {
         sendJson(res, 404, { ok: false, error: "That room does not exist.", roomMissing: true });
@@ -322,11 +353,27 @@ const server = http.createServer(async (req, res) => {
           return;
         }
         const playerKey = cleanText(payload?.playerKey, 80);
+        if (!roomAccessGranted(room, playerKey)) {
+          const denial = roomAccessDenial(room, playerKey);
+          sendJson(res, denial.status, denial.body);
+          return;
+        }
         const role = cleanText(payload?.role, 12) || "guest";
         sendJson(res, 200, buildSnapshot(room, role, playerKey));
         return;
       }
       if (url.pathname === "/api/events/ticket") {
+        const room = getLobbyFromCode(payload?.code);
+        if (!room) {
+          sendJson(res, 404, { ok: false, error: "That room does not exist.", roomMissing: true });
+          return;
+        }
+        const ticketKey = cleanText(payload?.playerKey, 80);
+        if (!roomAccessGranted(room, ticketKey)) {
+          const denial = roomAccessDenial(room, ticketKey);
+          sendJson(res, denial.status, denial.body);
+          return;
+        }
         const result = createEventTicket(payload);
         sendJson(res, result.ok ? 200 : result.roomMissing ? 404 : 400, result);
         return;
@@ -412,7 +459,21 @@ function handleEvents(req, res, url, address) {
     sendJson(res, 404, { ok: false, error: "That room does not exist.", roomMissing: true });
     return;
   }
-  const releaseAdmission = admission.acquireEventStream(address, room.code);
+  // The ticket proved access when it was issued; re-check because a ban or a
+  // password can land between issuing the ticket and opening the stream.
+  if (!roomAccessGranted(room, playerKey)) {
+    const denial = roomAccessDenial(room, playerKey);
+    sendJson(res, denial.status, denial.body);
+    return;
+  }
+  let releaseAdmission;
+  try {
+    releaseAdmission = admission.acquireEventStream(address, room.code);
+  } catch (error) {
+    counters.event_streams_rejected += 1;
+    throw error;
+  }
+  counters.event_streams_opened += 1;
   const id = nextClientId++;
   clearRoomExpiry(room);
 
@@ -789,8 +850,7 @@ async function createRoomAction(payload) {
     return { ok: false, error: "That room code is already in use. Choose another code.", roomExists: true };
   }
   if (intent === "host" && existingRoom && existingRoom.hostKey === playerKey) {
-    clearRoomExpiry(existingRoom);
-    scheduleRoomExpiry(existingRoom, { awaitingConnection: true });
+    refreshRoomExpiry(existingRoom, playerKey);
     return {
       ok: true,
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -811,11 +871,16 @@ async function createRoomAction(payload) {
   }
 
   if (existingRoom) {
+    if (isCredentialBanned(existingRoom, playerKey)) {
+      return { ok: false, error: "You're banned from this room.", banned: true };
+    }
     if (roomHasPassword(existingRoom) && !await verifyRoomPassword(existingRoom, password)) {
       return { ok: false, error: "Wrong password.", wrongPassword: true };
     }
-    clearRoomExpiry(existingRoom);
-    scheduleRoomExpiry(existingRoom, { awaitingConnection: true });
+    // The caller has now proven it may enter, so its credential can read state
+    // and open an event stream before the join form is completed.
+    admitCredential(existingRoom, playerKey);
+    refreshRoomExpiry(existingRoom, playerKey);
     return {
       ok: true,
       schemaVersion: SNAPSHOT_SCHEMA_VERSION,
@@ -827,6 +892,7 @@ async function createRoomAction(payload) {
   }
 
   const room = createLobby(requestedCode || generateRoomCode());
+  counters.rooms_created += 1;
   room.hostKey = playerKey;
   if (passwordEnabled) {
     await setRoomPassword(room, password);
@@ -1055,6 +1121,7 @@ function counterPokeFromPlayer(room, payload) {
     gahookForm: sender.gahookForm,
     senderPlayer: sender,
     duelChallengeUntil,
+    now,
     skipBroadcast: true
   });
   if (!result.ok) return result;
@@ -1451,7 +1518,10 @@ function pokePlayer(room, payload, fromName, options = {}) {
     return { ok: false, error: "That player is not connected." };
   }
 
-  const now = Date.now();
+  // One logical Gahook must have one timestamp. Callers that already computed a
+  // deadline from their own clock read pass it in, otherwise the overlay window
+  // is a millisecond short whenever the clock ticks between the two reads.
+  const now = Number(options.now) || Date.now();
   const specialKind = cleanText(options.kindOverride, 20);
   const messageOverride = cleanText(options.message, 40);
   const isFinalSpecial = specialKind === "congrats" || specialKind === "boo";
@@ -2861,6 +2931,9 @@ function sendMetrics(res) {
     "gahookz_event_streams " + admission.currentEventStreams(),
     "gahookz_event_tickets " + eventTickets.size,
     ...GAME_MODES.map((mode) => 'gahookz_rooms_by_mode{mode="' + mode + '"} ' + modes[mode]),
+    "# HELP gahookz_requests_total Requests and outcomes observed since start.",
+    "# TYPE gahookz_requests_total counter",
+    ...Object.entries(counters).map(([key, value]) => "gahookz_" + key + "_total " + value),
     "# HELP process_resident_memory_bytes Resident memory used by this Node process.",
     "# TYPE process_resident_memory_bytes gauge",
     "process_resident_memory_bytes " + process.memoryUsage().rss,
@@ -2882,6 +2955,25 @@ function cleanText(value, maxLength = 180) {
 
 function cleanPassword(value) {
   return String(value ?? "").trim().slice(0, 80);
+}
+
+// Reading room state is an authorisation decision, not a side effect of knowing
+// the four-letter code. A banned credential is refused everywhere, and a
+// protected room only answers the host, a joined player, or a credential whose
+// password was already verified by /api/room.
+function roomAccessGranted(room, credential) {
+  if (isCredentialBanned(room, credential)) return false;
+  if (!roomHasPassword(room)) return true;
+  if (isHostCredential(room, credential)) return true;
+  if (getPlayerByCredential(room, credential)) return true;
+  return isCredentialAdmitted(room, credential);
+}
+
+function roomAccessDenial(room, credential) {
+  counters.room_access_denied += 1;
+  return isCredentialBanned(room, credential) ?
+  { status: 403, body: { ok: false, error: "You're banned from this room.", code: "room_banned", banned: true } } :
+  { status: 401, body: { ok: false, error: "This room needs its password.", code: "room_locked", roomLocked: true } };
 }
 
 function roomHasPassword(room) {
@@ -3906,7 +3998,9 @@ function resetLobby(room, options = {}) {
   clearPhaseTimer(room);
   clearProgressTimers(room);
   clearBroadcastTimer(room);
-  clearRoomExpiry(room);
+  // Deliberately no clearRoomExpiry() here. A reset does not mean somebody is
+  // watching the room, and cancelling the pending deadline without scheduling a
+  // replacement left the room resident forever when no client was connected.
   clearGahookDuel(room);
   const playedQuestionIds = new Set(room.game?.playedQuestionIds || []);
   const lastGameSummary = room.lastGameSummary || null;
@@ -4304,6 +4398,14 @@ function clearRoomExpiry(room) {
   }
 }
 
+// Only the room's own host may push the expiry deadline further out. Anyone who
+// knows the code may ensure a deadline exists, but must not be able to hold an
+// idle room open indefinitely by re-opening it every few minutes.
+function refreshRoomExpiry(room, credential) {
+  if (isHostCredential(room, credential)) clearRoomExpiry(room);
+  scheduleRoomExpiry(room, { awaitingConnection: true });
+}
+
 function scheduleRoomExpiry(room, { awaitingConnection = false } = {}) {
   if (!room || hasLiveRoomClient(room.code) || room.expireTimer) {
     return;
@@ -4324,6 +4426,7 @@ function expireRoom(code) {
   clearGahookDuel(room);
   clearBroadcastTimer(room);
   clearRoomExpiry(room);
+  counters.rooms_expired += 1;
   Object.values(room.players).forEach((player) => {
     clearUltimateGahookState(player);
     clearUltimateCongratulationsState(player, true);
@@ -4418,13 +4521,27 @@ function serveStatic(url, res) {
   const safePath = path.normalize(pathname).replace(/^(\.\.[/\\])+/, "");
   const absolutePath = path.join(publicDir, safePath);
 
-  if (!absolutePath.startsWith(publicDir)) {
+  if (!absolutePath.startsWith(publicDir + path.sep)) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
   }
 
+  // A Syncthing conflict copy is a stale duplicate of a real browser file. The
+  // development container bind-mounts the synchronised tree, so without this the
+  // previous build of the whole app stays downloadable at a predictable URL.
+  if (isSyncArtifact(absolutePath)) {
+    res.writeHead(404);
+    res.end("Not found");
+    return;
+  }
+
   serveFile(absolutePath, res);
+}
+
+function isSyncArtifact(absolutePath) {
+  const fileName = path.basename(absolutePath);
+  return fileName.includes(".sync-conflict-") || fileName.startsWith(".syncthing.");
 }
 
 function serveFile(absolutePath, res) {

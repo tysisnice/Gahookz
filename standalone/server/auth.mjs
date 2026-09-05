@@ -1,10 +1,38 @@
 import crypto from "node:crypto";
 
+// A protected room admits a credential once its password has been verified, so
+// the browser can read state and open its event stream during the gap between
+// opening the room and completing the join form.
+const MAX_ADMITTED_CREDENTIALS = 512;
+
 export function initialiseRoomAuth(room) {
   room.authToPlayerId = room.authToPlayerId instanceof Map ? room.authToPlayerId : new Map();
   room.playerIdToAuth = room.playerIdToAuth instanceof Map ? room.playerIdToAuth : new Map();
   room.bannedCredentials = room.bannedCredentials instanceof Set ? room.bannedCredentials : new Set();
+  room.admittedCredentials = room.admittedCredentials instanceof Set ? room.admittedCredentials : new Set();
   return room;
+}
+
+export function admitCredential(room, credential) {
+  initialiseRoomAuth(room);
+  if (!credential) return;
+  room.admittedCredentials.delete(credential);
+  room.admittedCredentials.add(credential);
+  while (room.admittedCredentials.size > MAX_ADMITTED_CREDENTIALS) {
+    const oldest = room.admittedCredentials.values().next().value;
+    if (!oldest) break;
+    room.admittedCredentials.delete(oldest);
+  }
+}
+
+export function isCredentialAdmitted(room, credential) {
+  initialiseRoomAuth(room);
+  return Boolean(credential && room.admittedCredentials.has(credential));
+}
+
+export function revokeCredentialAdmission(room, credential) {
+  initialiseRoomAuth(room);
+  if (credential) room.admittedCredentials.delete(credential);
 }
 
 export function createPublicPlayerId() {
@@ -22,7 +50,10 @@ export function unregisterPlayerCredential(room, playerId, { ban = false } = {})
   const credential = room.playerIdToAuth.get(playerId) || "";
   if (credential) {
     room.authToPlayerId.delete(credential);
-    if (ban) room.bannedCredentials.add(credential);
+    if (ban) {
+      room.bannedCredentials.add(credential);
+      room.admittedCredentials.delete(credential);
+    }
   }
   room.playerIdToAuth.delete(playerId);
   return credential;
