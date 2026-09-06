@@ -1,5 +1,20 @@
 # Run Gahookz on a Fedora laptop with Docker and Nginx
 
+> **This is a build-from-scratch recipe, not a description of the live server.**
+> Reviewed 2026-09-06. It remains a valid way to stand a new machine up, but the
+> machine currently serving `gahookz.com` differs in three ways:
+>
+> - The proxy is **Nginx Proxy Manager running as a container**, not the host
+>   `nginx` service used below. Host `nginx` is not installed.
+> - There is **no `cloudflared`** and no Cloudflare Tunnel. Cloudflare provides
+>   authoritative DNS in DNS-only mode.
+> - The paths are `/srv/gahookz` (production clone, deploy from here) and
+>   `/mnt/storage/syncthing/codex/2026-07-01/Gahookz` (Syncthing tree,
+>   development only). `/mnt/gahookz/Gahookz` below is illustrative.
+>
+> For day-to-day operation of the live server use `SERVER-COMMANDS.md`.
+
+
 For the short day-to-day command list, see `SERVER-COMMANDS.md`.
 
 This setup assumes Docker Engine, the Docker Compose plugin, and Nginx are already installed. Nginx runs directly on Fedora and sends requests to a loopback-only Docker port.
@@ -117,8 +132,12 @@ the current browser source as part of the image build, so no separate frontend
 build is required on the Fedora laptop:
 
 ```bash
-cd /mnt/gahookz/Gahookz
-bash scripts/docker-update.sh
+# On the live server this is /srv/gahookz, the clean production clone --
+# never the Syncthing tree, which can hold uncommitted work.
+cd /srv/gahookz
+git status --porcelain          # must be empty
+git pull --ff-only origin main
+GAHOOKZ_DRAIN_WAIT_SECONDS=300 bash scripts/docker-update.sh
 curl --fail https://gahookz.com/api/health
 ```
 

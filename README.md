@@ -34,8 +34,12 @@ To produce and run a local production build without Docker:
 
 ```bash
 npm run build
-HOST=127.0.0.1 PORT=3102 npm start
+HOST=127.0.0.1 PORT=3199 npm start
 ```
+
+Port 3199 is used throughout this repository for throwaway servers. On the
+deployment host 3102 belongs to the live production container, so keeping
+scratch processes off it avoids both a port clash and a misdirected test run.
 
 The generated browser modules and `release.json` are deliberately ignored by
 Git. Run `npm run build` before `npm start` in a fresh clone. Docker builds
@@ -79,29 +83,46 @@ the server and put Nginx in front of the containers.
 
 ## Tests
 
-Most smoke tests exercise a running app on port 3102. Start a disposable local
-production process in one terminal:
+Start with the checks that need no server:
+
+```bash
+npm run check      # strict TypeScript, unit tests, and the browser build
+```
+
+Most smoke tests drive a running app. They create and mutate real rooms, so
+point them at a **disposable** server on port 3199 — never at port 3102, which
+is production on the deployment host, and never at a public domain.
+
+Start the throwaway server in one terminal:
 
 ```bash
 npm run build
-HOST=127.0.0.1 PORT=3102 npm start
+HOST=127.0.0.1 PORT=3199 npm start
 ```
 
-Then run the full suite in a second terminal:
+Run the suite in a second terminal:
 
 ```bash
+export GAHOOKZ_BASE_URL=http://127.0.0.1:3199
+export GAHOOKZ_TEST_BASE_URL=http://127.0.0.1:3199
 npm test
 ```
 
-Run strict TypeScript checks, unit tests, and the production browser build with:
+Both variables already default to port 3199, so an unconfigured run fails to
+connect rather than quietly reaching a live game. Stop the throwaway server by
+port rather than by process name, because a pattern such as `pkill -f
+server.js` also matches the running containers:
 
 ```bash
-npm run check
+kill "$(ss -lptnH 'sport = :3199' | grep -oP 'pid=\K[0-9]+')"
 ```
 
-Alternatively, run the suite while the Docker production service is available
-on its default port. The individual smoke commands are listed in `package.json`
-and can be run with names such as `npm run standalone:smoke:deployment`.
+Individual smoke commands are listed in `package.json` and can be run by name,
+such as `npm run standalone:smoke:deployment`. `npm run standalone:smoke:room-expiry`
+starts and stops its own server and needs no setup.
+
+The same three jobs run in CI on every push and pull request to `main`
+(`.github/workflows/ci.yml`).
 
 ## Project layout
 
@@ -123,6 +144,9 @@ and can be run with names such as `npm run standalone:smoke:deployment`.
 
 ## Server documentation
 
+- [`CLAUDE.md`](CLAUDE.md) is the entry point for new contributors and coding
+  agents: the standing rules, the shape of the system, how to verify a change,
+  and which document answers which question. Read it first.
 - [`docs/architecture/0001-long-term-foundation.md`](docs/architecture/0001-long-term-foundation.md)
   records the TypeScript, CSS, server-authority, persistence, and identity
   decisions.

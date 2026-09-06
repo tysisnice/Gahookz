@@ -1,22 +1,33 @@
 # Gahookz operations, maintenance, architecture, and future roadmap
 
-Last audited: 2026-09-06 AEST
-Repository commit at audit: `0cdd44821b29` on `main`
-Live browser release at audit: `release-73d122cef8332732`
+Last audited: 2026-09-06 AEST (second pass, after the first public deploy of
+the audit work)
+Live production revision at audit: `815c7e494bef`
+Live browser release at audit: `release-17037a408d92a05a`
 
-> **Read this first.** Several statements below were written on 2026-07-20 and
-> have since been overtaken. Production no longer builds from the Syncthing
-> working directory; it builds from a separate clean clone at `/srv/gahookz`.
-> `/api/health` now reports the server Git revision. CI exists. The development
-> hostname is behind an access list. Sections that were superseded are marked
-> **Superseded** inline rather than deleted, so the original reasoning stays
-> readable.
+> **Read this first.** This document has been written in layers since
+> 2026-07-20 and parts of it were overtaken by later work. Superseded passages
+> are marked **Superseded** or struck through inline rather than deleted, so
+> the original reasoning stays readable. Two consequences matter when you use
+> it:
+>
+> - **Section 10 is the live backlog. Read it before proposing work.** Several
+>   items that read as open have since been completed, and one previously
+>   unrecorded defect has been added.
+> - Where this document and the code disagree, the code is right. Every claim
+>   in section 10 was re-verified against the running system on 2026-09-06;
+>   claims elsewhere may not have been.
 
 This is the main owner and maintainer guide. It describes what exists now,
 how to work safely, how to bring development and production online, how to
 promote a tested change, and how to evolve Gahookz into a typed multi-platform
-product. Future coding agents should read `PROJECT-MEMORY.md` first, then this
-file before making architectural or deployment changes.
+product.
+
+New contributors and coding agents should start at [`CLAUDE.md`](CLAUDE.md),
+which carries the standing rules and the shortest accurate description of the
+system, and come here for depth. `PROJECT-MEMORY.md` is the owner's running
+narrative log; it is deliberately untracked, so it does not exist in a fresh
+clone and nothing here may depend on it.
 
 Do not put credentials, API tokens, public IP addresses, private keys, room
 passwords, cookies, or purchase secrets in this repository or its memory file.
@@ -192,6 +203,43 @@ production because `DATABASE_URL`, `GOOGLE_CLIENT_ID` and
 entitlements are in-memory and lost on restart; and `GAHOOKZ_REQUIRE_POSTGRES`
 is still `0` on a public deployment.
 
+### First deploy of the audit work, 2026-09-06
+
+Production was replaced for the first time since 2026-08-26, moving from
+`release-d8fe54341e816a6e` (no `revision` field) to
+`release-17037a408d92a05a`, revision `815c7e494bef`. It was deployed with
+`activeRooms: 0`, so no game was interrupted.
+
+Verified live through the public domain rather than only on loopback:
+
+- `/api/health` reports `revision`, `serverBuiltAt`, `instance`, `draining` and
+  `activeRooms`.
+- Host-only moderation is enforced: a non-host calling
+  `/api/host/remove-content` receives `"Only the host can do that."`
+- `/legal` and `/client/legal.js` serve, so the published documents are
+  reachable.
+- Malformed JSON returns `400 invalid_json` and an oversize body returns `413`,
+  not `500`.
+- Security headers are present on the public origin: CSP, HSTS,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
+  `X-Content-Type-Options: nosniff`, a restrictive `Permissions-Policy`, and
+  same-origin COOP/CORP.
+- Two rooms created for the check expired on their own after roughly four
+  minutes, which is the room-leak fix from the first pass working in
+  production. Before it, those rooms would have held their slots until restart.
+- The container logged `SIGTERM received; refusing new rooms and draining 0
+  active room(s)` on replacement, so the drain path runs.
+
+One deployment defect was found and fixed during this deploy. `compose.yaml`
+declares `name: gahookz`, which is the *development* project, while production
+runs under `gahookz-prod`. The deploy script pinned no project, so run from
+`/srv/gahookz` it resolved no container for the `gahookz` service, built the
+image, and would then have tried to create a second container that collided on
+the published port — failing in a way that looks like a build problem while
+production silently stayed on the old code. `/srv/gahookz/.env` now sets
+`COMPOSE_PROJECT_NAME=gahookz-prod`, and `scripts/docker-deploy.sh` refuses to
+continue when the production port belongs to a Compose project it does not own.
+
 ### Verified live state on 2026-07-20
 
 - Both Gahookz containers were healthy and had been running for about four
@@ -229,11 +277,11 @@ checkout does report one.
 
 | Path | Responsibility | Maintenance note |
 | --- | --- | --- |
-| `standalone/server.js` | HTTP routing, room commands, phase state machine, snapshots, SSE, static serving | 3,573 lines; the highest-risk server file |
+| `standalone/server.js` | HTTP routing, room commands, phase state machine, snapshots, SSE, static serving | 4,791 lines (2026-09-06) and still growing; the highest-risk server file |
 | `standalone/server/` | Auth mapping, room limits, scoring, Herd ranking, media, social state, presentation, transport | Best first server TypeScript migration units |
-| `standalone/public/app.jsx` | Redux state, routes, API client, host/player UI, most game UI | 4,847 lines; split before or during TS migration |
-| `standalone/public/client/` | Audio, drawing, custom Gahooks, information, offline Dash, preferences, presentation, QR, social, tutorials | Source files are `.jsx`/`.js`; generated `.js` siblings are ignored |
-| `standalone/public/styles.css` | Entire visual system | 10,403 lines; needs component-oriented splitting, not a blind rewrite |
+| `standalone/public/app.jsx` | Redux state, routes, API client, host/player UI, most game UI | 5,349 lines (2026-09-06) and still growing; split before or during TS migration |
+| `standalone/public/client/` | Audio, drawing, custom Gahooks, information, legal, offline Dash, preferences, presentation, QR, social, tutorials | Source files are `.jsx`/`.js`; generated `.js` siblings are ignored |
+| `standalone/public/styles.css` | Entire visual system | 10,887 lines (2026-09-06) and still growing; needs component-oriented splitting, not a blind rewrite |
 | `standalone/build-client.mjs` | esbuild transforms, content hash, cache-version rewriting | Transforms modules independently; it is not a conventional bundle |
 | `standalone/dev.mjs` | Watches client/server source, rebuilds, restarts, and signals browser reload | Watches `standalone/`, not root package/Docker files |
 | `standalone/smoke-*.mjs` | Static and stateful smoke coverage | Strong regression net, but not a unit/integration test framework |
@@ -243,6 +291,11 @@ checkout does report one.
 | `scripts/docker-status.sh` | Production status, revision, and recent logs | Does not inspect dev or public endpoints |
 | `deploy/nginx/` | Host-Nginx example | Live server uses Nginx Proxy Manager instead |
 | `standalone/public/client/information.jsx` | Seven product/operations reports at `/information` | Contains roadmap and security observations; decide whether these should remain public |
+
+All three monoliths grew between the 2026-08-10 audit and 2026-09-06, despite
+the stated intention to split them. Treat that as the standing maintainability
+signal: prefer extracting a vertical slice to adding another branch to
+`server.js`, `app.jsx` or `styles.css`.
 
 ### Generated files
 
@@ -261,7 +314,8 @@ asset version and can change during a source build.
 - Account-free four-letter rooms, optional room password, QR/link joining.
 - Host and player roles, host-as-player, host transfer, kick/ban, vote kick,
   question approval, pause/skip/reset/new-game controls.
-- Quiz, Herd, and implemented-but-currently-hidden Oddball modes.
+- Quiz, Majority Rulz, and Herd as live modes, plus an implemented but
+  currently hidden Oddball mode.
 - Quick, Standard, and Custom round presets, Fun/Education prompts, generated
   fallback content, question/prompt creation, drawings, and image upload.
 - Speed-based Quiz scoring; authored-answer plus prediction scoring in Herd.
@@ -420,9 +474,12 @@ as a routine cleanup step.
 
 ### Isolated full-suite test
 
-Most smoke scripts default to production port 3102 and many create rooms,
-players, media, scores, and timers. Never run the full suite against live
-production. Prefer a disposable local process:
+Many smoke scripts create rooms, players, media, scores and timers, so the
+suite must never run against live production. Since 2026-09-06 both base-URL
+variables default to the disposable port 3199, so an unconfigured run fails to
+connect instead of reaching a real game, and `standalone/smoke-deployment.mjs`
+fails the build if any smoke file goes back to defaulting to 3102. Set the
+variables explicitly anyway:
 
 Terminal 1:
 
@@ -533,16 +590,32 @@ git clone git@github.com:tysisnice/Gahookz.git <PRODUCTION_CLONE>
 cd <PRODUCTION_CLONE>
 cp .env.example .env
 chmod 600 .env
+printf '\nCOMPOSE_PROJECT_NAME=gahookz-prod\n' >> .env
 git switch main
 git pull --ff-only
 docker network inspect gahookz-proxy >/dev/null
 bash scripts/docker-deploy.sh
 ```
 
-The Compose file intentionally names the project `gahookz`, so invoking the
-production service from this clone manages the same production container and
-network alias. Do not start a second competing Compose project with another
-`gahookz` alias.
+**Set the Compose project explicitly.** `compose.yaml` declares
+`name: gahookz`, but that is the *development* project — the hot-reload stack
+started from the Syncthing tree already owns it. On this server production runs
+under `gahookz-prod`, so the production clone's `.env` must contain:
+
+```bash
+COMPOSE_PROJECT_NAME=gahookz-prod
+```
+
+Without it, a deploy from the production clone resolves no container for the
+`gahookz` service, builds the image, and then tries to create a second
+container that collides on the published port — which fails while leaving
+production on the old code. `scripts/docker-deploy.sh` now refuses to continue
+in that state and names the project to set, but the variable is what makes the
+deploy correct. Confirm before deploying:
+
+```bash
+docker compose ps -q gahookz    # must print the live production container id
+```
 
 Routine update after this migration:
 
@@ -715,97 +788,163 @@ Add, in this order:
 
 ## 10. Current risks and priority maintenance backlog
 
-The in-app reports correctly say invited testing is ready but broad public
-promotion needs safety and operations work. The audit adds several engineering
-details.
+Every item in this section was re-checked against the running system on
+2026-09-06. Items are grouped by whether they are **closed**, **open**, or a
+**decision** somebody has to make. An item is only listed as closed with the
+evidence that closed it, so a future reader can re-test rather than trust.
 
-### P0 before broad public acquisition
+The single most important thing to know before planning work: the first audit
+pass closed far more than the previous version of this section admitted, and it
+opened one new defect that had not been recorded anywhere.
 
-- **Moderation:** live Herd answers, drawings, images, audio, chat, and custom
-  Gahooks need host hide/remove controls, content rules, reporting, filtering,
-  and an abuse-response process.
-- ~~**Dev access:**~~ **Done 2026-09-05.** `dev.gahookz.com` is behind Nginx
-  Proxy Manager access list #1: `satisfy any`, allowing `192.168.0.0/24` and
-  `100.64.0.0/10`, otherwise basic auth as user `gahookz`. In practice both
-  allow rules are inert, because DNS resolves to the public address and the
-  router hairpins, so nginx sees a public source and every request is
-  challenged. Access-log evidence for why this mattered: in the five days
-  before the change, 25 distinct addresses made 852 404 requests probing
-  `/wp-content/uploads/`, `/geoserver/web/`, `/admin/` and similar.
-- **Credential transport:** player/host bearer keys are placed in `/events` and
-  `/api/state` query strings. Query URLs can enter proxy/access logs. Move to a
-  secure session cookie or short-lived stream token and redact query strings.
-- **Password links:** room passwords are stored in localStorage and appended to
-  share URLs. URLs can leak through history, screenshots, logs, or referrers.
-  Replace them with a one-time invite token or require password entry.
-- **Abuse/DoS:** room creation and most gameplay commands lack IP/device rate
-  limiting; valid-room guest SSE connections are not bounded like players.
-  Add origin-level and app-level limits without blocking normal parties.
-- **Herd anonymity/fairness:** the reports identify player-derived answer IDs,
-  circular prediction scoring, self-vote incentives, hidden tie-breaks, and
-  large-room overload. Fix these before marketing the mode as anonymous/fair.
-- **Legal/privacy:** publish terms, privacy, community rules, age position,
-  retention, copyright/takedown, and support contact before collecting accounts
-  or payments.
+### Closed since the 2026-08-10 audit
 
-### P1 reliability and maintainability
+- **Rooms leaked.** `resetLobby()` cancelled a room's expiry without scheduling
+  a replacement. Fixed, covered by `standalone/smoke-room-expiry.mjs`, and
+  confirmed in production on 2026-09-06 when two check rooms expired on their
+  own.
+- **Room passwords did not protect room state.** `/api/state` and
+  `/api/events/ticket` answered anyone holding the four-letter code. Both now
+  go through `roomAccessGranted()`.
+- **Bans applied only to joining.** Enforced on reads and on the event stream.
+- **GET routes bypassed admission control.** `/api/lobby` and `/events` now
+  consume a read bucket, so the room-code enumeration oracle is throttled.
+- **Syncthing conflict copies were served.** Refused by the static server,
+  excluded from the build context, and gated in CI.
+- **Moderation.** `POST /api/host/remove-content` removes a chat message, a
+  Herd answer, everything one player uploaded, or a submitted question.
+  `POST /api/player/report` reaches the host privately. Kicking a player now
+  blanks their Herd answers instead of leaving them live. Host-only enforcement
+  verified on production.
+- **Legal and privacy documents.** `/legal` publishes community rules, terms,
+  a privacy notice and a takedown route, linked from the welcome footer. They
+  state that play never requires an account. **They have not been reviewed by a
+  lawyer**, and say so; see the decision list below.
+- **Herd self-voting.** The server refuses a self-vote and the snapshot carries
+  a per-viewer `ownAnswer` flag so the client can disable the tile.
+- **Credential transport.** Bearer keys are no longer placed in query strings.
+  `GET /api/state` returns `405` by design — room state is a POST — and
+  `/events` authenticates with a short-lived, single-use ticket. This closes the
+  proxy/access-log exposure this section previously listed as P0.
+- **Password links.** Room passwords are never written into a share URL.
+  `buildWelcomePath()` emits only `room` and a `locked=1` flag; a legacy
+  `?pwd=`/`?pw=` link is consumed once, stripped from the address bar with
+  `history.replaceState`, and held in tab-scoped `sessionStorage`.
+  `saveJoinSession()` strips the password before writing to `localStorage`, and
+  the origin sends `Referrer-Policy: no-referrer`.
+- **Abuse and DoS basics.** `standalone/server/admission.mjs` enforces token
+  buckets for global mutations, per-actor mutations, room creation, event
+  tickets, and unauthenticated reads, and caps SSE connections in total
+  (1024), per address (32) and per room (64). The previous claim that room
+  creation and guest SSE were unbounded is wrong.
+- **Security headers.** CSP, HSTS, `X-Frame-Options: DENY`,
+  `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`,
+  `Permissions-Policy` and same-origin COOP/CORP are set in
+  `standalone/server/transport.mjs` and verified live on `gahookz.com`.
+- **Client error codes.** Malformed JSON returns `400 invalid_json` and an
+  oversize body returns `413`, not `500`.
+- **Server revision in health.** `/api/health` reports `revision`,
+  `serverBuiltAt`, `instance`, `draining` and `activeRooms`.
+  `scripts/docker-status.sh` prints the revision too.
+- **CI.** `.github/workflows/ci.yml` runs `check`, `smoke` and `image` on every
+  push and pull request to `main`.
+- **Graceful draining.** `POST /api/drain` plus a SIGTERM drain bounded by
+  `GAHOOKZ_DRAIN_TIMEOUT_MS`. Observed working during the 2026-09-06 deploy.
+- **Deploying into the wrong Compose project.** Found and fixed during the
+  2026-09-06 deploy; see section 3.
+- **Smoke suite defaulted to the production port.** Sixteen files defaulted to
+  `http://127.0.0.1:3102`, which on this host is production, and `README.md`
+  actively instructed running the stateful suite there. The default is now the
+  disposable port 3199, and `standalone/smoke-deployment.mjs` fails the build if
+  any smoke file defaults to 3102 again.
+- **Room password derivation.** This section previously claimed salted SHA-256.
+  That is wrong: `hashRoomPassword()` uses `scrypt`
+  (`standalone/server.js:3186`). No work is needed.
 
-- ~~Add server Git/image revision to health and build metadata.~~ **Done.**
-  `/api/health` reports `revision` (the Git short SHA baked in at image build
-  time via the `GAHOOKZ_REVISION` build argument, suffixed `-dirty` when the
-  deploy source had uncommitted changes) plus `serverBuiltAt`, `instance`,
-  `draining` and `activeRooms`. `scripts/docker-deploy.sh` stamps it and then
-  refuses to report success if the running container disagrees.
-- Create immutable images and a tested rollback path.
-- ~~Add CI…~~ **Done.** `.github/workflows/ci.yml` runs three jobs on every
-  push and pull request to `main`: `check` (typecheck, unit tests, build, plus
-  gates on a stale browser shell, committed build output and committed
-  Syncthing conflict copies), `smoke` (all twenty smoke commands against a
-  disposable server), and `image` (both container targets built, the production
-  image booted and health-checked, verified free of Syncthing artefacts and
-  running as `node`). Deploying from a dirty tree is still possible but now
-  stamps the revision `-dirty` and warns.
-- ~~Pin the Node base image…~~ **Partly done.** The Dockerfile pins
-  `node:24-alpine` by digest (currently Node v24.20.0 on Alpine 3.24.1).
-  Re-resolve deliberately with
-  `docker buildx imagetools inspect node:24-alpine --format '{{.Manifest.Digest}}'`,
-  then rebuild and run the full smoke suite. A dependency-update cadence is
-  still not established.
-- Split the oversized server, app component, Redux reducer, and stylesheet.
-- Add runtime request/response validation. TypeScript types alone do not
-  validate network input.
-- Use stronger password derivation if room passwords remain; the present salted
-  SHA-256 is fast and intended state is ephemeral, but it is not a password
-  hashing algorithm.
-- ~~Add graceful draining…~~ **Done.** `POST /api/drain` (bearer
-  `GAHOOKZ_METRICS_TOKEN`) puts a node into drain: `/api/ready` returns 503,
-  new rooms are refused with a player-readable message, and every game already
-  in progress keeps working. `POST /api/drain {"active": false}` cancels it.
-  SIGTERM drains first and waits up to `GAHOOKZ_DRAIN_TIMEOUT_MS` (default 30s
-  in production, inside the 45s `stop_grace_period`) for rooms to empty before
-  closing connections. Set `GAHOOKZ_DRAIN_WAIT_SECONDS` to have the deploy
-  script drain and wait before replacing the container; with it unset, the
-  deploy still ends active games and says so.
-- Decide whether `/information` is public product content or an internal report.
-  It currently publishes operational limits and unresolved security/fairness
-  findings on the production domain.
-- Add Content Security Policy, HSTS/security-header verification, explicit
-  allowed origins/hosts, and dependency/vulnerability scanning.
-- Return correct client error codes for malformed JSON/oversize input instead
-  of treating every thrown parsing error as a 500.
+### P0 open — before broad public acquisition
 
-### P2 efficiency and product polish
+- **Herd authorship is deterministic and therefore not anonymous.** *(New,
+  found 2026-09-06.)* `buildHerdAssignmentPlan()` assigns answer slots by
+  `playerIds[(anchor + firstOffset + answerIndex) % playerIds.length]`, where
+  `anchor` is the index of the question's author. The colour slot is a pure
+  function of the question author's position, fixed for the whole game because
+  the player order is shuffled only once per game
+  (`standalone/server.js:3827`). In a five-player fixture, a one-line formula
+  predicted all twenty answer authors. Because authors are revealed at reveal
+  time, **one reveal round de-anonymises every remaining round**: red is always
+  the player after the question's author. This undermines the core premise of
+  the mode. The fix direction is to randomise the slot order per question
+  rather than per game, so the mapping does not persist; treat the existing
+  `packages/game-engine` tests as the place to pin the new behaviour.
+- **Herd fairness items not yet addressed.** Circular prediction scoring,
+  hidden tie-breaks, and large-room overload at 20 players. The self-vote and
+  anonymity items are tracked separately above.
+- **Automated abuse handling.** Host controls now exist, but there is no
+  automated scanning, appeals process, evidence retention, or operator console.
+  Those are gates for an open anonymous audience, not for invited play.
+- **Accounts are inert in production.** `DATABASE_URL`, `GOOGLE_CLIENT_ID` and
+  `GOOGLE_CLIENT_SECRET` are unset, so accounts, career statistics and
+  entitlements are in-memory and lost on restart, and the account panel is
+  hidden. `GAHOOKZ_REQUIRE_POSTGRES` is still `0` on a public deployment. This
+  needs the owner to provision PostgreSQL and a Google OAuth client. Guest play
+  is unaffected and must stay that way.
 
-- Serve immutable content-hashed assets with long cache headers while keeping
-  HTML/API/SSE uncached. The current Node static server sends `no-store` for
-  every static file and relies on the service worker for caching.
-- Replace 1.8-second full-snapshot recovery polling with measured backoff or
-  event/version recovery once SSE reliability is proven.
-- Unify prompt libraries and mode terminology so Education fallback generation
-  and all host metrics match the selected mode.
-- Split the public information reports into maintainable data/content files.
-- Add observed user testing at 4, 8, 12, and 20 players and accessibility tests
-  before adding more live-round features.
+### P1 open — reliability and maintainability
+
+- **Split the three monoliths.** `server.js` (4,791), `app.jsx` (5,349) and
+  `styles.css` (10,887) all grew since August. This is now the main brake on
+  UI work.
+- **Runtime request validation.** TypeScript types do not validate network
+  input. Schemas are still absent at the HTTP/SSE boundary.
+- **Tested rollback.** Images are immutable and tagged, but no rollback has
+  been rehearsed. Keep the previous image digest and practise the restore
+  before it is needed under pressure.
+- **Dependency and base-image update cadence.** The Node base image is pinned
+  by digest, which is correct, but nothing schedules re-resolving it or scans
+  dependencies for advisories.
+- **Per-address SSE cap versus a real party.** The cap is 32 connections per
+  address. A single-household 20-player game plus a host screen, spare tabs and
+  reconnects sits uncomfortably close to it, and every player at one party
+  shares a public address through the proxy. Measure before a large session
+  rather than raising it blindly.
+- **Structured logging.** Console logs are ad hoc and go to bounded Docker JSON
+  files. Replace with structured redacted events before high traffic.
+
+### P2 open — efficiency and product polish
+
+- **Static caching.** Every static file is served `no-store`, including
+  content-hashed assets, and caching relies entirely on the service worker.
+  Serving immutable hashed assets with long cache headers is a cheap win.
+- **1.8-second full-snapshot polling.** `standalone/public/app.jsx` polls
+  `/api/state` as SSE recovery. It is the dominant load term and should become
+  measured backoff or version-based recovery once SSE reliability is proven.
+- **Unify prompt libraries and mode terminology** so Education fallback
+  generation and host metrics match the selected mode.
+- **Split the public information reports** into maintainable data/content files.
+- **Observed user testing** at 4, 8, 12 and 20 players, plus accessibility
+  testing, before adding more live-round features.
+
+### Decisions the owner needs to make
+
+These are not engineering tasks; they need a call.
+
+- **Herd author-points denominator.** Now that self-voting is refused, an
+  author can reach at most `(n-1)/n` of the authored maximum — about 80% in a
+  five-player room. It applies uniformly, so nobody is disadvantaged, and
+  scoring was deliberately left untouched. Changing it is a scoring decision
+  and needs before/after fixtures.
+- **Is `/information` public product content or an internal report?** It
+  currently publishes operational limits and unresolved findings on the
+  production domain.
+- **Legal review.** The `/legal` documents are honest and plain-language, and
+  are appropriate for friends-and-family use. They have not been reviewed by a
+  lawyer. Get them reviewed before any public campaign, particularly the
+  privacy notice, once Google accounts are live and email addresses are held
+  under Australian Privacy Act obligations.
+- **Rotate the Nginx Proxy Manager JWT signing key.** Its `keys.json` was
+  exposed to a terminal during the 2026-09-05 session. Rotation means deleting
+  `keys.json` and restarting the container, which invalidates existing NPM
+  admin sessions.
 
 ## 11. Target architecture for persistence and multiple platforms
 
@@ -1162,15 +1301,31 @@ turning analytics on.
 
 ## 16. Sequenced product roadmap
 
-### Stage A: harden invited production (now)
+### Stage A: harden invited production (now — most of the way through)
 
-- Protect dev, add revision metadata, monitoring, immutable rollback, CI.
-- Address report P0 anonymity/fairness and live-content moderation.
-- Publish legal/community basics and choose whether reports stay public.
-- Observe fresh groups and fix onboarding/pacing/accessibility failures.
+- ~~Protect dev~~ **done** (Nginx Proxy Manager access list).
+- ~~Add revision metadata~~ **done** (`/api/health` reports `revision`).
+- ~~CI~~ **done** (`.github/workflows/ci.yml`).
+- ~~Live-content moderation~~ **done** (host remove-content, private reports).
+- ~~Publish legal/community basics~~ **done** (`/legal`), though a lawyer has
+  not reviewed them.
+- Monitoring: **partial.** `/api/metrics` exposes gauges behind a bearer token,
+  but nothing scrapes them and no alerting exists.
+- Immutable rollback: **partial.** Images are immutable and tagged; no rollback
+  has been rehearsed.
+- P0 anonymity/fairness: **not met.** Self-voting is fixed, but Herd authorship
+  is deterministic and one reveal round de-anonymises the rest of the game. See
+  section 10.
+- Choose whether `/information` reports stay public: **open decision.**
+- Observe fresh groups and fix onboarding/pacing/accessibility failures:
+  **not started.**
 
 Exit gate: a failed release can be detected and rolled back; hosts can moderate;
 three uncoached groups finish both core modes; no critical security P0 remains.
+
+**Stage A is not complete.** The two things standing between here and the exit
+gate are the Herd anonymity defect and a rehearsed rollback; the group-testing
+item needs real players rather than engineering.
 
 ### Stage B: TypeScript and modular core
 

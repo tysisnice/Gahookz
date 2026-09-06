@@ -237,3 +237,24 @@ game playable after each phase and creates trustworthy boundaries for scaling,
 accounts, paid cosmetics, and additional modes. It deliberately avoids three
 expensive distractions: peer-host authority, a visual-framework rewrite, and
 premature multi-node infrastructure.
+
+## Implementation status (reviewed 2026-09-06)
+
+This ADR records the decision as taken on 2026-08-10 and is left intact. The
+following notes say how far the decision has actually been carried out, so a
+reader does not mistake intent for state.
+
+| Concern named in the context | Status |
+| --- | --- |
+| Three monoliths (`server.js`, `app.jsx`, `styles.css`) | **Not addressed.** All three grew: 4,791 / 5,349 / 10,887 lines. |
+| Unvalidated network data | **Not addressed.** No runtime schemas at the HTTP/SSE boundary yet. |
+| Process-local rooms | **Unchanged by design.** Draining now exists so a deploy need not kill games; room migration does not. |
+| Bearer credentials in URLs | **Resolved.** `GET /api/state` returns 405 and room state is a POST; `/events` uses a short-lived single-use ticket. |
+| No durable identity store | **Schema ready, not provisioned.** `infra/postgres/001_accounts.sql` exists; production has no `DATABASE_URL`, so accounts are in-memory. |
+| No deterministic game-engine boundary | **Partial.** `packages/game-engine` holds the pure Herd assignment and scoring engine; Quiz and Majority Rulz still live in `server.js`. |
+
+Decisions 1–4 under "TypeScript and build tooling" remain the intended path.
+The TypeScript ledger in `OPERATIONS-AND-ROADMAP.md` section 12 has not
+progressed past its early tasks; the browser build is still the custom esbuild
+script, which is correct under decision 3 because source boundaries are not yet
+stable.

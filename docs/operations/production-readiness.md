@@ -23,8 +23,10 @@ does not provide live room migration. Before a genuinely mass-scale launch:
 
 1. extract every mode into the deterministic `packages/game-engine` command
    boundary;
-2. add a room drain flag and deploy only after its active-room gauge reaches
-   zero;
+2. ~~add a room drain flag and deploy only after its active-room gauge reaches
+   zero;~~ **done 2026-09-05.** `POST /api/drain` and a SIGTERM drain bounded by
+   `GAHOOKZ_DRAIN_TIMEOUT_MS`; `scripts/docker-deploy.sh` waits when
+   `GAHOOKZ_DRAIN_WAIT_SECONDS` is set;
 3. load-test the real room/SSE mix and size each shard from measurements;
 4. add a coordinator that assigns codes to healthy workers, or move the pure
    engine to a per-room primitive such as Durable Objects;
@@ -97,15 +99,26 @@ from p95/p99 traffic and rejection metrics; do not simply raise them after an
 incident. Put an edge request/body limit and basic DDoS service in front of
 Nginx. Do not trust arbitrary forwarded-address headers.
 
-User-created text, drawings, images, audio, and custom Gahooks are bounded and
-host controls can disable/remove participants, but automated abuse scanning,
-appeals, evidence retention, and an operator moderation console do not yet
-exist. Those are launch gates for an open anonymous audience.
+User-created text, drawings, images, audio, and custom Gahooks are bounded.
+Since 2026-09-06 the host can also remove individual content —
+`POST /api/host/remove-content` handles a chat message, a Herd answer, one
+player's uploaded media, or a submitted question — and players can report
+privately to the host with `POST /api/player/report`. Removed chat leaves a
+tombstone rather than silently reshuffling the conversation, and kicking a
+player blanks their Herd answers.
+
+Automated abuse scanning, appeals, evidence retention, and an operator
+moderation console still do not exist. Those remain launch gates for an open
+anonymous audience; they are not required for invited play, where the host is
+present and holds the controls.
 
 ## Health, metrics, deploy, and rollback
 
-- `/api/health` is a liveness/build check and reports schema/release/account
-  repository state.
+- `/api/health` is a liveness/build check and reports schema, release,
+  account-repository state, and — since 2026-09-05 — the Git `revision` baked
+  into the image, `serverBuiltAt`, `instance`, `draining` and `activeRooms`.
+  The browser `release-...` hash covers only `standalone/public`, so `revision`
+  is the only reliable way to tell which server code is running.
 - `/api/ready` returns 503 while draining or at local room capacity.
 - `/api/metrics`, when bearer-authorised, exposes aggregate room/player/SSE,
   mode, memory, and uptime gauges without room codes or player data.
