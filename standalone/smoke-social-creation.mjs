@@ -11,7 +11,7 @@ import {
 } from "./server/social.mjs";
 import { customGahookOptions } from "./server/custom-gahook.mjs";
 
-const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3102";
+const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3199";
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const TINY_PNG_ONE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 const TINY_PNG_TWO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl3j4AAAAASUVORK5CYII=";

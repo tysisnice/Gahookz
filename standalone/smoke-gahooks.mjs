@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3102";
+const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3199";
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const serverSource = fs.readFileSync(new URL("./server.js", import.meta.url), "utf8");
 const appSource = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, "public");
-const baseUrl = process.env.GAHOOKZ_TEST_BASE_URL || "http://127.0.0.1:3102";
+const baseUrl = process.env.GAHOOKZ_TEST_BASE_URL || "http://127.0.0.1:3199";
 
 const [indexSource, manifestSource, workerSource, bootstrapSource, appSource, builtAppSource, offlineSource, releaseSource, iconSource] = await Promise.all([
   fs.readFile(path.join(publicDir, "index.html"), "utf8"),

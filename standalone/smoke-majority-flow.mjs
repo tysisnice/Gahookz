@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3102";
+const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3199";
 const roomCode = ("M" + Math.random().toString(36).slice(2, 5)).toUpperCase().replace(/[^A-Z]/g, "X").padEnd(4, "X").slice(0, 4);
 const hostKey = "majority-host-" + Date.now() + Math.random().toString(36).slice(2);
 const players = ["Alpha", "Bravo", "Charlie", "Delta"].map((label, index) => ({

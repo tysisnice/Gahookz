@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 
-const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3102";
+const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3199";
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 
 function assert(value, message) {

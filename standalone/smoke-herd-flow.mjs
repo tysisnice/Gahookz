@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3102";
+const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3199";
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const code = Array.from({ length: 4 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join("");
 const hostKey = "herd-host-" + Date.now() + Math.random().toString(36).slice(2);
@@ -109,7 +109,18 @@ while ((snapshot = await state()).phase !== "finished") {
   // Nobody may vote for an answer they wrote, so each player picks from their
   // own snapshot rather than the host's. This also exercises the per-viewer
   // ownAnswer flag the client relies on to disable the tile.
-  for (const [index, player] of players.entries()) {
+  //
+  // Drive an exact three-vote winning group. Sending every player to their own
+  // selectable[0] does not do that: one answer is hidden from whoever wrote it,
+  // so "the first answer I may vote for" names different answers for different
+  // players and the winning group size changed between runs as the per-game
+  // player shuffle changed who authored what. Instead name one answer by id
+  // from the host's view and send exactly three non-authors to it, rotating who
+  // those three are so no player is shut out of scoring across the game.
+  const targetId = (await state()).currentQuestion.answers[0].id;
+  const votingOrder = players.map((_unused, index) => players[(index + rounds) % players.length]);
+  let votesForTarget = 0;
+  for (const player of votingOrder) {
     const own = await state("player", player.key);
     const selectable = own.currentQuestion.answers.filter((answer) => !answer.ownAnswer);
     assert(
@@ -120,9 +131,14 @@ while ((snapshot = await state()).phase !== "finished") {
       own.currentQuestion.answers.length - selectable.length <= 1,
       "A player can author at most one answer per Herd question"
     );
-    const preferred = rounds === 0 && index >= 3 ? selectable[1] || selectable[0] : selectable[0];
-    await post("/api/answer", { code, playerKey: player.key, answerId: preferred.id });
+    const target = selectable.find((answer) => answer.id === targetId);
+    const choice = target && votesForTarget < 3 ?
+      target :
+      selectable.find((answer) => answer.id !== targetId) || selectable[0];
+    if (choice.id === targetId) votesForTarget += 1;
+    await post("/api/answer", { code, playerKey: player.key, answerId: choice.id });
   }
+  assert.equal(votesForTarget, 3, "Each round should be driven to an exact three-vote winning group");
   await post("/api/host/skip", { code, playerKey: hostKey });
   snapshot = await state();
   assert.equal(snapshot.phase, "reveal");

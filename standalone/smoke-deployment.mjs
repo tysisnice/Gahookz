@@ -12,6 +12,20 @@ const [dockerfile, dockerignore, compose, nginx, envExample, deployScript, devSe
   fs.readFile(new URL("../package.json", import.meta.url), "utf8")
 ]);
 
+// The stateful smoke suite writes rooms into whatever server it is pointed at.
+// On the live host port 3102 is production, so a default of 3102 meant an
+// unconfigured `npm test` ran the suite against real players' games. 3199 is
+// the disposable port used by CI and the runbook; nothing listens on it by
+// default, so a misconfigured run fails fast instead of hitting production.
+const smokeSources = await Promise.all(
+  (await fs.readdir(new URL("./", import.meta.url)))
+    .filter((name) => /^smoke-.*\.mjs$/.test(name))
+    .map(async (name) => [name, await fs.readFile(new URL("./" + name, import.meta.url), "utf8")])
+);
+const productionTargets = smokeSources
+  .filter(([, source]) => /BASE_URL \|\| "http:\/\/127\.0\.0\.1:3102"/.test(source))
+  .map(([name]) => name);
+
 const checks = [
   [dockerfile.includes("FROM node:24-alpine"), "Docker image must use the tested Node 24 runtime."],
   [dockerfile.includes("AS development") && dockerfile.includes('CMD ["npm", "run", "dev"]'), "Docker image must provide the development watcher target."],
@@ -48,6 +62,7 @@ const checks = [
   [server.includes('server.listen(PORT, HOST'), "Server must honor the container bind host."],
   [server.includes('process.once("SIGTERM"'), "Server must handle Docker shutdown."],
   [server.includes('url.pathname === "/api/health"'), "Server health endpoint is missing."],
+  [productionTargets.length === 0, "Smoke tests must not default to the production port 3102: " + productionTargets.join(", ")],
   [server.includes("release: releaseInfo.version"), "Server health must identify the running release."]
 ];
 
