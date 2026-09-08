@@ -50,6 +50,11 @@ LAPTOP-DEPLOY-PROMPT.md
 *.sync-conflict-*
 .syncthing.*.tmp
 
+# Local reconciliation archive for Syncthing conflict copies (P00). Kept out of
+# Git deliberately: CI fails if any *.sync-conflict-* path is tracked, and
+# renaming the copies to dodge that check would defeat the protection.
+archive/
+
 # Editor and operating-system files
 .idea/
 .vscode/

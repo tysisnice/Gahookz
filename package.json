@@ -11,7 +11,7 @@
     "build": "node standalone/build-client.mjs",
     "start": "node --import tsx standalone/server.js",
     "typecheck": "tsc -p tsconfig.contracts.json && tsc -p tsconfig.server.json && tsc -p tsconfig.web.json",
-    "test:unit": "node --import tsx --test packages/*/test/*.test.ts standalone/server/*.test.mjs",
+    "test:unit": "node --import tsx --test packages/*/test/*.test.ts standalone/server/*.test.mjs standalone/*.test.mjs",
     "test:simulation": "node --import tsx standalone/simulate-games.mjs",
     "test:rooms": "node standalone/simulate-room-flows.mjs",
     "check": "npm run typecheck && npm run test:unit && npm run build",

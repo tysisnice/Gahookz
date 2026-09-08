@@ -175,7 +175,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 
 | Done | ID | Deliverable | Depends on |
 | --- | --- | --- | --- |
-| [ ] | P00 | Preserved source baseline and conflict-safe verification | — |
+| [x] | P00 | Preserved source baseline and conflict-safe verification | — |
 | [ ] | P01 | Runtime contracts, compatible schema evolution, typed client adapter/build seam | P00 |
 | [ ] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
 | [ ] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
@@ -431,6 +431,20 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-08 — P00 complete
+
+- Last updated: 2026-09-08, P00 only.
+- Current stage and completed numbered steps: **P00 steps 1-5 complete.** P01 is next and not started.
+- Revision: branch `overhaul/quiz-herd-p00-p12`, cut from `81a70d2` (the review base this plan names). `793a71a` preserves the previously uncommitted arena rebuild and this plan as a recoverable baseline; the P00 commit follows it. Node v24.13.1, npm 11.8.0.
+- Files changed and why: `standalone/sync-artifacts.mjs` (new; one definition of the Syncthing-artifact rule), `standalone/smoke-policy.mjs` (new; pure smoke-discovery policy so it can be tested), `standalone/sync-artifacts.test.mjs` (new; the P00.4 fixture), `standalone/server.js` and `standalone/build-client.mjs` (drop their duplicate predicates and import the shared one), `standalone/smoke-deployment.mjs` (discovery now applies the shared exclusion), `package.json` (`test:unit` also runs `standalone/*.test.mjs`), `.gitignore` and `.dockerignore` (ignore the local `archive/`).
+- Tests run: `npm run check` (typecheck + 39 unit tests + build) passed. Full `npm test` passed against a disposable server on 127.0.0.1:3199, exit 0. `npm run test:rooms` passed on a **separate fresh server lifetime**, exit 0, twelve complete games at 4/8/12/20 players. Production (3102) and development (3101) were not targeted; both still reported `activeRooms: 0` afterwards.
+- Observed behaviour: `npm run standalone:smoke:deployment` **failed before this work**, exactly as the plan predicted — the ignored `smoke-regressions.sync-conflict-20260907-203159-CIYEAQN.mjs` still carried the production-port default and smoke discovery was the one path that did not exclude conflict artifacts. It passes now. `npm run test:rooms` independently reproduced the P06 defect: Herd at 20 players produced **20 rounds**.
+- Conflict reconciliation: re-counted **15** copies (matching the earlier audit, not assumed). All 15 dated 2026-08-24 and are behind canonical; none is byte-identical to any commit reachable from `main`. Nine are regenerable build products; six are source whose every distinctive line is deliberately-removed code (`localStorage` room passwords, `?pwd=` links, `GET /api/state?`, credentials in the `/events` URL, retired `ODDBALL_QUESTION_PRESETS`, the 3102 default). The one genuine regression risk — the room-load timeout and retry UI — was checked directly and **survives in canonical** under different names (`problem` / `room-loading-status`, `standalone/public/app.jsx`). All 15 are archived read-only with a SHA-256 manifest under `archive/sync-conflicts-2026-09-07/`, hash-verified immediately before the originals were removed.
+- Decisions changed from this plan and rationale: the archive is **not** committed. `.github/workflows/ci.yml` fails if any `*.sync-conflict-*` path is tracked, and renaming the copies to dodge that check would defeat the protection, so `archive/` is git- and docker-ignored and local to this machine. Nothing tracked depends on it.
+- Known regressions or external gates: none introduced. The production-port detector is a plain source-text scan, so a file that merely documents the unsafe literal reports itself; `smoke-policy.mjs` is written to avoid spelling it out.
+- Next exact task: **P01 steps 1-7.** Read `packages/contracts/src/{game,schemas,index}.ts`, the API helper / reducer / EventSource setup in `standalone/public/app.jsx`, `standalone/server/transport.mjs`, and the route and snapshot builders in `standalone/server.js`. Acceptance test: existing fixtures pass, invalid data fails safely, no key or author leakage, and a clean browser build loads every new module.
+- Production touched: **no.**
 
 ### Initial handoff — 2026-09-08
 

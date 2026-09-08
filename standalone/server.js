@@ -18,6 +18,7 @@ import {
   unregisterPlayerCredential } from
 "./server/auth.mjs";
 import { initialiseArena, tapArena, arenaProgress } from "./server/arena.mjs";
+import { isSyncArtifact } from "./sync-artifacts.mjs";
 import { createAdmissionController, requestAddress } from "./server/admission.mjs";
 import { accountResultLocation, createAccountService } from "./server/accounts.mjs";
 import { allActivePlayersAnswered as roomAllActivePlayersAnswered, allActivePlayersProgressReady as roomAllActivePlayersProgressReady, phaseProgressKey as roomPhaseProgressKey } from "./server/gameplay.mjs";
@@ -4550,11 +4551,6 @@ function serveStatic(url, res) {
   }
 
   serveFile(absolutePath, res);
-}
-
-function isSyncArtifact(absolutePath) {
-  const fileName = path.basename(absolutePath);
-  return fileName.includes(".sync-conflict-") || fileName.startsWith(".syncthing.");
 }
 
 function serveFile(absolutePath, res) {

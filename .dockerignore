@@ -31,3 +31,6 @@ standalone/public/client/presentation.js
 standalone/public/client/qr.js
 standalone/public/client/social.js
 standalone/public/client/tutorial.js
+
+# Local conflict-copy archive; never part of an image.
+archive/

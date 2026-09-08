@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { isExecutableSmokeFile, selectProductionPortDefaults } from "./smoke-policy.mjs";
 
 const [dockerfile, dockerignore, compose, nginx, envExample, deployScript, devServer, server, packageSource] = await Promise.all([
   fs.readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
@@ -19,12 +20,10 @@ const [dockerfile, dockerignore, compose, nginx, envExample, deployScript, devSe
 // default, so a misconfigured run fails fast instead of hitting production.
 const smokeSources = await Promise.all(
   (await fs.readdir(new URL("./", import.meta.url)))
-    .filter((name) => /^smoke-.*\.mjs$/.test(name))
+    .filter((name) => isExecutableSmokeFile(name))
     .map(async (name) => [name, await fs.readFile(new URL("./" + name, import.meta.url), "utf8")])
 );
-const productionTargets = smokeSources
-  .filter(([, source]) => /BASE_URL \|\| "http:\/\/127\.0\.0\.1:3102"/.test(source))
-  .map(([name]) => name);
+const productionTargets = selectProductionPortDefaults(smokeSources);
 
 const checks = [
   [dockerfile.includes("FROM node:24-alpine"), "Docker image must use the tested Node 24 runtime."],
