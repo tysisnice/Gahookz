@@ -1,12 +1,17 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023"],
-    "types": ["node"]
+    "lib": [
+      "ES2023"
+    ],
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "standalone/server/**/*.ts",
-    "packages/*/src/**/*.ts"
+    "packages/*/src/**/*.ts",
+    "standalone/public/client/*.test.ts"
   ],
   "exclude": [
     "standalone/legacy"

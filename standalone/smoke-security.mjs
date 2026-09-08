@@ -168,13 +168,28 @@ controller.abort();
 const replay = await raw("/events?ticket=" + encodeURIComponent(issued.ticket));
 assert(replay.response.status === 401 && replay.data.code === "invalid_event_ticket", "Event tickets must be single-use");
 
-const [app, server] = await Promise.all([
+// Read the browser client as a whole rather than a single file. These assert
+// properties of the client, so they must not depend on which module a function
+// lives in; the network layer moved to client/net.ts without any behavioural
+// change, and a file-bound check would have reported that as a security
+// regression. The live single-use-ticket behaviour is already covered above.
+const clientDir = new URL("./public/client/", import.meta.url);
+const clientSourceNames = (await fs.readdir(clientDir)).
+  filter((name) => /\.(jsx|ts)$/.test(name) && !name.endsWith(".test.ts"));
+const [appEntry, server, ...clientSources] = await Promise.all([
   fs.readFile(new URL("./public/app.jsx", import.meta.url), "utf8"),
-  fs.readFile(new URL("./server.js", import.meta.url), "utf8")
+  fs.readFile(new URL("./server.js", import.meta.url), "utf8"),
+  ...clientSourceNames.map((name) => fs.readFile(new URL(name, clientDir), "utf8"))
 ]);
+const app = [appEntry, ...clientSources].join("\n");
+
 assert(app.includes("sessionStorage.setItem(roomPasswordKey(cleanCode), password)"), "Room passwords must be tab-scoped");
 assert(!app.includes("localStorage.setItem(roomPasswordKey(cleanCode), password)"), "Room passwords must not be durably stored");
-assert(app.includes("/api/events/ticket") && app.includes("new EventSource(\"/events?ticket=\""), "The client must exchange credentials for an opaque event ticket");
+assert(app.includes("/api/events/ticket"), "The client must exchange credentials for an opaque event ticket");
+assert(app.includes("\"/events?ticket=\""), "The event stream URL must begin with the opaque ticket");
+for (const secret of ["playerKey", "password", "hostKey"]) {
+  assert(!new RegExp("/events\\?[^\"']*" + secret).test(app), "The event stream URL must not carry " + secret);
+}
 assert(!app.includes("/api/state?"), "The client must not put state credentials in a URL");
 assert(app.includes('"X-Gahookz-Room": code'), "Snapshot recovery requests must retain room affinity across multiple workers");
 assert(app.includes("ROOM_CONNECTION_ERROR") && app.includes("newer than the game server"), "A protocol mismatch must become a visible room error instead of an endless loading screen");

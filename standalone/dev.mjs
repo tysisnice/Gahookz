@@ -18,6 +18,7 @@ const host = process.env.HOST || "127.0.0.1";
 const buildSources = new Set([
   "app.jsx",
   "client/arena.jsx",
+  "client/net.ts",
   "client/audio.js",
   "client/offline.jsx",
   "client/preferences.jsx",

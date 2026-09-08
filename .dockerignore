@@ -31,6 +31,10 @@ standalone/public/client/presentation.js
 standalone/public/client/qr.js
 standalone/public/client/social.js
 standalone/public/client/tutorial.js
+standalone/public/client/net.js
 
 # Local conflict-copy archive; never part of an image.
 archive/
+
+# Test sources are never served or shipped.
+standalone/public/**/*.test.ts

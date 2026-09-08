@@ -5,6 +5,7 @@ import { createStore } from "redux";
 import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
 import { OfflineExperience, ServerUpdateExperience, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
+import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, nextClockOffset } from "./client/net.ts";
 import {
   installGahookWarmup,
   playAnswerOohSound,
@@ -44,6 +45,15 @@ const GAHOOK_STEAL_POINTS = 50;
 const CONGRATS_OVERLAY_MS = 1800;
 const BOO_OVERLAY_MS = 1600;
 const SNAPSHOT_CATCHUP_MS = 0;
+// The adapter in ./client/net.ts takes its timers as a dependency so its
+// ordering and cleanup can be tested without a browser. These are the real
+// ones; the tests pass fakes.
+const browserTimers = {
+  setTimeout: (handler, ms) => window.setTimeout(handler, ms),
+  clearTimeout: (handle) => window.clearTimeout(handle),
+  setInterval: (handler, ms) => window.setInterval(handler, ms),
+  clearInterval: (handle) => window.clearInterval(handle)
+};
 const STALE_GAHOOK_MS = 4500;
 const REVEAL_ANSWER_SPOTLIGHT_MS = 4500;
 const ANSWER_IDS = ["red", "blue", "yellow", "green"];
@@ -417,10 +427,11 @@ function updateServerClockOffset(serverTime) {
   if (typeof window === "undefined" || !serverTime) {
     return;
   }
-  const measuredOffset = Number(serverTime) - Date.now();
-  const nextOffset = Math.abs(measuredOffset) < 750 ? 0 : measuredOffset;
-  const previousOffset = Number(window.gahookzServerClockOffset || 0);
-  window.gahookzServerClockOffset = Math.round(previousOffset * 0.65 + nextOffset * 0.35);
+  window.gahookzServerClockOffset = nextClockOffset(
+    serverTime,
+    Date.now(),
+    Number(window.gahookzServerClockOffset || 0)
+  );
 }
 
 function reducer(state = { connected: false, connectionError: "", error: "", lobby: emptyLobby }, action) {
@@ -1066,36 +1077,16 @@ function useDetailsMenu() {
   return [ref, closeMenu];
 }
 
+const apiClient = createApiClient({
+  fetch: (url, init) => fetch(url, init),
+  timers: browserTimers,
+  context: () => ({ code: getRoute().code || "", playerKey: getClientKey() }),
+  onSettled: () => window.setTimeout(() => window.gahookzRefreshSnapshot?.(), 0)
+});
+
+// Kept as a hoisted declaration so call ordering elsewhere is unchanged.
 async function api(path, payload = {}, options = {}) {
-  const route = getRoute();
-  const body = { ...payload };
-  if (route.code && !body.code) {
-    body.code = route.code;
-  }
-  if (!body.playerKey) {
-    body.playerKey = getClientKey();
-  }
-  const controller = options.timeoutMs && "AbortController" in window ? new AbortController() : null;
-  const timeout = controller ? setTimeout(() => controller.abort(), options.timeoutMs) : null;
-  try {
-    const response = await fetch(path, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(body.code ? { "X-Gahookz-Room": body.code } : {}) },
-      body: JSON.stringify(body),
-      signal: controller?.signal
-    });
-    const result = await response.json();
-    if (result.ok && path !== "/api/room" && options.refresh !== false) {
-      setTimeout(() => window.gahookzRefreshSnapshot?.(), 0);
-    }
-    return result;
-  } catch (_error) {
-    return { ok: false, error: "Could not reach the game server." };
-  } finally {
-    if (timeout) {
-      clearTimeout(timeout);
-    }
-  }
+  return apiClient(path, payload, options);
 }
 
 function useEvents(mode, code, playerKey) {
@@ -1107,22 +1098,9 @@ function useEvents(mode, code, playerKey) {
     }
 
     let active = true;
-    let pendingSnapshot = null;
-    let flushTimer = null;
-    let latestAppliedVersion = 0;
-    let events = null;
-    let eventReconnectTimer = null;
     let consecutiveFailures = 0;
 
     dispatch({ type: "ROOM_CONNECTION_RESET" });
-
-    const connectionMessage = (error) => {
-      const message = String(error?.error || error?.message || "").trim();
-      if (message === "Unknown action.") {
-        return "This screen is newer than the game server. The server needs to finish updating before this room can open.";
-      }
-      return message || "Could not reach this room. Check the server, then retry.";
-    };
 
     const reportFailure = (error, { immediate = false } = {}) => {
       consecutiveFailures += 1;
@@ -1131,49 +1109,23 @@ function useEvents(mode, code, playerKey) {
       }
     };
 
-    const applySnapshot = (snapshot) => {
-      if (!active) {
-        return;
+    // Ordering and coalescing live in ./client/net.ts, where they are unit
+    // tested against out-of-order arrival; two sources push state here.
+    const gate = createSnapshotGate({
+      catchUpMs: SNAPSHOT_CATCHUP_MS,
+      timers: browserTimers,
+      apply: (snapshot) => {
+        if (!active) return;
+        consecutiveFailures = 0;
+        dispatch({ type: "CONNECTED", value: true });
+        dispatch({ type: "SNAPSHOT", value: snapshot });
       }
-      const version = Number(snapshot?.stateVersion) || 0;
-      if (version && version < latestAppliedVersion) {
-        return;
-      }
-      latestAppliedVersion = Math.max(latestAppliedVersion, version);
-      consecutiveFailures = 0;
-      dispatch({ type: "CONNECTED", value: true });
-      dispatch({ type: "SNAPSHOT", value: snapshot });
-    };
-    const flushPendingSnapshot = () => {
-      flushTimer = null;
-      const snapshot = pendingSnapshot;
-      pendingSnapshot = null;
-      if (snapshot) {
-        applySnapshot(snapshot);
-      }
-    };
+    });
     const queueSnapshot = (snapshot) => {
-      if (!active || !snapshot) {
-        return;
-      }
-      const version = Number(snapshot.stateVersion) || 0;
-      if (version && version < latestAppliedVersion) {
-        return;
-      }
-      if (SNAPSHOT_CATCHUP_MS <= 0) {
-        if (flushTimer) {
-          clearTimeout(flushTimer);
-          flushTimer = null;
-        }
-        pendingSnapshot = null;
-        applySnapshot(snapshot);
-        return;
-      }
-      pendingSnapshot = snapshot;
-      if (!flushTimer) {
-        flushTimer = setTimeout(flushPendingSnapshot, SNAPSHOT_CATCHUP_MS);
-      }
+      if (!active) return;
+      gate.offer(snapshot);
     };
+
     // A protected room stops answering this credential whenever the server has
     // forgotten it - a restart, or a password added mid-session. Re-present the
     // password this device already holds before sending the player back out.
@@ -1233,44 +1185,23 @@ function useEvents(mode, code, playerKey) {
     };
     window.gahookzRefreshSnapshot = fetchSnapshot;
 
-    const connectEvents = async () => {
-      const ticketResult = await api("/api/events/ticket", { code, role: mode, playerKey }, { refresh: false });
-      if (!active) return;
-      if (!ticketResult.ok) {
-        dispatch({ type: "CONNECTED", value: false });
-        if (ticketResult.roomMissing) {
-          navigateTo(buildWelcomePath(code));
-          return;
-        }
-        if (ticketResult.banned) {
-          navigateTo(buildWelcomePath(code));
-          return;
-        }
-        if (ticketResult.roomLocked) {
-          await recoverLockedRoom();
-          return;
-        }
-        reportFailure(ticketResult, { immediate: true });
-        eventReconnectTimer = setTimeout(connectEvents, 1500);
-        return;
-      }
-      events?.close();
-      events = new EventSource("/events?ticket=" + encodeURIComponent(ticketResult.ticket) + "&room=" + encodeURIComponent(code));
-      events.onopen = () => dispatch({ type: "CONNECTED", value: true });
-      events.onerror = () => {
-        if (!active) return;
-        dispatch({ type: "CONNECTED", value: false });
-        events?.close();
-        eventReconnectTimer = setTimeout(connectEvents, 1500);
-      };
-      events.addEventListener("state", (event) => {
-        try {
-          queueSnapshot(JSON.parse(event.data));
-        } catch (error) {
-          reportFailure(error, { immediate: true });
-        }
-      });
-    };
+    // The stream lifecycle lives in ./client/net.ts so that "exactly one open
+    // stream" is a property with tests behind it rather than an intention.
+    const live = createLiveConnection({
+      api,
+      createEventSource: (url) => new EventSource(url),
+      timers: browserTimers,
+      reconnectMs: 1500,
+      room: { code, role: mode, playerKey },
+      onSnapshot: queueSnapshot,
+      onConnected: (value) => dispatch({ type: "CONNECTED", value }),
+      onFailure: reportFailure,
+      onRoomMissing: () => navigateTo(buildWelcomePath(code)),
+      onBanned: () => navigateTo(buildWelcomePath(code)),
+      onRoomLocked: () => recoverLockedRoom()
+    });
+    const connectEvents = () => live.connect();
+
     connectEvents();
     fetchSnapshot();
     const interval = setInterval(fetchSnapshot, 1800);
@@ -1280,14 +1211,10 @@ function useEvents(mode, code, playerKey) {
       if (window.gahookzRefreshSnapshot === fetchSnapshot) {
         delete window.gahookzRefreshSnapshot;
       }
-      if (flushTimer) {
-        clearTimeout(flushTimer);
-      }
-      if (eventReconnectTimer) {
-        clearTimeout(eventReconnectTimer);
-      }
+      // Both own their own timers and stream, and both are safe to call twice.
+      gate.dispose();
+      live.close();
       clearInterval(interval);
-      events?.close();
     };
   }, [mode, code, playerKey, dispatch]);
 }

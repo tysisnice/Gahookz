@@ -2,8 +2,28 @@ import fs from "node:fs";
 
 const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3199";
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-const app = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");
-const bundle = fs.readFileSync(new URL("./public/app.js", import.meta.url), "utf8");
+// Browser source and the shipped browser modules are each read as a whole.
+// These checks protect properties of *the client*, not of one file: room
+// credentials must not be durably stored or placed in a URL. Pinning them to
+// app.jsx/app.js alone made them pass or fail on where a function happens to
+// live, so extracting the network layer into client/net.ts broke them without
+// changing any behaviour. Scanning every shipped module is the stronger check
+// and keeps working as more code moves out of the two original files.
+const browserSourceFiles = ["./public/app.jsx", ...fs.
+  readdirSync(new URL("./public/client/", import.meta.url)).
+  filter((name) => /\.(jsx|ts)$/.test(name) && !name.endsWith(".test.ts")).
+  map((name) => "./public/client/" + name)];
+const shippedModuleFiles = ["./public/app.js", ...fs.
+  readdirSync(new URL("./public/client/", import.meta.url)).
+  filter((name) => name.endsWith(".js")).
+  map((name) => "./public/client/" + name)];
+
+const readAll = (paths) => paths.
+  map((relative) => fs.readFileSync(new URL(relative, import.meta.url), "utf8")).
+  join("\n");
+
+const app = readAll(browserSourceFiles);
+const bundle = readAll(shippedModuleFiles);
 
 function assert(value, message) {
   if (!value) throw new Error(message);

@@ -7,6 +7,11 @@ import {
   SNAPSHOT_SCHEMA_VERSION
 } from "./game.ts";
 import { MEDIA_URL_PATTERN, ROOM_CODE_PATTERN } from "./identifiers.ts";
+import {
+  GAME_FAMILIES,
+  QUIZ_SCORINGS,
+  TIE_BREAK_REASONS
+} from "./settings.ts";
 
 export const RoomCodeSchema = z.string().regex(ROOM_CODE_PATTERN);
 export const PlayerIdSchema = z.string().min(1).max(128);
@@ -17,15 +22,43 @@ export const MediaUrlSchema = z.string().regex(MEDIA_URL_PATTERN);
 export const UnixMillisecondsSchema = z.number().int().nonnegative();
 
 export const GameModeSchema = z.enum(GAME_MODES);
+export const GameFamilySchema = z.enum(GAME_FAMILIES);
+export const QuizScoringSchema = z.enum(QUIZ_SCORINGS);
+export const TieBreakReasonSchema = z.enum(TIE_BREAK_REASONS);
+
+/**
+ * Settings as they arrive from a client. Every field is optional because both
+ * the legacy and the canonical spelling must be accepted during the migration;
+ * `normaliseGameSettings` decides what the combination actually means and
+ * rejects contradictions. Validate shape here, meaning there.
+ */
+export const GameSettingsInputSchema = z.object({
+  gameMode: GameModeSchema.optional(),
+  gameFamily: GameFamilySchema.optional(),
+  quizScoring: QuizScoringSchema.optional()
+}).strict();
 export const GamePhaseSchema = z.enum(GAME_PHASES);
 export const RoundPresetSchema = z.enum(ROUND_PRESETS);
 
+// The server has always sent more than the five required fields. The schema
+// stays `.strict()` on purpose — an unexpected key is how a credential would
+// leak into a public response, and there is a test pinning that — so the extra
+// fields are enumerated rather than waved through with `.passthrough()`.
+// Missing or malformed *required* fields still fail; a known optional
+// operational field is tolerated. Verified against a live `/api/health`.
 export const HealthResponseSchema = z.object({
   schemaVersion: z.literal(SNAPSHOT_SCHEMA_VERSION),
   ok: z.literal(true),
   serverTime: UnixMillisecondsSchema,
   release: z.string().min(1).max(128),
-  builtAt: z.string().max(128)
+  builtAt: z.string().max(128),
+  revision: z.string().max(128).optional(),
+  serverBuiltAt: z.string().max(128).optional(),
+  instance: z.string().max(128).optional(),
+  draining: z.boolean().optional(),
+  activeRooms: z.number().int().nonnegative().optional(),
+  accountPersistence: z.enum(["memory", "postgres"]).optional(),
+  googleLoginAvailable: z.boolean().optional()
 }).strict();
 
 export const ApiErrorSchema = z.object({
@@ -58,6 +91,10 @@ export const PublicSnapshotBaseSchema = z.object({
   serverTime: UnixMillisecondsSchema,
   isHost: z.boolean(),
   gameMode: GameModeSchema,
+  // Canonical pair. Optional while servers and clients migrate; `gameMode`
+  // above remains the derived compatibility field, never a second truth.
+  gameFamily: GameFamilySchema.optional(),
+  quizScoring: QuizScoringSchema.optional(),
   roundPreset: RoundPresetSchema,
   phase: GamePhaseSchema,
   players: z.array(PublicPlayerBaseSchema),
@@ -71,3 +108,4 @@ export type ApiSuccess = z.infer<typeof ApiSuccessSchema>;
 export type RoomCommandEnvelope = z.infer<typeof RoomCommandEnvelopeSchema>;
 export type PublicPlayerBase = z.infer<typeof PublicPlayerBaseSchema>;
 export type PublicSnapshotBase = z.infer<typeof PublicSnapshotBaseSchema>;
+export type GameSettingsInput = z.infer<typeof GameSettingsInputSchema>;

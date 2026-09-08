@@ -11,6 +11,7 @@ const publicDir = path.join(__dirname, "public");
 const generatedFiles = new Set([
   "app.js",
   "client/arena.js",
+  "client/net.js",
   "release.json",
   "client/audio.runtime.js",
   "client/custom-gahook.js",
@@ -32,6 +33,9 @@ async function sourceAssetVersion() {
   const files = await listFiles(publicDir);
   for (const absolutePath of files.sort()) {
     const relativePath = path.relative(publicDir, absolutePath).replaceAll("\\", "/");
+    // Test sources sit beside the modules they cover; they are neither
+    // shipped nor part of the release identity.
+    if (relativePath.endsWith(".test.ts")) continue;
     if (generatedFiles.has(relativePath) || isSyncArtifact(relativePath)) continue;
     let contents = await fs.readFile(absolutePath);
     if (["index.html", "service-worker.js", "vendor-bootstrap.js"].includes(relativePath)) {
@@ -105,6 +109,7 @@ async function transformFile(input, output, loader, replacements = []) {
 await Promise.all([
   transformFile("app.jsx", "app.js", "jsx", [
     ["./client/arena.jsx", versioned("./client/arena.js")],
+    ["./client/net.ts", versioned("./client/net.js")],
     ["./client/preferences.jsx", versioned("./client/preferences.js")],
     ["./client/offline.jsx", versioned("./client/offline.js")],
     ["./client/audio.js", versioned("./client/audio.runtime.js")],
@@ -124,6 +129,7 @@ await Promise.all([
     ["./presentation.jsx", versioned("./presentation.js")],
     ["./gahook-forms.js", versioned("./gahook-forms.js")]
   ]),
+  transformFile("client/net.ts", "client/net.js", "ts"),
   transformFile("client/preferences.jsx", "client/preferences.js", "jsx"),
   transformFile("client/offline.jsx", "client/offline.js", "jsx", [
     ["./audio.js", versioned("./audio.runtime.js")],
