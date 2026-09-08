@@ -4,6 +4,13 @@ Read this first. It is the entry point for anyone — human or coding agent —
 picking the project up cold. It is deliberately short; it tells you the rules,
 the shape of the system, and which longer document answers which question.
 
+For the owner's approved next implementation work, read
+[IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md). It contains the required
+reading list, ordered tasks, acceptance checks, 40 new prompt drafts and a
+session handoff ledger. The plan is not yet implemented; preserve the existing
+arena changes and update its ledger as work is verified. It does not authorise
+a production deployment.
+
 Gahookz is a dependency-light, real-time Node.js party game with three live
 modes (Quiz, Majority Rulz, Herd) and a large social layer. It runs on one
 Fedora machine at `gahookz.com`, and real people play on it.
@@ -128,6 +135,7 @@ bash scripts/docker-status.sh              # from /srv/gahookz
 | Question | Document |
 | --- | --- |
 | How do I run, test, or lay out the project? | `README.md` |
+| What approved work should the next session implement, and in what order? | `IMPLEMENTATION-PLAN.md` |
 | How does any of this work, what is broken, what is next? | `OPERATIONS-AND-ROADMAP.md` |
 | What are the production constraints and launch gates? | `docs/operations/production-readiness.md` |
 | Why is the architecture like this? | `docs/architecture/0001-long-term-foundation.md` |

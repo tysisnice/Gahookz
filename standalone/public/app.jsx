@@ -26,6 +26,7 @@ import {
   speakText
 } from "./client/audio.js";
 import { GahookFormVisual, GahookOverlayVisual, PokeJumpScare } from "./client/presentation.jsx";
+import { ArenaSpectator, ArenaOverlay } from "./client/arena.jsx";
 import { GameTutorial } from "./client/tutorial.jsx";
 import { SimplePaintEditor } from "./client/drawing.jsx";
 import { WaitingRoomSocial } from "./client/social.jsx";
@@ -1358,7 +1359,6 @@ function App() {
   return (
     <>
       {mode === "information" ? <InformationHub /> : mode === "legal" ? <LegalHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}
-      {mode === "room" && lobby.code === route.code ? <GahookArenaIntro duel={lobby.gahookDuel} /> : null}
       {mode === "room" && lobby.code === route.code ? <GahookArenaCrowdControls duel={lobby.gahookDuel} ownPlayer={lobby.ownPlayer} playerKey={playerKey} /> : null}
       {error ?
       <div className="toast" role="status" key={error}>
@@ -1794,49 +1794,6 @@ function RoomSocialHub({ lobby, ownPlayer = null, playerKey = "" }) {
   />;
 }
 
-function ArenaHitPips({ duel, playerId }) {
-  const hits = Math.max(0, Number(duel?.hits?.[playerId]) || 0);
-  const total = Math.max(1, Number(duel?.hitsToWin) || 3);
-  return <span className="gahook-arena-hit-pips" aria-label={`${hits} of ${total} hits received`}>
-    {Array.from({ length: total }, (_item, index) => <i className={index < hits ? "is-hit" : ""} key={index} />)}
-  </span>;
-}
-
-function ArenaGahookBall({ player, label = "", small = false }) {
-  if (!player) return null;
-  return <span className={["gahook-arena-ball-visual", small ? "is-small" : ""].filter(Boolean).join(" ")} aria-hidden="true">
-    <GahookOverlayVisual form={getGahookForm(player.gahookForm)} customGahook={player.customGahook} small />
-    {label ? <b>{label}</b> : null}
-  </span>;
-}
-
-function GahookArenaIntro({ duel }) {
-  const [expired, setExpired] = useState(false);
-  const players = Array.isArray(duel?.players) ? duel.players : [];
-  const first = players[0];
-  const second = players[1];
-  useEffect(() => {
-    setExpired(false);
-    if (!duel?.id || duel.status !== "active" || !duel.introEndsAt) return undefined;
-    const soundChannel = resetPokeSoundChannel();
-    playCounterGahookSound(soundChannel);
-    speakText("Gahook Arena", { rate: 0.88, pitch: 0.66, volume: 1, lang: "en-US" });
-    const timer = setTimeout(() => setExpired(true), Math.max(0, duel.introEndsAt - Date.now()));
-    return () => clearTimeout(timer);
-  }, [duel?.id, duel?.introEndsAt]);
-  if (!first || !second || duel.status !== "active" || expired || duel.introEndsAt <= Date.now()) return null;
-  return <aside className="gahook-arena-intro" role="alert" aria-live="assertive">
-    <span>1V1 GAHOOK</span>
-    <div>
-      <article><AvatarBadge player={first} /><strong>{first.name}</strong></article>
-      <b><small>PLAYER</small>VS<small>PLAYER</small></b>
-      <article><AvatarBadge player={second} /><strong>{second.name}</strong></article>
-    </div>
-    <h2>GAHOOK ARENA</h2>
-    <p>First to land 3 Gahook Ballz wins</p>
-  </aside>;
-}
-
 function GahookArenaCrowdControls({ duel, ownPlayer, playerKey }) {
   const dispatch = useDispatch();
   const [busy, setBusy] = useState("");
@@ -1848,7 +1805,7 @@ function GahookArenaCrowdControls({ duel, ownPlayer, playerKey }) {
     const timer = setTimeout(() => setExpired(true), Math.max(0, duel.reactionEndsAt - Date.now()));
     return () => clearTimeout(timer);
   }, [duel?.id, duel?.reactionEndsAt]);
-  if (!duel || duel.status !== "finished" || !ownPlayer || isCompetitor || expired || duel.reactionEndsAt <= Date.now()) return null;
+  if (!duel || !duel.winnerId || duel.status !== "finished" || !ownPlayer || isCompetitor || expired || duel.reactionEndsAt <= Date.now()) return null;
   const players = Array.isArray(duel.players) ? duel.players : [];
   const winner = players.find((player) => player.id === duel.winnerId);
   const loser = players.find((player) => player.id === duel.loserId);
@@ -1875,227 +1832,11 @@ function GahookArenaCrowdControls({ duel, ownPlayer, playerKey }) {
 }
 
 function GahookDuelArena({ duel }) {
-  if (!duel || (duel.status !== "active" && duel.status !== "finished")) return null;
-  const players = Array.isArray(duel.players) ? duel.players : [];
-  const first = players[0];
-  const second = players[1];
-  if (!first || !second) return null;
-  const winner = players.find((player) => player.id === duel.winnerId);
-  const attackPlayer = players.find((player) => player.id === duel.attack?.attackerId);
-  return <section className={["gahook-duel-arena", duel.status === "finished" ? "is-finished" : "", duel.introEndsAt > Date.now() ? "is-intro" : ""].filter(Boolean).join(" ")} aria-label="Gahook Arena">
-    <div className={["gahook-duel-banner", duel.attack?.attackerId === first.id ? "is-attacking" : "", duel.lastHit?.playerId === first.id ? "is-hit" : "", duel.winnerId === first.id ? "is-winner" : "", duel.loserId === first.id ? "is-loser" : ""].filter(Boolean).join(" ")} key={`${first.id}-${duel.lastHit?.id || "ready"}`}>
-      <AvatarBadge player={first} /><strong>{first.name}</strong>
-      <small>{duel.status === "finished" && duel.winnerId === first.id ? "ARENA CHAMPION" : `${duel.ballStock?.[first.id] || 0} Ballz ready`}</small>
-      <ArenaHitPips duel={duel} playerId={first.id} />
-    </div>
-    <div className="gahook-duel-arena__middle">
-      <span>GAHOOK ARENA</span>
-      {duel.status === "finished" ? <strong>{winner?.name || "Player"} WINS!</strong> : <strong>{duel.hits?.[first.id] || 0} — {duel.hits?.[second.id] || 0}</strong>}
-      {duel.attack ? <div className={["gahook-duel-spectator-attack", duel.attack.attackerId === second.id ? "is-reverse" : ""].filter(Boolean).join(" ")} style={{ "--duel-window": (duel.reactionWindowMs || 1000) + "ms" }} key={duel.attack.id}><ArenaGahookBall player={attackPlayer} small /></div> : null}
-    </div>
-    <div className={["gahook-duel-banner", duel.attack?.attackerId === second.id ? "is-attacking" : "", duel.lastHit?.playerId === second.id ? "is-hit" : "", duel.winnerId === second.id ? "is-winner" : "", duel.loserId === second.id ? "is-loser" : ""].filter(Boolean).join(" ")} key={`${second.id}-${duel.lastHit?.id || "ready"}`}>
-      <AvatarBadge player={second} /><strong>{second.name}</strong>
-      <small>{duel.status === "finished" && duel.winnerId === second.id ? "ARENA CHAMPION" : `${duel.ballStock?.[second.id] || 0} Ballz ready`}</small>
-      <ArenaHitPips duel={duel} playerId={second.id} />
-    </div>
-  </section>;
+  return <ArenaSpectator duel={duel} Avatar={AvatarBadge} />;
 }
 
-function GahookDuelOverlay({ duel, ownPlayer, ownPoke, playerKey }) {
-  const dispatch = useDispatch();
-  const [busy, setBusy] = useState(false);
-  const [clock, setClock] = useState(Date.now());
-  const [launchPoint, setLaunchPoint] = useState(null);
-  const [defencePoint, setDefencePoint] = useState(null);
-  const [distractions, setDistractions] = useState([]);
-  const launchRef = useRef(null);
-  const defenceRef = useRef(null);
-  const seenDistractionRef = useRef(ownPoke?.id || "");
-  const distractionTimersRef = useRef([]);
-  const finishSoundRef = useRef("");
-  const ownId = ownPlayer?.id || "";
-  const isParticipant = Boolean(duel?.isParticipant && ownId);
-  useEffect(() => setBusy(false), [duel?.id, duel?.attack?.id, duel?.status, duel?.ballStock?.[ownId], duel?.lastBlock?.id]);
-  useEffect(() => {
-    if (!isParticipant || duel?.status !== "active") return undefined;
-    const timer = setInterval(() => setClock(Date.now()), 100);
-    return () => clearInterval(timer);
-  }, [duel?.id, duel?.status, isParticipant]);
-  useEffect(() => () => distractionTimersRef.current.forEach((timer) => clearTimeout(timer)), []);
-  useEffect(() => {
-    if (!isParticipant || !ownPoke?.id || seenDistractionRef.current === ownPoke.id) return undefined;
-    seenDistractionRef.current = ownPoke.id;
-    if (ownPoke.kind === "counter" || ownPoke.kind === "duel-challenge") return undefined;
-    const distraction = {
-      id: ownPoke.id,
-      kind: ownPoke.kind || "normal",
-      from: ownPoke.from || "Someone",
-      form: getGahookForm(ownPoke.gahookForm),
-      customGahook: ownPoke.customGahook || null,
-      left: 7 + Math.random() * 76,
-      top: 18 + Math.random() * 50,
-      rotate: -18 + Math.random() * 36
-    };
-    setDistractions((current) => [...current.slice(-3), distraction]);
-    const timer = setTimeout(() => setDistractions((current) => current.filter((item) => item.id !== distraction.id)), 1450);
-    distractionTimersRef.current.push(timer);
-    return undefined;
-  }, [ownPoke?.id, isParticipant]);
-  useEffect(() => {
-    if (!isParticipant || duel?.status !== "finished" || finishSoundRef.current === duel.id) return;
-    finishSoundRef.current = duel.id;
-    if (duel.loserId === ownId) {
-      playGetGotSound(resetPokeSoundChannel());
-      speakText("get got", { rate: 0.84, pitch: 0.44, volume: 1, lang: "en-US" });
-    } else {
-      playVictoryPartySound();
-      speakText("Gahook Arena champion", { rate: 0.9, pitch: 1.18, volume: 1, lang: "en-US" });
-    }
-  }, [duel?.id, duel?.status, isParticipant, ownId]);
-  if (!duel || !isParticipant || (duel.status !== "active" && duel.status !== "finished")) return null;
-  const players = Array.isArray(duel.players) ? duel.players : [];
-  const opponent = players.find((player) => player.id !== ownId);
-  const ownArenaPlayer = players.find((player) => player.id === ownId) || ownPlayer;
-  const isDefender = duel.status === "active" && duel.attack?.defenderId === ownId;
-  const isWinner = duel.status === "finished" && duel.winnerId === ownId;
-  const attack = duel.attack;
-  const ballStock = Math.max(0, Number(duel.ballStock?.[ownId]) || 0);
-  const arenaOpen = duel.status === "active" && clock >= (duel.gameplayStartsAt || 0);
-  const nextBallSeconds = Math.max(0, ((duel.nextBallAt?.[ownId] || clock) - clock) / 1000);
-
-  const send = async (path, payload) => {
-    if (busy) return;
-    setBusy(true);
-    const result = await api(path, { playerKey, duelId: duel.id, ...payload }, { refresh: false, timeoutMs: 1800 });
-    if (!result.ok) {
-      dispatch({ type: "ERROR", value: result.error });
-      forceSnapshotRevert();
-      setBusy(false);
-      return;
-    }
-    window.gahookzRefreshSnapshot?.();
-  };
-
-  const beginLaunch = (event) => {
-    if (!arenaOpen || attack || busy || ballStock <= 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    const gesture = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, at: performance.now() };
-    launchRef.current = gesture;
-    setLaunchPoint({ x: event.clientX, y: event.clientY });
-  };
-
-  const moveLaunch = (event) => {
-    if (!launchRef.current || launchRef.current.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    setLaunchPoint({ x: event.clientX, y: event.clientY });
-  };
-
-  const finishLaunch = (event) => {
-    const start = launchRef.current;
-    if (!start || start.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    event.stopPropagation();
-    launchRef.current = null;
-    setLaunchPoint(null);
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
-    const distance = Math.hypot(dx, dy);
-    const elapsed = Math.max(40, performance.now() - start.at);
-    const flickStrength = distance < 18 ? 0 : Math.min(1, distance / elapsed / 1.3);
-    const x = distance < 18 ? 0.16 + Math.random() * 0.68 : Math.max(0.08, Math.min(0.92, 0.5 + dx / Math.max(320, window.innerWidth) * 1.35));
-    const y = distance < 18 ? 0.18 + Math.random() * 0.5 : Math.max(0.08, Math.min(0.78, 0.62 + dy / Math.max(480, window.innerHeight) * 1.25));
-    send("/api/player/duel-attack", { x, y, flickStrength });
-  };
-
-  const beginDefence = (event) => {
-    if (!isDefender || !attack || busy) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    defenceRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
-    setDefencePoint({ x: event.clientX, y: event.clientY });
-  };
-
-  const moveDefence = (event) => {
-    if (!defenceRef.current || defenceRef.current.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    setDefencePoint({ x: event.clientX, y: event.clientY });
-  };
-
-  const finishDefence = (event) => {
-    const start = defenceRef.current;
-    if (!start || start.pointerId !== event.pointerId || !attack) return;
-    event.preventDefault();
-    event.stopPropagation();
-    defenceRef.current = null;
-    setDefencePoint(null);
-    const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
-    const coreDistance = Math.hypot(event.clientX - window.innerWidth / 2, event.clientY - window.innerHeight * 0.56);
-    const reclaim = moved > 34 && coreDistance < Math.max(72, Math.min(window.innerWidth, window.innerHeight) * 0.13);
-    send("/api/player/duel-block", { attackId: attack.id, reclaim });
-  };
-
-  const instruction = duel.status === "finished" ?
-    isWinner ? "You landed 3 hits. Arena champion!" : duel.resultReason === "left" ? "You left the arena." : "Three hits. You GET GOT!" :
-    !arenaOpen ? "Lock in. Gahook Ballz are loading..." :
-    isDefender && attack ? "TAP THE BALL — or drag it into the core to steal it" :
-    attack ? "Ball in flight — get ready for the return" :
-    ballStock ? "Tap a ball for a wild shot · flick it to aim and boost" :
-    `Charging next Gahook Ball… ${nextBallSeconds.toFixed(1)}s`;
-
-  const attackStyle = defencePoint ?
-    { left: defencePoint.x + "px", top: defencePoint.y + "px", "--duel-window": "0ms" } :
-    {
-      "--duel-flight-x": ((attack?.x || 0.5) - 0.5) * 100 + "vw",
-      "--duel-flight-y": `calc(${((attack?.y || 0.5) - 1) * 100}vh + 132px)`,
-      "--duel-window": (duel.reactionWindowMs || 1000) + "ms"
-    };
-
-  return <section className={["gahook-duel-overlay", duel.status === "finished" ? "is-finished" : "", isWinner ? "is-winner" : "", defencePoint ? "is-catching" : ""].filter(Boolean).join(" ")} aria-live="assertive">
-    <header className="gahook-arena-scoreboard">
-      <article><AvatarBadge player={ownArenaPlayer} /><strong>{ownArenaPlayer?.name || "You"}</strong><ArenaHitPips duel={duel} playerId={ownId} /></article>
-      <div><span>GAHOOK ARENA</span><b>VS</b><small>FIRST TO 3</small></div>
-      <article><AvatarBadge player={opponent} /><strong>{opponent?.name || "Opponent"}</strong><ArenaHitPips duel={duel} playerId={opponent?.id} /></article>
-    </header>
-    <p className="gahook-arena-instruction">{instruction}</p>
-    <div className="gahook-arena-catch-core" aria-hidden="true"><i /><span>DRAG HERE<br />+1 BALL</span></div>
-    {isDefender && attack ? <button
-      className="gahook-duel-attack"
-      type="button"
-      style={attackStyle}
-      onPointerDown={beginDefence}
-      onPointerMove={moveDefence}
-      onPointerUp={finishDefence}
-      onPointerCancel={finishDefence}
-      aria-label="Stop incoming Gahook Ball; drag it to the centre to claim it"
-    ><ArenaGahookBall player={opponent} label="STOP!" /></button> : null}
-    {launchPoint ? <div className="gahook-arena-aim-line" style={{ "--aim-x": launchPoint.x + "px", "--aim-y": launchPoint.y + "px" }} aria-hidden="true" /> : null}
-    {duel.status === "active" ? <div className={["gahook-arena-ball-tray", ballStock ? "has-ballz" : ""].filter(Boolean).join(" ")}>
-      <span>GAHOOK BALLZ <b>{ballStock}/{duel.maxBallStock || 4}</b></span>
-      <div>
-        {Array.from({ length: ballStock }, (_item, index) => <button
-          type="button"
-          disabled={!arenaOpen || Boolean(attack) || busy}
-          onPointerDown={beginLaunch}
-          onPointerMove={moveLaunch}
-          onPointerUp={finishLaunch}
-          onPointerCancel={() => { launchRef.current = null; setLaunchPoint(null); }}
-          aria-label="Tap or flick Gahook Ball"
-          key={`${duel.id}-${index}`}
-        ><ArenaGahookBall player={ownArenaPlayer} /></button>)}
-        {!ballStock ? <i className="gahook-arena-ball-charging"><span style={{ animationDuration: (duel.ballIntervalMs || 3000) + "ms" }} /></i> : null}
-      </div>
-    </div> : null}
-    <div className="gahook-arena-distractions" aria-hidden="true">
-      {distractions.map((item) => <div className={["gahook-arena-distraction", "is-" + item.kind].join(" ")} style={{ left: item.left + "%", top: item.top + "%", "--arena-distraction-rotate": item.rotate + "deg" }} key={item.id}>
-        <GahookOverlayVisual form={item.form} customGahook={item.customGahook} small />
-        <b>{item.kind === "congrats" ? "👏 CONGRATS!" : item.kind === "boo" ? "👎 BOOO!" : "GAHOOK!"}</b>
-        <small>by {item.from}</small>
-      </div>)}
-    </div>
-  </section>;
+function GahookDuelOverlay({ duel, ownPlayer, playerKey }) {
+  return <ArenaOverlay duel={duel} ownPlayer={ownPlayer} playerKey={playerKey} Avatar={AvatarBadge} request={api} />;
 }
 
 function CounterGahookPrompt({ offer, busy = false, onCounter }) {

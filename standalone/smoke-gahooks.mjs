@@ -5,6 +5,8 @@ const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
 const serverSource = fs.readFileSync(new URL("./server.js", import.meta.url), "utf8");
 const appSource = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");
 const presentationSource = fs.readFileSync(new URL("./public/client/presentation.jsx", import.meta.url), "utf8");
+const arenaSource = fs.readFileSync(new URL("./public/client/arena.jsx", import.meta.url), "utf8");
+const arenaEngine = fs.readFileSync(new URL("./server/arena.mjs", import.meta.url), "utf8");
 const audioSource = fs.readFileSync(new URL("./public/client/audio.js", import.meta.url), "utf8");
 const formsSource = fs.readFileSync(new URL("./public/client/gahook-forms.js", import.meta.url), "utf8");
 const stylesSource = fs.readFileSync(new URL("./public/styles.css", import.meta.url), "utf8");
@@ -157,8 +159,8 @@ function runClientGahookContractSmoke() {
   assert(reducer.includes("poke.pointsStolen") && reducer.includes("poke.senderPlayerId"), "Live score theft should update immediately on the client");
   assert(playerView.includes("/api/player/counter-poke") && playerView.includes('label: pokeActionBusy ? "Firing back..." : "Counter Gahook"'), "The receiver should be able to fire an earned Counter Gahook");
   assert(playerView.includes("/api/player/duel-challenge") && playerView.includes("/api/player/duel-accept"), "Counter overlays should support the two-step Gahook Arena challenge");
-  assert(appSource.includes("function GahookDuelOverlay") && appSource.includes("function GahookDuelArena") && appSource.includes("function GahookArenaIntro"), "The client should provide participant, spectator, and room-wide Arena views");
-  assert(appSource.includes("flickStrength") && appSource.includes("reclaim") && appSource.includes("gahook-arena-ball-tray"), "Arena Ballz should support tap, flick, block, and drag-to-reclaim gestures");
+  assert(appSource.includes("function GahookDuelOverlay") && appSource.includes("function GahookDuelArena"), "The client should provide participant, spectator, and room-wide Arena views");
+  assert(arenaSource.includes("onPointerDown={tap}") && arenaSource.includes("arena-rope") && arenaSource.includes("arena-player__portrait"), "Arena should provide immediate tapping, a tug bar and avatar hit feedback");
   assert(appSource.includes("/api/player/duel-react") && appSource.includes("GahookArenaCrowdControls"), "Spectators should be able to congratulate the winner and boo the loser");
   assert(audioSource.includes("playCounterGahookSound"), "Counter Gahooks should have dedicated audio feedback");
 
@@ -176,7 +178,7 @@ function runClientGahookContractSmoke() {
       "five dark premium themes with object effects and animated animal poses",
       "three-second GET GOT sound and banana barrage",
       "interactive Counter Gahook offers and Gahook Arena challenge",
-      "three-hit Gahook Ballz combat and spectator arena",
+      "five-tap lead tug of war and spectator arena",
       "non-interruptible room-wide GET GOT",
       "immediate 50-point Gahook theft"
     ]
@@ -192,9 +194,7 @@ async function runGahookSmoke() {
   assert(serverSource.includes("COUNTER_GAHOOK_TRIGGER_COUNT = 10"), "Counter Gahook should unlock on the tenth consecutive Gahook");
   assert(serverSource.includes("COUNTER_GAHOOK_REPEAT_EVERY = 2"), "Counter Gahook should reappear every second Gahook after ten");
   assert(serverSource.includes("COUNTER_GAHOOK_OVERLAY_MS = 2750"), "Counter Gahook should last half a second longer");
-  assert(serverSource.includes("GAHOOK_ARENA_BALL_BASE_MS = 3000") && serverSource.includes("GAHOOK_ARENA_BALL_MIN_MS = 1200"), "Arena Ballz should begin at a three-second cadence and accelerate");
-  assert(serverSource.includes("GAHOOK_ARENA_TRAVEL_BASE_MS = 1050") && serverSource.includes("GAHOOK_ARENA_TRAVEL_MIN_MS = 620"), "Arena attacks should cross the screen in about one second and get faster");
-  assert(serverSource.includes("GAHOOK_ARENA_HITS_TO_WIN = 3") && serverSource.includes("GAHOOK_DUEL_FINISH_MS = 10000"), "Arena matches should end after three hits and keep the result open for ten seconds");
+  assert(arenaEngine.includes("ARENA_LEAD_TO_WIN = 5") && arenaEngine.includes("ARENA_DURATION_MS = 45_000"), "Arena should need a five-tap lead and have a bounded duration");
   assert(serverSource.includes("function finishGahookDuel") && serverSource.includes("function publicGahookDuel"), "Duel outcomes and spectator state should be server-authoritative");
   const clientContract = runClientGahookContractSmoke();
 
@@ -229,36 +229,41 @@ async function runGahookSmoke() {
   assert(targetLobbyState.ownPoke?.kind === "duel-challenge" && targetLobbyState.ownPoke.duelId === challenge.duelId, "Counter recipient should be able to send a Gahook Arena challenge back");
   await post("/api/player/duel-accept", { code: roomCode, playerKey: target.key, duelId: challenge.duelId });
   senderLobbyState = await state(roomCode, "player", sender.key);
-  assert(senderLobbyState.gahookDuel?.status === "active" && senderLobbyState.gahookDuel.ballStock[senderLobbyState.ownPlayer.id] === 1, "Both players should enter Gahook Arena with a Ball ready");
-  assert(senderLobbyState.gahookDuel.hitsToWin === 3 && senderLobbyState.gahookDuel.introEndsAt > senderLobbyState.serverTime, "The Arena should publish its first-to-three rules and intro window");
-
-  await sleep(2500);
-  const firstAttack = await post("/api/player/duel-attack", { code: roomCode, playerKey: sender.key, duelId: challenge.duelId, x: 0.73, y: 0.21 });
+  const senderId = senderLobbyState.ownPlayer.id;
   targetLobbyState = await state(roomCode, "player", target.key);
-  assert(targetLobbyState.gahookDuel.attack.x === 0.73 && targetLobbyState.gahookDuel.attack.y === 0.21, "Arena attack coordinates should survive as normalized percentages");
-  await post("/api/player/duel-block", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, attackId: firstAttack.attackId, reclaim: true });
-  targetLobbyState = await state(roomCode, "player", target.key);
-  assert(targetLobbyState.gahookDuel.rally === 1 && targetLobbyState.gahookDuel.ballStock[targetLobbyState.ownPlayer.id] === 2, "Dragging a blocked Ball to the core should immediately add a Ball");
-  let landedAttack = await post("/api/player/duel-attack", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, x: -5, y: 8, flickStrength: 1 });
-  assert(landedAttack.reactionWindowMs < 1000, "A flicked Arena Ball should cross the screen in under a second");
-  senderLobbyState = await state(roomCode, "player", sender.key);
-  assert(senderLobbyState.gahookDuel.attack.x === 0.08 && senderLobbyState.gahookDuel.attack.y === 0.92, "Extreme coordinates should be clamped to a reachable part of every screen");
-  await sleep(1000);
-  senderLobbyState = await state(roomCode, "player", sender.key);
-  assert(senderLobbyState.gahookDuel.hits[senderLobbyState.ownPlayer.id] === 1 && senderLobbyState.gahookDuel.status === "active", "The first landed Ball should score one hit without ending the match");
-
-  landedAttack = await post("/api/player/duel-attack", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, x: 0.42, y: 0.34 });
-  await sleep(1100);
-  senderLobbyState = await state(roomCode, "player", sender.key);
-  assert(senderLobbyState.gahookDuel.hits[senderLobbyState.ownPlayer.id] === 2, "The second landed Ball should leave the defender one hit from GET GOT");
-  await sleep(1100);
-  landedAttack = await post("/api/player/duel-attack", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, x: 0.64, y: 0.28, flickStrength: 0.6 });
-  await sleep(1000);
+  const targetId = targetLobbyState.ownPlayer.id;
+  assert(senderLobbyState.gahookDuel?.status === "active" && senderLobbyState.gahookDuel.ownTargets.length === 12, "Both players should receive a private buffer of tap targets");
+  assert(senderLobbyState.gahookDuel.leadToWin === 5 && senderLobbyState.gahookDuel.introEndsAt > senderLobbyState.serverTime, "The Arena should publish the five-tap-lead rules and countdown");
+  const firstToken = senderLobbyState.gahookDuel.ownTargets[0].id;
+  await expectError("/api/player/duel-tap", { code: roomCode, playerKey: sender.key, duelId: challenge.duelId, targetId: firstToken }, "Wait for GO");
+  const spectatorStart = await state(roomCode, "host", hostKey);
+  assert(spectatorStart.gahookDuel.ownTargets.length === 0, "Spectators must not receive target tokens");
+  await sleep(Math.max(0, senderLobbyState.gahookDuel.gameplayStartsAt - Date.now()) + 30);
+  await expectError("/api/player/duel-tap", { code: roomCode, playerKey: secondTarget.key, duelId: challenge.duelId, targetId: firstToken }, "Only the two");
+  await expectError("/api/player/duel-tap", { code: roomCode, playerKey: target.key, duelId: challenge.duelId, targetId: firstToken }, "out of date");
+  const taps = async (key, count) => {
+    let snapshot = await state(roomCode, "player", key);
+    let result;
+    for (let i = 0; i < count; i++) {
+      result = await post("/api/player/duel-tap", { code: roomCode, playerKey: key, duelId: challenge.duelId, targetId: snapshot.gahookDuel.ownTargets[0].id });
+      snapshot = { gahookDuel: result.duel };
+    }
+    return result;
+  };
+  await taps(sender.key, 1);
+  const duplicate = await post("/api/player/duel-tap", { code: roomCode, playerKey: sender.key, duelId: challenge.duelId, targetId: firstToken });
+  assert(duplicate.duplicate && duplicate.duel.hits[senderId] === 1, "A retry must not double-score");
+  await taps(target.key, 4);
+  await taps(sender.key, 5);
+  const beforeWin = await state(roomCode, "host", hostKey);
+  assert(beforeWin.gahookDuel.status === "active" && beforeWin.gahookDuel.hits[senderId] === 6 && beforeWin.gahookDuel.hits[targetId] === 4, "Passing five taps with only a two-tap lead must not win");
+  await taps(target.key, 7);
   const spectatorDuelState = await state(roomCode, "host", hostKey);
-  assert(spectatorDuelState.gahookDuel?.status === "finished", "The third landed Arena Ball should resolve the match for players and spectators");
-  assert(spectatorDuelState.gahookDuel.winnerId === targetLobbyState.ownPlayer.id && spectatorDuelState.gahookDuel.loserId === senderLobbyState.ownPlayer.id, "The player who lands three hits should win Gahook Arena");
-  assert(spectatorDuelState.gahookDuel.players.length === 2, "The spectator arena should publish both player banners");
-  assert(spectatorDuelState.gahookDuel.reactionEndsAt - spectatorDuelState.gahookDuel.finishedAt === 10000, "GET GOT and crowd reactions should stay open for ten seconds");
+  assert(spectatorDuelState.gahookDuel?.status === "finished", "A five-tap lead should finish the arena for everyone");
+  assert(spectatorDuelState.gahookDuel.winnerId === targetId && spectatorDuelState.gahookDuel.loserId === senderId, "The player five taps ahead should win");
+  assert(spectatorDuelState.gahookDuel.hits[targetId] === 11 && spectatorDuelState.gahookDuel.hits[senderId] === 6, "The crowd should see every accepted tap");
+  assert(spectatorDuelState.gahookDuel.players.length === 2 && spectatorDuelState.gahookDuel.lastHit.playerId === targetId, "Spectators should receive both profiles and the scoring player");
+  assert(spectatorDuelState.gahookDuel.reactionEndsAt - spectatorDuelState.gahookDuel.finishedAt === 10000, "Crowd reactions should stay open for ten seconds");
 
   await post("/api/player/duel-react", { code: roomCode, playerKey: secondTarget.key, duelId: challenge.duelId, reaction: "congrats" });
   await post("/api/player/duel-react", { code: roomCode, playerKey: secondTarget.key, duelId: challenge.duelId, reaction: "boo" });

@@ -59,3 +59,4 @@ LAPTOP-DEPLOY-PROMPT.md
 .DS_Store
 Thumbs.db
 Desktop.ini
+/standalone/public/client/arena.js

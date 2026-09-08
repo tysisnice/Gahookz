@@ -5,6 +5,11 @@ modes: classic Quiz, opinion-led Majority Rulz, and the collaborative Herd.
 The authoritative server provides the browser app and JSON API, while
 Server-Sent Events keep each room in sync.
 
+Next-session implementation roadmap: [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md)
+contains the approved overhaul, host Lobby rules menu, unified Quiz/Majority
+settings, 40 new prompt drafts, required reading and staged acceptance checks.
+These are planned changes, not a description of already-shipped features.
+
 Active rooms, credentials, chat, drawings, and uploaded room media are held in
 the owning Node process, so restarting it ends those rooms. Optional accounts,
 career statistics, entitlements, and cloud custom-Gahook slots use PostgreSQL
@@ -120,6 +125,28 @@ kill "$(ss -lptnH 'sport = :3199' | grep -oP 'pid=\K[0-9]+')"
 Individual smoke commands are listed in `package.json` and can be run by name,
 such as `npm run standalone:smoke:deployment`. `npm run standalone:smoke:room-expiry`
 starts and stops its own server and needs no setup.
+
+The lobby's Gahook Arena is a tap tug of war. Counter a Gahook, challenge back,
+and accept to start. After the countdown, each competitor chases one Gahook
+button around the lower half of their screen. A lead of **five taps** wins
+(for example, 11–6); 45 seconds without that lead is a draw. Everyone in the
+room sees the tug bar, tap totals and profile-picture pulses. The existing
+Gahook forms and ten-second crowd celebration remain available.
+
+Arena rules live in `standalone/server/arena.mjs`, with the interaction and
+styles in `standalone/public/client/arena.jsx` and `arena.css`. Targets are
+issued privately in a small buffer so the next one appears immediately; the
+server validates ordered, single-use tokens and safely acknowledges retries.
+The unit suite includes 2,000 seeded arena races. `standalone:smoke:gahooks`
+checks scoring and spectator state; `standalone:smoke:arena` checks challenge
+expiry, the actual 45-second draw deadline, result cleanup, removal of a
+competitor and cancellation when the main game starts (about one minute).
+
+`npm run test:rooms` drives twelve complete games against the same disposable
+server: each mode at 4, 8, 12 and 20 players, from setup through voting, results
+and reset. It uses host skip to accelerate phase timers and records Herd's
+answer-writing workloads. This checks lifecycle correctness, not real-world
+network capacity or whether people enjoy the pacing.
 
 The same three jobs run in CI on every push and pull request to `main`
 (`.github/workflows/ci.yml`).

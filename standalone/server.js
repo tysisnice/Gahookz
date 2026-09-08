@@ -17,6 +17,7 @@ import {
   unbanPlayerCredential,
   unregisterPlayerCredential } from
 "./server/auth.mjs";
+import { initialiseArena, tapArena, arenaProgress } from "./server/arena.mjs";
 import { createAdmissionController, requestAddress } from "./server/admission.mjs";
 import { accountResultLocation, createAccountService } from "./server/accounts.mjs";
 import { allActivePlayersAnswered as roomAllActivePlayersAnswered, allActivePlayersProgressReady as roomAllActivePlayersProgressReady, phaseProgressKey as roomPhaseProgressKey } from "./server/gameplay.mjs";
@@ -70,19 +71,7 @@ const COUNTER_GAHOOK_OFFER_MS = 6500;
 const COUNTER_GAHOOK_OVERLAY_MS = 2750;
 const GAHOOK_DUEL_CHALLENGE_MS = 6500;
 const GAHOOK_ARENA_INTRO_MS = 2400;
-const GAHOOK_ARENA_BALL_BASE_MS = 3000;
-const GAHOOK_ARENA_BALL_STEP_MS = 180;
-const GAHOOK_ARENA_BALL_STEP_EVERY_MS = 6000;
-const GAHOOK_ARENA_BALL_MIN_MS = 1200;
-const GAHOOK_ARENA_MAX_BALLS = 4;
-const GAHOOK_ARENA_TRAVEL_BASE_MS = 1050;
-const GAHOOK_ARENA_TRAVEL_STEP_MS = 30;
-const GAHOOK_ARENA_TRAVEL_MIN_MS = 620;
-const GAHOOK_ARENA_FLICK_BOOST_MS = 180;
-const GAHOOK_ARENA_HITS_TO_WIN = 3;
 const GAHOOK_DUEL_FINISH_MS = 10000;
-const GAHOOK_DUEL_COORD_MIN = 0.08;
-const GAHOOK_DUEL_COORD_MAX = 0.92;
 const ULTIMATE_CONGRATS_GRACE_MS = 1000;
 const ULTIMATE_CONGRATS_TRIGGER_COUNT = 8;
 const ULTIMATE_CONGRATS_MIN_SENDERS = 3;
@@ -695,11 +684,8 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
   if (pathname === "/api/player/duel-accept") {
     return acceptGahookDuel(room, payload);
   }
-  if (pathname === "/api/player/duel-attack") {
-    return attackGahookDuel(room, payload);
-  }
-  if (pathname === "/api/player/duel-block") {
-    return blockGahookDuel(room, payload);
+  if (pathname === "/api/player/duel-tap") {
+    return tapGahookDuel(room, payload);
   }
   if (pathname === "/api/player/duel-react") {
     return reactToGahookArena(room, payload);
@@ -1232,32 +1218,9 @@ function challengeGahookDuel(room, payload) {
     challengedId: challenged.id,
     createdAt: now,
     challengeExpiresAt: now + GAHOOK_DUEL_CHALLENGE_MS,
-    attackerId: "",
-    defenderId: "",
-    attack: null,
-    attackCount: 0,
-    rally: 0,
     introEndsAt: 0,
     gameplayStartsAt: 0,
-    ballStock: {
-      [challenger.id]: 0,
-      [challenged.id]: 0
-    },
-    nextBallAt: {
-      [challenger.id]: 0,
-      [challenged.id]: 0
-    },
-    hits: {
-      [challenger.id]: 0,
-      [challenged.id]: 0
-    },
-    blocks: {
-      [challenger.id]: 0,
-      [challenged.id]: 0
-    },
-    reactionWindowMs: GAHOOK_ARENA_TRAVEL_BASE_MS,
     lastHit: null,
-    lastBlock: null,
     winnerId: "",
     loserId: "",
     resultReason: "",
@@ -1307,10 +1270,7 @@ function acceptGahookDuel(room, payload) {
   duel.startedAt = now;
   duel.introEndsAt = now + GAHOOK_ARENA_INTRO_MS;
   duel.gameplayStartsAt = duel.introEndsAt;
-  duel.ballStock[challenger.id] = 1;
-  duel.ballStock[player.id] = 1;
-  duel.nextBallAt[challenger.id] = duel.gameplayStartsAt + GAHOOK_ARENA_BALL_BASE_MS;
-  duel.nextBallAt[player.id] = duel.gameplayStartsAt + GAHOOK_ARENA_BALL_BASE_MS;
+  initialiseArena(duel);
   challenger.latestPoke = null;
   player.latestPoke = null;
   scheduleGahookDuelDeadline(room);
@@ -1318,93 +1278,22 @@ function acceptGahookDuel(room, payload) {
   return { ok: true, duelId: duel.id, introEndsAt: duel.introEndsAt };
 }
 
-function attackGahookDuel(room, payload) {
+function tapGahookDuel(room, payload) {
   const player = getPayloadPlayer(room, payload);
   const duel = room.gahookDuel;
-  const now = Date.now();
-  if (!player?.connected || !duel || duel.status !== "active" || duel.id !== cleanText(payload?.duelId, 80)) {
+  if (!player?.connected || !duel || duel.id !== cleanText(payload?.duelId, 80) || !["active", "finished"].includes(duel.status)) {
     return { ok: false, error: "That Gahook Arena match is not active." };
   }
-  if (now < duel.gameplayStartsAt) {
-    return { ok: false, error: "Wait for Gahook Arena to start." };
-  }
-  syncGahookArenaBalls(duel, now);
-  if (duel.attack) {
-    return { ok: false, error: "Stop the flying Gahook Ball before launching another." };
-  }
-  if ((duel.ballStock[player.id] || 0) <= 0) {
-    return { ok: false, error: "Your next Gahook Ball is still charging." };
-  }
-  const opponentId = duel.challengerId === player.id ? duel.challengedId :
-    duel.challengedId === player.id ? duel.challengerId : "";
-  const opponent = room.players[opponentId];
-  if (!opponent?.connected) return { ok: false, error: "Your opponent left Gahook Arena." };
-  const x = clampGahookDuelCoordinate(payload?.x);
-  const y = clampGahookDuelCoordinate(payload?.y);
-  const flickStrength = Math.max(0, Math.min(1, Number(payload?.flickStrength) || 0));
-  const reactionWindowMs = Math.max(
-    GAHOOK_ARENA_TRAVEL_MIN_MS,
-    GAHOOK_ARENA_TRAVEL_BASE_MS -
-      duel.attackCount * GAHOOK_ARENA_TRAVEL_STEP_MS -
-      Math.round(flickStrength * GAHOOK_ARENA_FLICK_BOOST_MS)
-  );
-  duel.ballStock[player.id] -= 1;
-  duel.attackCount += 1;
-  duel.reactionWindowMs = reactionWindowMs;
-  duel.attackerId = player.id;
-  duel.defenderId = opponent.id;
-  duel.attack = {
-    id: crypto.randomUUID(),
-    attackerId: player.id,
-    defenderId: opponent.id,
-    x,
-    y,
-    flickStrength,
-    sentAt: now,
-    deadlineAt: now + reactionWindowMs,
-    sequence: duel.attackCount
-  };
-  scheduleGahookDuelDeadline(room);
-  broadcastState(room, { immediate: true });
-  return { ok: true, attackId: duel.attack.id, reactionWindowMs, ballStock: duel.ballStock[player.id] };
-}
-
-function blockGahookDuel(room, payload) {
-  const player = getPayloadPlayer(room, payload);
-  const duel = room.gahookDuel;
   const now = Date.now();
-  if (!player?.connected || !duel || duel.status !== "active" || duel.id !== cleanText(payload?.duelId, 80)) {
-    return { ok: false, error: "That Gahook Arena match is not active." };
+  if (duel.status === "active" && now >= duel.endsAt) {
+    finishGahookDuel(room, "", "", "time");
   }
-  if (duel.defenderId !== player.id || !duel.attack || duel.attack.id !== cleanText(payload?.attackId, 80)) {
-    return { ok: false, error: "That attack is no longer yours to block." };
+  const result = tapArena(duel, player.id, payload?.targetId, now);
+  if (result.ok && !result.duplicate) {
+    if (result.winnerId) finishGahookDuel(room, result.winnerId, result.opponentId, "five-ahead");
+    else broadcastState(room);
   }
-  if (now > duel.attack.deadlineAt) {
-    landGahookArenaAttack(room, duel, now);
-    return { ok: false, error: "The Gahook landed first." };
-  }
-
-  syncGahookArenaBalls(duel, now);
-  const blockedAttackId = duel.attack.id;
-  const reclaimed = Boolean(payload?.reclaim);
-  duel.attack = null;
-  duel.rally += 1;
-  duel.blocks[player.id] = (duel.blocks[player.id] || 0) + 1;
-  if (reclaimed) {
-    duel.ballStock[player.id] = Math.min(GAHOOK_ARENA_MAX_BALLS, (duel.ballStock[player.id] || 0) + 1);
-  }
-  duel.lastBlock = {
-    id: crypto.randomUUID(),
-    attackId: blockedAttackId,
-    playerId: player.id,
-    reclaimed,
-    at: now
-  };
-  duel.attackerId = "";
-  duel.defenderId = "";
-  scheduleGahookDuelDeadline(room);
-  broadcastState(room, { immediate: true });
-  return { ok: true, rally: duel.rally, reclaimed, ballStock: duel.ballStock[player.id] };
+  return { ...result, duel: publicGahookDuel(room, player.id) };
 }
 
 function reactToGahookArena(room, payload) {
@@ -1414,6 +1303,7 @@ function reactToGahookArena(room, payload) {
   if (!sender?.connected || !duel || duel.status !== "finished" || duel.id !== cleanText(payload?.duelId, 80)) {
     return { ok: false, error: "That Gahook Arena celebration is over." };
   }
+  if (!duel.winnerId) return { ok: false, error: "This arena ended in a draw." };
   if (now >= duel.reactionEndsAt) {
     return { ok: false, error: "That Gahook Arena celebration is over." };
   }
@@ -1762,12 +1652,6 @@ function resetCounterGahookSpam(player) {
   player.counterOffer = null;
 }
 
-function clampGahookDuelCoordinate(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return 0.5;
-  return Math.max(GAHOOK_DUEL_COORD_MIN, Math.min(GAHOOK_DUEL_COORD_MAX, number));
-}
-
 function clearGahookDuelTimer(room) {
   if (room?.gahookDuelTimer) {
     clearTimeout(room.gahookDuelTimer);
@@ -1789,13 +1673,7 @@ function scheduleGahookDuelDeadline(room) {
   if (duel.status === "challenge") {
     deadlineAt = duel.challengeExpiresAt;
   } else if (duel.status === "active") {
-    const deadlines = [
-      duel.gameplayStartsAt > now ? duel.gameplayStartsAt : 0,
-      duel.attack?.deadlineAt || 0,
-      duel.nextBallAt?.[duel.challengerId] || 0,
-      duel.nextBallAt?.[duel.challengedId] || 0
-    ].filter((value) => value > 0);
-    deadlineAt = deadlines.length ? Math.min(...deadlines) : 0;
+    deadlineAt = duel.gameplayStartsAt > now ? duel.gameplayStartsAt : duel.endsAt;
   } else if (duel.status === "finished") {
     deadlineAt = duel.reactionEndsAt || duel.finishedAt + GAHOOK_DUEL_FINISH_MS;
   }
@@ -1815,16 +1693,11 @@ function resolveExpiredGahookDuel(room, duelId) {
     return;
   }
   if (duel.status === "active") {
-    let changed = syncGahookArenaBalls(duel, now);
-    if (duel.attack && now >= duel.attack.deadlineAt) {
-      landGahookArenaAttack(room, duel, now);
+    if (now >= duel.endsAt) {
+      finishGahookDuel(room, "", "", "time");
       return;
     }
-    if (now >= duel.gameplayStartsAt && !duel.openedAt) {
-      duel.openedAt = now;
-      changed = true;
-    }
-    if (changed) broadcastState(room, { immediate: true });
+    broadcastState(room, { immediate: true });
     scheduleGahookDuelDeadline(room);
     return;
   }
@@ -1835,70 +1708,17 @@ function resolveExpiredGahookDuel(room, duelId) {
   }
 }
 
-function gahookArenaBallInterval(duel, at = Date.now()) {
-  const elapsed = Math.max(0, at - (duel.gameplayStartsAt || at));
-  const steps = Math.floor(elapsed / GAHOOK_ARENA_BALL_STEP_EVERY_MS);
-  return Math.max(GAHOOK_ARENA_BALL_MIN_MS, GAHOOK_ARENA_BALL_BASE_MS - steps * GAHOOK_ARENA_BALL_STEP_MS);
-}
-
-function syncGahookArenaBalls(duel, now = Date.now()) {
-  if (!duel || duel.status !== "active" || now < duel.gameplayStartsAt) return false;
-  let changed = false;
-  for (const playerId of [duel.challengerId, duel.challengedId]) {
-    let nextAt = Number(duel.nextBallAt?.[playerId]) || 0;
-    let guard = 0;
-    while (nextAt && nextAt <= now && guard < 40) {
-      const previousStock = duel.ballStock[playerId] || 0;
-      duel.ballStock[playerId] = Math.min(GAHOOK_ARENA_MAX_BALLS, previousStock + 1);
-      if (duel.ballStock[playerId] !== previousStock) changed = true;
-      nextAt += gahookArenaBallInterval(duel, nextAt);
-      guard += 1;
-    }
-    if (duel.nextBallAt[playerId] !== nextAt) {
-      duel.nextBallAt[playerId] = nextAt;
-      changed = true;
-    }
-  }
-  return changed;
-}
-
-function landGahookArenaAttack(room, duel, now = Date.now()) {
-  if (!duel?.attack || duel.status !== "active") return;
-  const attack = duel.attack;
-  const defenderId = attack.defenderId;
-  duel.attack = null;
-  duel.hits[defenderId] = (duel.hits[defenderId] || 0) + 1;
-  duel.lastHit = {
-    id: crypto.randomUUID(),
-    attackId: attack.id,
-    attackerId: attack.attackerId,
-    playerId: defenderId,
-    hits: duel.hits[defenderId],
-    at: now
-  };
-  duel.attackerId = "";
-  duel.defenderId = "";
-  if (duel.hits[defenderId] >= GAHOOK_ARENA_HITS_TO_WIN) {
-    finishGahookDuel(room, attack.attackerId, defenderId, "three-hits");
-    return;
-  }
-  scheduleGahookDuelDeadline(room);
-  broadcastState(room, { immediate: true });
-}
-
 function finishGahookDuel(room, winnerId, loserId, reason) {
   const duel = room.gahookDuel;
   if (!duel || duel.status !== "active") return;
   clearGahookDuelTimer(room);
   duel.status = "finished";
-  duel.attack = null;
+  duel.revision++;
   duel.winnerId = winnerId;
   duel.loserId = loserId;
   duel.resultReason = reason;
   duel.finishedAt = Date.now();
   duel.reactionEndsAt = duel.finishedAt + GAHOOK_DUEL_FINISH_MS;
-  duel.attackerId = "";
-  duel.defenderId = "";
   const winner = room.players[winnerId];
   if (winner) winner.gahookDuelWins = (winner.gahookDuelWins || 0) + 1;
   scheduleGahookDuelDeadline(room);
@@ -1909,9 +1729,14 @@ function handleGahookDuelDisconnect(room, playerId) {
   const duel = room.gahookDuel;
   if (!duel || ![duel.challengerId, duel.challengedId].includes(playerId)) return;
   if (duel.status === "active") {
+    const player = room.players[playerId];
+    if (player) {
+      duel.departedPlayers ||= {};
+      duel.departedPlayers[playerId] = { id: player.id, name: player.name, avatarId: player.avatarId, connected: false };
+    }
     const winnerId = duel.challengerId === playerId ? duel.challengedId : duel.challengerId;
     finishGahookDuel(room, winnerId, playerId, "left");
-  } else {
+  } else if (duel.status === "challenge") {
     clearGahookDuel(room);
   }
 }
@@ -2712,6 +2537,7 @@ function exitHostAsPlayer(room) {
   }
 
   const playerId = player.id;
+  handleGahookDuelDisconnect(room, playerId);
   clearUltimateGahookState(player);
   clearUltimateCongratulationsState(player, true);
   room.questions = room.questions.filter((question) => question.authorId !== playerId);
@@ -3570,8 +3396,8 @@ function publicCounterGahookOffer(room, player) {
 function publicGahookDuel(room, viewerPlayerId = "") {
   const duel = room.gahookDuel;
   if (!duel || (duel.status !== "active" && duel.status !== "finished")) return null;
-  const challenger = room.players[duel.challengerId];
-  const challenged = room.players[duel.challengedId];
+  const challenger = room.players[duel.challengerId] || duel.departedPlayers?.[duel.challengerId];
+  const challenged = room.players[duel.challengedId] || duel.departedPlayers?.[duel.challengedId];
   if (!challenger || !challenged) return null;
   const arenaPlayer = (player) => ({
     ...publicPlayer(room, player),
@@ -3583,33 +3409,18 @@ function publicGahookDuel(room, viewerPlayerId = "") {
     challengerId: duel.challengerId,
     challengedId: duel.challengedId,
     players: [arenaPlayer(challenger), arenaPlayer(challenged)],
-    attackerId: duel.attackerId,
-    defenderId: duel.defenderId,
-    attack: duel.attack ? { ...duel.attack } : null,
-    attackCount: duel.attackCount,
-    rally: duel.rally,
+    ...arenaProgress(duel, viewerPlayerId),
+    serverTime: Date.now(),
     introEndsAt: duel.introEndsAt,
     gameplayStartsAt: duel.gameplayStartsAt,
-    ballStock: { ...duel.ballStock },
-    nextBallAt: { ...duel.nextBallAt },
-    ballIntervalMs: gahookArenaBallInterval(duel),
-    maxBallStock: GAHOOK_ARENA_MAX_BALLS,
-    hits: { ...duel.hits },
-    blocks: { ...duel.blocks },
-    hitsToWin: GAHOOK_ARENA_HITS_TO_WIN,
     lastHit: duel.lastHit ? { ...duel.lastHit } : null,
-    lastBlock: duel.lastBlock ? { ...duel.lastBlock } : null,
-    reactionWindowMs: duel.reactionWindowMs,
     winnerId: duel.winnerId,
     loserId: duel.loserId,
     resultReason: duel.resultReason,
     finishedAt: duel.finishedAt,
     reactionEndsAt: duel.reactionEndsAt,
     reactionCounts: { ...duel.reactionCounts },
-    lastReaction: duel.lastReaction ? { ...duel.lastReaction } : null,
-    isParticipant: duel.challengerId === viewerPlayerId || duel.challengedId === viewerPlayerId,
-    viewerRole: duel.attackerId === viewerPlayerId ? "attacker" : duel.defenderId === viewerPlayerId ? "defender" :
-      [duel.challengerId, duel.challengedId].includes(viewerPlayerId) ? "participant" : "spectator"
+    lastReaction: duel.lastReaction ? { ...duel.lastReaction } : null
   };
 }
 

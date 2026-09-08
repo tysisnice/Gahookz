@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, "public");
 const generatedFiles = new Set([
   "app.js",
+  "client/arena.js",
   "release.json",
   "client/audio.runtime.js",
   "client/custom-gahook.js",
@@ -107,6 +108,7 @@ async function transformFile(input, output, loader, replacements = []) {
 
 await Promise.all([
   transformFile("app.jsx", "app.js", "jsx", [
+    ["./client/arena.jsx", versioned("./client/arena.js")],
     ["./client/preferences.jsx", versioned("./client/preferences.js")],
     ["./client/offline.jsx", versioned("./client/offline.js")],
     ["./client/audio.js", versioned("./client/audio.runtime.js")],
@@ -119,6 +121,12 @@ await Promise.all([
     ["./client/custom-gahook.jsx", versioned("./client/custom-gahook.js")],
     ["./client/information.jsx", versioned("./client/information.js")],
     ["./client/legal.jsx", versioned("./client/legal.js")]
+  ]),
+  transformFile("client/arena.jsx", "client/arena.js", "jsx", [
+    ["./audio.js", versioned("./audio.runtime.js")],
+    ["./preferences.jsx", versioned("./preferences.js")],
+    ["./presentation.jsx", versioned("./presentation.js")],
+    ["./gahook-forms.js", versioned("./gahook-forms.js")]
   ]),
   transformFile("client/preferences.jsx", "client/preferences.js", "jsx"),
   transformFile("client/offline.jsx", "client/offline.js", "jsx", [

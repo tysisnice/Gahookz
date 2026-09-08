@@ -17,6 +17,7 @@ const port = String(process.env.PORT || 3101);
 const host = process.env.HOST || "127.0.0.1";
 const buildSources = new Set([
   "app.jsx",
+  "client/arena.jsx",
   "client/audio.js",
   "client/offline.jsx",
   "client/preferences.jsx",
@@ -33,6 +34,7 @@ const shellSources = new Set([
   "manifest.webmanifest",
   "service-worker.js",
   "styles.css",
+  "client/arena.css",
   "vendor-bootstrap.js",
   "client/gahook-forms.js"
 ]);
