@@ -11,7 +11,19 @@ export interface HerdAnswerAssignment {
   questionId: string;
   questionAuthorId: string;
   answerAuthorId: string;
+  /** Position in the writing rotation. Balances workload; never displayed. */
   answerIndex: number;
+  /**
+   * The slot this answer occupies when the room sees it.
+   *
+   * Independent of `answerIndex` on purpose. The room renders answers as Red,
+   * Blue, Yellow, Green in this order, so if the displayed slot were the
+   * rotation position, the colour of an answer would name its author: the
+   * rotation is a fixed circular walk from the question author, so one reveal
+   * taught the offset and every later question became computable. A fresh
+   * permutation per question breaks that link.
+   */
+  displayIndex: number;
 }
 
 export interface HerdAssignmentPlan {
@@ -55,6 +67,9 @@ export interface HerdAuthorResult {
   winner: boolean;
 }
 
+/** Which rule actually separated a tied vote. */
+export type HerdTieBreakReason = "none" | "fastest" | "average" | "order";
+
 export interface HerdRoundResults {
   groups: HerdAnswerGroup[];
   answeredCount: number;
@@ -62,9 +77,33 @@ export interface HerdRoundResults {
   topCount: number;
   winningAnswerId: string | null;
   tiedByVotes: boolean;
+  /**
+   * True only when speed genuinely decided it. Kept for compatibility; prefer
+   * `tieBreakReason`, which distinguishes "fastest" from "average" from the
+   * stable answer order.
+   */
   tieBrokenBySpeed: boolean;
+  tieBreakReason: HerdTieBreakReason;
   playerResults: HerdPlayerResult[];
   authorResults: HerdAuthorResult[];
+}
+
+/**
+ * Fisher-Yates, with the randomness injected so tests are deterministic.
+ * A hostile or broken `random` must not produce an out-of-range slot, so the
+ * drawn index is clamped rather than trusted.
+ */
+function shuffledSlots(count: number, random: () => number): number[] {
+  const slots = Array.from({ length: count }, (_unused, index) => index);
+  for (let index = count - 1; index > 0; index -= 1) {
+    const drawn = random();
+    const safe = Number.isFinite(drawn) ? Math.min(Math.max(drawn, 0), 0.999_999_999) : 0;
+    const target = Math.floor(safe * (index + 1));
+    const current = slots[index] as number;
+    slots[index] = slots[target] as number;
+    slots[target] = current;
+  }
+  return slots;
 }
 
 function unique(values: readonly string[]): string[] {
@@ -74,7 +113,8 @@ function unique(values: readonly string[]): string[] {
 export function buildHerdAssignmentPlan(
   playerIdsInput: readonly string[],
   questionsInput: readonly HerdQuestionSeed[],
-  maximumPerQuestion = HERD_MAX_AUTHORED_ANSWERS
+  maximumPerQuestion = HERD_MAX_AUTHORED_ANSWERS,
+  random: () => number = Math.random
 ): HerdAssignmentPlan {
   const playerIds = unique(playerIdsInput);
   const questions = questionsInput.filter((question) => question.id && question.authorId);
@@ -90,14 +130,30 @@ export function buildHerdAssignmentPlan(
     const anchor = authorIndex ?? questionIndex % playerIds.length;
     const canExcludeAuthor = playerIds.length - 1 >= targetAnswersPerQuestion;
     const firstOffset = canExcludeAuthor ? 1 : 0;
+    // Writer selection stays the balanced circular walk: it is what keeps the
+    // workload even and excludes the question's own author where the roster
+    // allows. What changes is that where a writer *appears* is now drawn
+    // independently, once per question.
+    const slots = shuffledSlots(targetAnswersPerQuestion, random);
+    const forQuestion: HerdAnswerAssignment[] = [];
     for (let answerIndex = 0; answerIndex < targetAnswersPerQuestion; answerIndex += 1) {
       const answerAuthorId = playerIds[(anchor + firstOffset + answerIndex) % playerIds.length];
       if (!answerAuthorId) continue;
-      const assignment = { questionId: question.id, questionAuthorId: question.authorId, answerAuthorId, answerIndex };
+      const assignment = {
+        questionId: question.id,
+        questionAuthorId: question.authorId,
+        answerAuthorId,
+        answerIndex,
+        displayIndex: slots[answerIndex] as number
+      };
       assignments.push(assignment);
       byPlayerId[answerAuthorId]?.push(assignment);
-      byQuestionId[question.id]?.push(assignment);
+      forQuestion.push(assignment);
     }
+    // Presented in display order, so a caller that renders them in sequence
+    // cannot accidentally reintroduce the rotation as the visible order.
+    forQuestion.sort((first, second) => first.displayIndex - second.displayIndex);
+    byQuestionId[question.id]?.push(...forQuestion);
   });
   return { targetAnswersPerQuestion, assignments, byPlayerId, byQuestionId };
 }
@@ -169,6 +225,23 @@ export function buildHerdRoundResults({
   );
   const winningAnswerId = countLeaders[0]?.id ?? null;
   const tiedByVotes = countLeaders.length > 1;
+  // Report the rule that actually separated the winner rather than assuming a
+  // tie means speed. The sort tries fastest, then average, then the stable
+  // answer order, so compare the winner with the best of the other leaders and
+  // name the first key that differs. With three or more tied groups this
+  // correctly advances past a key they all share.
+  let tieBreakReason: HerdTieBreakReason = "none";
+  if (winningAnswerId && tiedByVotes) {
+    const winner = countLeaders[0] as HerdAnswerGroup;
+    const runnerUp = countLeaders[1] as HerdAnswerGroup;
+    if (numericTieValue(winner.fastestElapsedMs) !== numericTieValue(runnerUp.fastestElapsedMs)) {
+      tieBreakReason = "fastest";
+    } else if (numericTieValue(winner.averageElapsedMs) !== numericTieValue(runnerUp.averageElapsedMs)) {
+      tieBreakReason = "average";
+    } else {
+      tieBreakReason = "order";
+    }
+  }
   const eligiblePlayerCount = restrictToEligible ? eligibleSet.size : seenPlayers.size;
   const playerResults = validSelections.map((selection) => {
     const correct = Boolean(winningAnswerId && selection.answerId === winningAnswerId);
@@ -192,7 +265,8 @@ export function buildHerdRoundResults({
     topCount,
     winningAnswerId,
     tiedByVotes,
-    tieBrokenBySpeed: Boolean(tiedByVotes && winningAnswerId),
+    tieBrokenBySpeed: tieBreakReason === "fastest" || tieBreakReason === "average",
+    tieBreakReason,
     playerResults,
     authorResults
   };

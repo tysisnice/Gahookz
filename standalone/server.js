@@ -3645,7 +3645,8 @@ function beginHerdAnswerWriting(room) {
   const plan = buildHerdAssignmentPlan(eligiblePlayerIds, room.quizQuestions);
   room.quizQuestions.forEach((question) => {
     question.answers = (plan.byQuestionId[question.id] || []).map((assignment) => ({
-      ...ANSWER_META[assignment.answerIndex],
+      // Display slot, not the writing rotation: see HerdAnswerAssignment.
+      ...ANSWER_META[assignment.displayIndex],
       text: "",
       correct: false,
       authorId: assignment.answerAuthorId,
@@ -4248,6 +4249,7 @@ function publicHerdResults(room, question) {
     winningAnswerId: results.winningAnswerId || null,
     tiedByVotes: Boolean(results.tiedByVotes),
     tieBrokenBySpeed: Boolean(results.tieBrokenBySpeed),
+    tieBreakReason: results.tieBreakReason || "none",
     groups: (results.groups || []).map((group) => ({
       answerId: group.id,
       text: group.text,
@@ -4285,6 +4287,7 @@ function publicMajorityResults(room, question) {
     winningAnswerId: results.winningAnswerId || null,
     tiedByVotes: Boolean(results.tiedByVotes),
     tieBrokenBySpeed: Boolean(results.tieBrokenBySpeed),
+    tieBreakReason: results.tieBreakReason || "none",
     predictedAnswerId: results.predictedAnswerId || null,
     predictionMatched: Boolean(results.predictionMatched),
     unanimous: Boolean(results.unanimous),

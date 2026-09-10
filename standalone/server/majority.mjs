@@ -71,6 +71,17 @@ export function buildMajorityResults({
   const winningGroup = countLeaders[0] || null;
   const winningAnswerId = winningGroup?.answerId || null;
   const tiedByVotes = countLeaders.length > 1;
+  // Name the rule that actually separated the winner. The sort tries fastest,
+  // then average, then the stable answer order, so compare the winner with the
+  // best of the other leaders and report the first key that differs. Calling an
+  // order tie-break a speed win told players something untrue about their game.
+  let tieBreakReason = "none";
+  if (winningAnswerId && tiedByVotes) {
+    const runnerUp = countLeaders[1];
+    if (winningGroup.fastestElapsedMs !== runnerUp.fastestElapsedMs) tieBreakReason = "fastest";
+    else if (winningGroup.averageElapsedMs !== runnerUp.averageElapsedMs) tieBreakReason = "average";
+    else tieBreakReason = "order";
+  }
 
   const playerResults = validSelections.map((selection) => {
     const correct = Boolean(winningAnswerId && selection.answerId === winningAnswerId);
@@ -102,7 +113,8 @@ export function buildMajorityResults({
     topCount,
     winningAnswerId,
     tiedByVotes,
-    tieBrokenBySpeed: Boolean(tiedByVotes && winningAnswerId),
+    tieBrokenBySpeed: tieBreakReason === "fastest" || tieBreakReason === "average",
+    tieBreakReason,
     predictedAnswerId: predictedAnswerId || null,
     predictionMatched,
     unanimous,

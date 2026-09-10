@@ -425,6 +425,18 @@ function applyOptimisticQuestionLimit(lobby, value) {
   };
 }
 
+// The reveal must describe the rule that actually decided it. "Quickest pick
+// wins" was shown for every tie, including ties settled by the stable answer
+// order, which told players something untrue about their own game.
+function tieBreakLabel(results, settledText) {
+  const reason = results?.tieBreakReason ||
+    (results?.tieBrokenBySpeed ? "fastest" : results?.tiedByVotes ? "order" : "none");
+  if (reason === "fastest") return "Vote tie · quickest pick wins";
+  if (reason === "average") return "Vote tie · fastest on average";
+  if (reason === "order") return "Exact tie · settled by answer order";
+  return settledText;
+}
+
 function updateServerClockOffset(serverTime) {
   if (typeof window === "undefined" || !serverTime) {
     return;
@@ -4131,7 +4143,7 @@ function HerdRevealBreakdown({ question, lobby }) {
   return (
     <section className="majority-reveal-breakdown herd-reveal-breakdown">
       <header>
-        <span>{results.tieBrokenBySpeed ? "Vote tie · quickest pick wins" : "The Herd has spoken"}</span>
+        <span>{tieBreakLabel(results, "The Herd has spoken")}</span>
         <strong>{results.topCount} vote{results.topCount === 1 ? "" : "s"} for the favourite</strong>
         <p>Up to 500 points for picking the favourite, plus up to 500 for every vote your authored answer attracted.</p>
       </header>
@@ -4151,7 +4163,7 @@ function MajorityRevealBreakdown({ question, lobby }) {
   return (
     <section className="majority-reveal-breakdown">
       <header>
-        <span>{results.tieBrokenBySpeed ? "Vote tie · quickest pick wins" : "The room has spoken"}</span>
+        <span>{tieBreakLabel(results, "The room has spoken")}</span>
         <strong>{results.topCount} vote{results.topCount === 1 ? "" : "s"} for the winner</strong>
         <p>{results.authorBonusAwarded ? "Perfect prediction — the author earns +100 bonus points." : results.unanimous ? "Everyone agreed, but the author predicted another answer." : "The most popular answer is correct for this round."}</p>
       </header>

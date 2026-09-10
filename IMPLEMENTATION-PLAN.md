@@ -177,7 +177,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | --- | --- | --- | --- |
 | [x] | P00 | Preserved source baseline and conflict-safe verification | — |
 | [x] | P01 | Runtime contracts, compatible schema evolution, typed client adapter/build seam | P00 |
-| [ ] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
+| [x] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
 | [ ] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
 | [ ] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
 | [ ] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
@@ -431,6 +431,19 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-11 — P02 complete
+
+- **P02 steps 1-6 complete and checked off.** P03 is next.
+- The anonymity leak was worse than "predictable": `server.js` built each Herd answer as `ANSWER_META[assignment.answerIndex]`, so the answer's **colour and id** came straight from its position in the writing rotation, and the rotation is a fixed circular walk from the question's author. Red/Blue/Yellow/Green literally named the writers. One reveal taught the offset and every later question was solvable by hand.
+- Fix: `HerdAnswerAssignment` now carries `displayIndex` alongside `answerIndex`. Writer selection keeps the balanced circular walk (workload stays even, the prompt author is still excluded where the roster allows); where a writer *appears* is an independent Fisher-Yates permutation drawn per question, with the RNG injected so tests are deterministic. `byQuestionId` is returned in display order so a caller cannot reintroduce the rotation as the visible order. `server.js` renders `ANSWER_META[assignment.displayIndex]`.
+- Tie reasons were false in **both** engines: `tieBrokenBySpeed: Boolean(tiedByVotes && winningAnswerId)` in `herd.ts` and `majority.mjs` alike, so every tie with a winner was reported as decided by speed even when the stable answer order decided it. Both now compute `tieBreakReason` of `none` / `fastest` / `average` / `order` by comparing the winner with the best other leader and naming the first key that differs, which advances correctly past a key three or more tied groups share. `tieBrokenBySpeed` is retained for compatibility but is now true only for `fastest` and `average`.
+- The reveal said "Vote tie · quickest pick wins" for every tie, including order tie-breaks. It now reads "Vote tie · quickest pick wins", "Vote tie · fastest on average" or "Exact tie · settled by answer order", derived from `tieBreakReason` with a fallback for older snapshots.
+- Tests: 14 engine tests including deterministic attack fixtures at 4, 5, 8 and 20 players across 60-200 seeds. They assert a *rate*, not "never" — a permutation coincides with the old formula sometimes and asserting otherwise would be a flaky test — plus that every rotation position reaches every display slot, that workload stays balanced and the author exclusion holds. One of these caught a flaw in my own first test: answers come back in display order, so comparing the `displayIndex` sequence proves nothing; the meaningful comparison is which rotation position lands in each slot.
+- Verified: `npm run check` (103 unit tests), full `npm test` on a disposable 3199 server, and `npm run test:rooms` on a separate fresh lifetime. Herd workload spread remains **0** at 4, 8, 12 and 20 players, so the permutation did not disturb balance.
+- Limits worth stating: this protects the *mapping* from a displayed slot to a writer. It cannot stop a writer recognising their own text, players colluding, or inference from a small roster. Herd at 20 players still produces 20 rounds — that is P06, untouched.
+- Next exact task: **P03 steps 1-6.** Note `updateHostSettings` in `standalone/server.js` currently clears `room.questions`, `room.pendingQuestions` and `room.quizQuestions` on any mode change, and drops overflow when the per-player limit shrinks. The contracts P03 needs already exist in `packages/contracts/src/host-settings.ts`.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-11 — P01 complete
 
