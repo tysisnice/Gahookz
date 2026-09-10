@@ -374,6 +374,44 @@ export function createLiveConnection(options: LiveConnectionOptions): LiveConnec
   };
 }
 
+export type SnapshotCompatibility =
+  | { readonly supported: true }
+  | { readonly supported: false; readonly action: "refresh" | "wait"; readonly message: string };
+
+/**
+ * Decide whether this client can render a snapshot at all.
+ *
+ * A version mismatch happens during a deploy, and the failure mode to avoid is
+ * a lobby that renders half-empty because fields moved — a player sees a broken
+ * room and no explanation. Both directions get a message that says what to do,
+ * and neither is treated as a room fault.
+ *
+ * A snapshot with no `schemaVersion` is supported: servers have always been
+ * allowed to omit it, and refusing those would break every current room.
+ */
+export function describeSnapshotCompatibility(
+  snapshot: unknown,
+  expectedVersion: number
+): SnapshotCompatibility {
+  if (snapshot === null || typeof snapshot !== "object") return { supported: true };
+  const raw = (snapshot as Record<string, Json>)["schemaVersion"];
+  if (raw === undefined || raw === null) return { supported: true };
+  const version = Number(raw);
+  if (!Number.isFinite(version) || version === expectedVersion) return { supported: true };
+  if (version > expectedVersion) {
+    return {
+      supported: false,
+      action: "refresh",
+      message: "This room is running a newer version of Gahookz. Refresh the page to keep playing."
+    };
+  }
+  return {
+    supported: false,
+    action: "wait",
+    message: "The game server is still finishing an update. This room will reconnect on its own."
+  };
+}
+
 /** Offsets smaller than this are treated as network jitter, not clock skew. */
 export const CLOCK_JITTER_MS = 750;
 

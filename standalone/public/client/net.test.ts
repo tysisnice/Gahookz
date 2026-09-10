@@ -9,6 +9,7 @@ import {
   connectionMessage,
   createApiClient,
   nextClockOffset,
+  describeSnapshotCompatibility,
   createLiveConnection,
   createSnapshotGate,
   redactCredentials
@@ -335,4 +336,22 @@ test("the clock offset smooths jitter but follows a real skew", () => {
   assert.equal(nextClockOffset(0, 1000, 1234), 1234, "a missing server time must not reset the offset");
   assert.equal(nextClockOffset("nonsense", 1000, 1234), 1234, "a malformed server time must not reset the offset");
   assert.equal(nextClockOffset(undefined, 1000, 1234), 1234);
+});
+
+test("a schema mismatch explains itself instead of breaking the lobby", () => {
+  assert.equal(describeSnapshotCompatibility({ schemaVersion: 1 }, 1).supported, true);
+  // Servers have always been allowed to omit the version; refusing those would
+  // break every room that exists today.
+  assert.equal(describeSnapshotCompatibility({ code: "ABCD" }, 1).supported, true);
+  assert.equal(describeSnapshotCompatibility(null, 1).supported, true);
+
+  const newer = describeSnapshotCompatibility({ schemaVersion: 2 }, 1);
+  assert.equal(newer.supported, false);
+  assert.equal(newer.supported === false && newer.action, "refresh");
+  assert.match(newer.supported === false ? newer.message : "", /Refresh the page/);
+
+  const older = describeSnapshotCompatibility({ schemaVersion: 1 }, 2);
+  assert.equal(older.supported, false);
+  assert.equal(older.supported === false && older.action, "wait");
+  assert.match(older.supported === false ? older.message : "", /still finishing an update/);
 });

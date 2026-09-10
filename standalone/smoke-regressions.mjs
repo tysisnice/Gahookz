@@ -25,6 +25,22 @@ const readAll = (paths) => paths.
 const app = readAll(browserSourceFiles);
 const bundle = readAll(shippedModuleFiles);
 
+// The browser cannot import the contracts package, so SNAPSHOT_SCHEMA_VERSION
+// exists in both places. If they drift, clients silently refuse snapshots they
+// could actually render, or render ones they cannot. Compared textually here
+// because this file runs under plain node, without tsx.
+{
+  const contractsSource = fs.readFileSync(new URL("../packages/contracts/src/game.ts", import.meta.url), "utf8");
+  const browserSource = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");
+  const contractsVersion = /SNAPSHOT_SCHEMA_VERSION\s*=\s*(\d+)/.exec(contractsSource)?.[1];
+  const browserVersion = /SNAPSHOT_SCHEMA_VERSION\s*=\s*(\d+)/.exec(browserSource)?.[1];
+  if (!contractsVersion || !browserVersion || contractsVersion !== browserVersion) {
+    throw new Error(
+      "SNAPSHOT_SCHEMA_VERSION drifted: contracts=" + contractsVersion + " browser=" + browserVersion
+    );
+  }
+}
+
 function assert(value, message) {
   if (!value) throw new Error(message);
 }

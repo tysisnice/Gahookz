@@ -1,0 +1,5 @@
+{
+  "ok": false,
+  "error": "That room does not exist.",
+  "roomMissing": true
+}

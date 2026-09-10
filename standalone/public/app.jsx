@@ -5,7 +5,7 @@ import { createStore } from "redux";
 import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
 import { OfflineExperience, ServerUpdateExperience, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
-import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, nextClockOffset } from "./client/net.ts";
+import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
 import {
   installGahookWarmup,
   playAnswerOohSound,
@@ -44,6 +44,8 @@ const GET_GOT_OVERLAY_MS = 3000;
 const GAHOOK_STEAL_POINTS = 50;
 const CONGRATS_OVERLAY_MS = 1800;
 const BOO_OVERLAY_MS = 1600;
+// Must match SNAPSHOT_SCHEMA_VERSION in packages/contracts.
+const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_CATCHUP_MS = 0;
 // The adapter in ./client/net.ts takes its timers as a dependency so its
 // ordering and cleanup can be tested without a browser. These are the real
@@ -1116,6 +1118,13 @@ function useEvents(mode, code, playerKey) {
       timers: browserTimers,
       apply: (snapshot) => {
         if (!active) return;
+        // A snapshot this client cannot render must produce an explanation, not
+        // a half-drawn room. Happens mid-deploy, and is not a room fault.
+        const compatibility = describeSnapshotCompatibility(snapshot, SNAPSHOT_SCHEMA_VERSION);
+        if (!compatibility.supported) {
+          dispatch({ type: "ROOM_CONNECTION_ERROR", value: compatibility.message });
+          return;
+        }
         consecutiveFailures = 0;
         dispatch({ type: "CONNECTED", value: true });
         dispatch({ type: "SNAPSHOT", value: snapshot });

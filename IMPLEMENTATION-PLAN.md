@@ -176,7 +176,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | Done | ID | Deliverable | Depends on |
 | --- | --- | --- | --- |
 | [x] | P00 | Preserved source baseline and conflict-safe verification | — |
-| [ ] | P01 | Runtime contracts, compatible schema evolution, typed client adapter/build seam | P00 |
+| [x] | P01 | Runtime contracts, compatible schema evolution, typed client adapter/build seam | P00 |
 | [ ] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
 | [ ] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
 | [ ] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
@@ -431,6 +431,18 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-11 — P01 complete
+
+- Last updated: 2026-09-11. **P01 steps 1-7 are complete and the stage is checked off.** P02 is next.
+- Step 1 delivered: `npm run capture:fixtures` drives a disposable server and writes 20 credential-free snapshots to `packages/contracts/test/fixtures/` covering host, player and spectator across lobby, building, reading, answering, reveal, finished and Herd writing, plus three error shapes, health and reconnect. The capture refuses to run against a live host, scrubs secret keys on the way out, stabilises timestamps, and fails loudly if a credential survives.
+- Step 4 delivered: `describeSnapshotCompatibility` gives an unrenderable snapshot an actionable message instead of a half-drawn lobby, in both directions (client older than server, server still updating), and treats a missing `schemaVersion` as supported so current rooms keep working. Wired into the snapshot path in `app.jsx`. Because the browser cannot import the contracts package, `SNAPSHOT_SCHEMA_VERSION` now exists in two places and `smoke-regressions.mjs` fails if they drift.
+- **The fixture corpus found something on its first run.** A blunt scan flagged `answering.player` as exposing a correct answer. It was a false alarm, and checking it properly was worthwhile: `currentQuestion.correctAnswerId` is `null` during answering, `currentQuestion.answers[*].author` is `null`, and the `correct` flags live under `ownQuestions`, which are the viewer's own submitted questions. A Quiz question is deliberately credited to its author by name. The assertions were replaced with the precise invariants — the key is withheld, answer authorship is hidden, and an author can still see their own key — which are the properties P02 has to preserve.
+- Tests run: `npm run check` (91 unit tests, typecheck, build) passed. Full `npm test` passed against a disposable server on 127.0.0.1:3199. `npm run test:rooms` passed on a separate fresh lifetime, twelve games identical to the P00 baseline. Production and development were not targeted.
+- **Browser gate now partially satisfied.** The owner loaded dev.gahookz.com from another device after the network extraction and reported it working, which is the first real-browser confirmation that the extracted adapter drives the client correctly. Automated browser coverage is still absent and remains a P10/P12 gate.
+- Access note, outside the repository: dev.gahookz.com's Nginx access list allow rules (`192.168.0.0/24`, `100.64.0.0/10`) cannot match over the hostname, because hairpinned traffic arrives as the WAN address; basic auth is the only working path. The `gahookz` password was reset at the owner's request by writing `/data/access/1` directly, with backups taken. Nginx Proxy Manager regenerates that file from its database when an Access List is edited in its UI, so the same password should be set there to make it durable.
+- Next exact task: **P02 steps 1-6.** Read `packages/game-engine/src/herd.ts` and its tests, plus `beginHerdAnswerWriting` and the result snapshot builders in `standalone/server.js`. `TieBreakReason` already exists in contracts. Acceptance: engine tests, exact/partial/three-way/no-vote tie fixtures, privacy tests, legal self-vote rejection and full-size seeded games all pass.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-09 — P01 partial
 
