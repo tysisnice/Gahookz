@@ -124,21 +124,82 @@ export function buildHerdAssignmentPlan(
   const assignments: HerdAnswerAssignment[] = [];
   if (targetAnswersPerQuestion === 0) return { targetAnswersPerQuestion, assignments, byPlayerId, byQuestionId };
 
-  const playerIndex = new Map(playerIds.map((playerId, index) => [playerId, index]));
-  questions.forEach((question, questionIndex) => {
-    const authorIndex = playerIndex.get(question.authorId);
-    const anchor = authorIndex ?? questionIndex % playerIds.length;
-    const canExcludeAuthor = playerIds.length - 1 >= targetAnswersPerQuestion;
-    const firstOffset = canExcludeAuthor ? 1 : 0;
-    // Writer selection stays the balanced circular walk: it is what keeps the
-    // workload even and excludes the question's own author where the roster
-    // allows. What changes is that where a writer *appears* is now drawn
-    // independently, once per question.
-    const slots = shuffledSlots(targetAnswersPerQuestion, random);
+  // Least-loaded assignment rather than a circular walk from the author.
+  //
+  // The walk was fine while every player authored exactly one prompt: the
+  // anchors were spread evenly around the roster. Once the game plays fewer
+  // rounds than there are players, the anchors cluster in roster order and the
+  // load collapses onto whoever sits just after them -- a capped twenty-player
+  // probe gave some writers four answers and others none.
+  const canExcludeAuthor = playerIds.length - 1 >= targetAnswersPerQuestion;
+  const totalSlots = questions.length * targetAnswersPerQuestion;
+  const baseShare = Math.floor(totalSlots / playerIds.length);
+  const remainder = totalSlots % playerIds.length;
+
+  // Everyone's fair share, stated up front. The remainder goes to a random few
+  // rather than always the same people.
+  const capacity = new Map<string, number>();
+  shuffledSlots(playerIds.length, random).forEach((playerIndex, rank) => {
+    capacity.set(playerIds[playerIndex] as string, baseShare + (rank < remainder ? 1 : 0));
+  });
+
+  const load = new Map(playerIds.map((playerId) => [playerId, 0]));
+  const writersByQuestion = new Map<string, string[]>();
+
+  for (const question of questions) {
+    const eligible = playerIds.filter(
+      (playerId) => !(canExcludeAuthor && playerId === question.authorId)
+    );
+    const withinCapacity = eligible.filter(
+      (playerId) => (load.get(playerId) ?? 0) < (capacity.get(playerId) ?? 0)
+    );
+    // An unfilled prompt is worse for the room than one extra answer, so the
+    // cap is relaxed rather than leaving a question short. The repair below
+    // usually gives that slot back.
+    const candidates = withinCapacity.length >= targetAnswersPerQuestion ? withinCapacity : eligible;
+    const chosen = shuffledSlots(candidates.length, random).
+      map((index) => candidates[index] as string).
+      sort((first, second) => (load.get(first) ?? 0) - (load.get(second) ?? 0)).
+      slice(0, targetAnswersPerQuestion);
+
+    for (const writer of chosen) load.set(writer, (load.get(writer) ?? 0) + 1);
+    writersByQuestion.set(question.id, chosen);
+  }
+
+  // Repair overshoot. Excluding a question's own author can leave a late
+  // question with no under-loaded writer available, which pushes somebody past
+  // their share. Moving one answer to an under-loaded writer fixes it, as long
+  // as they are not already on that question and are not its author.
+  for (let pass = 0; pass < playerIds.length * 2; pass += 1) {
+    const over = playerIds.find((playerId) => (load.get(playerId) ?? 0) > (capacity.get(playerId) ?? 0));
+    if (!over) break;
+    const under = playerIds.filter((playerId) => (load.get(playerId) ?? 0) < (capacity.get(playerId) ?? 0));
+    if (!under.length) break;
+
+    let moved = false;
+    for (const question of questions) {
+      const writers = writersByQuestion.get(question.id);
+      if (!writers?.includes(over)) continue;
+      const replacement = under.find(
+        (playerId) => !writers.includes(playerId) && !(canExcludeAuthor && playerId === question.authorId)
+      );
+      if (!replacement) continue;
+      writers[writers.indexOf(over)] = replacement;
+      load.set(over, (load.get(over) ?? 0) - 1);
+      load.set(replacement, (load.get(replacement) ?? 0) + 1);
+      moved = true;
+      break;
+    }
+    if (!moved) break;
+  }
+
+  // Indexes are built from the final writers, after any repair, so they cannot
+  // disagree with each other.
+  for (const question of questions) {
+    const writers = writersByQuestion.get(question.id) ?? [];
+    const slots = shuffledSlots(writers.length, random);
     const forQuestion: HerdAnswerAssignment[] = [];
-    for (let answerIndex = 0; answerIndex < targetAnswersPerQuestion; answerIndex += 1) {
-      const answerAuthorId = playerIds[(anchor + firstOffset + answerIndex) % playerIds.length];
-      if (!answerAuthorId) continue;
+    writers.forEach((answerAuthorId, answerIndex) => {
       const assignment = {
         questionId: question.id,
         questionAuthorId: question.authorId,
@@ -149,12 +210,11 @@ export function buildHerdAssignmentPlan(
       assignments.push(assignment);
       byPlayerId[answerAuthorId]?.push(assignment);
       forQuestion.push(assignment);
-    }
-    // Presented in display order, so a caller that renders them in sequence
-    // cannot accidentally reintroduce the rotation as the visible order.
+    });
     forQuestion.sort((first, second) => first.displayIndex - second.displayIndex);
     byQuestionId[question.id]?.push(...forQuestion);
-  });
+  }
+
   return { targetAnswersPerQuestion, assignments, byPlayerId, byQuestionId };
 }
 

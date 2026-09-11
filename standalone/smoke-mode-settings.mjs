@@ -264,6 +264,47 @@ assert((await state()).lockedRules.quizScoring === "majority", "Locked rules mus
 await post("/api/host/reset");
 assert((await state()).lockedRules === null, "A reset clears the frozen rules");
 
+// --- P06: Herd is actually short now ---------------------------------------
+
+await post("/api/host/reset");
+await post("/api/host/settings", { gameFamily: "quiz" });
+await post("/api/host/settings", { gameFamily: "herd" });
+const herdDefaults = await state();
+assert(
+  herdDefaults.roundPreset === "quick",
+  "Choosing Herd should default to Quick so a first session is short, got " + herdDefaults.roundPreset
+);
+
+// Quick is a ceiling, not a quota: four players play four prompts.
+assert(
+  herdDefaults.plannedTotalQuestions === 4,
+  "Four players on Quick should plan four rounds, got " + herdDefaults.plannedTotalQuestions
+);
+
+await post("/api/host/settings", { roundPreset: "standard" });
+const fullRoom = await state();
+assert(
+  fullRoom.plannedTotalQuestions === 4,
+  "Full room with four players is also four rounds, got " + fullRoom.plannedTotalQuestions
+);
+
+await post("/api/host/settings", { roundPreset: "custom", herdRoundTarget: 2 });
+const custom = await state();
+assert(
+  custom.plannedTotalQuestions === 2,
+  "A custom Herd length should be honoured, got " + custom.plannedTotalQuestions
+);
+
+// The bound is enforced server-side, not just by the input's max attribute.
+await post("/api/host/settings", { herdRoundTarget: 999 });
+const clamped = await state();
+assert(
+  Number(clamped.herdRoundTarget) <= 20,
+  "A custom round target must be clamped server-side, got " + clamped.herdRoundTarget
+);
+
+await post("/api/host/settings", { gameFamily: "quiz", roundPreset: "standard" });
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -281,6 +322,8 @@ console.log(JSON.stringify({
     "raising the quota restores parked questions",
     "each family keeps its own drafts across a switch",
     "a stale Save is refused and changes nothing",
-    "locking setup freezes the rules, and a reset clears them"
+    "locking setup freezes the rules, and a reset clears them",
+    "Herd defaults to Quick and Quick is a ceiling, not a quota",
+    "a custom Herd length is honoured and clamped server-side"
   ]
 }, null, 2));

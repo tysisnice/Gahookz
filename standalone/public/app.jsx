@@ -1500,7 +1500,7 @@ function HostMode({ playerKey, code }) {
     const previousQuestionLimit = lobby.maxQuestionsPerPlayer;
     const isQuestionLimitUpdate = path === "/api/host/settings" && Object.prototype.hasOwnProperty.call(payload, "maxQuestionsPerPlayer");
     const optimisticSettings = path === "/api/host/settings" ?
-    Object.fromEntries(Object.entries(payload).filter(([key]) => ["gameMode", "gameFamily", "quizScoring", "approveQuestions", "roundPreset", "allowCustomProfiles", "allowCustomGahooks", "promptStyle"].includes(key))) :
+    Object.fromEntries(Object.entries(payload).filter(([key]) => ["gameMode", "gameFamily", "quizScoring", "approveQuestions", "roundPreset", "allowCustomProfiles", "allowCustomGahooks", "promptStyle", "herdRoundTarget"].includes(key))) :
     {};
     if (Object.prototype.hasOwnProperty.call(payload, "roundPreset")) {
       optimisticSettings.plannedTotalQuestions = 0;
@@ -1726,6 +1726,45 @@ function CounterGahookPrompt({ offer, busy = false, onCounter }) {
     <strong>{offer.senderName || "That spammer"} left an opening</strong>
     <button type="button" disabled={busy} onClick={onCounter}>{busy ? "Firing back..." : "Counter Gahook"}</button>
   </aside>;
+}
+
+function HerdLengthSelector({ lobby, playerCount = 0, onChange, onRoundTarget }) {
+  const preset = lobby.roundPreset === "standard" || lobby.roundPreset === "custom" ? lobby.roundPreset : "quick";
+  const target = Number(lobby.herdRoundTarget || 8);
+  // Quick is a ceiling, not a quota: four players play four prompts, not eight
+  // duplicates of four.
+  const quickRounds = Math.min(8, playerCount || 8);
+  const plannedRounds = preset === "quick" ? quickRounds : preset === "custom" ? Math.min(target, playerCount || target) : playerCount;
+  const options = [
+  { id: "quick", title: "Quick", detail: "Up to 8 rounds" },
+  { id: "standard", title: "Full room", detail: "One prompt each" },
+  { id: "custom", title: "Custom", detail: "Choose the rounds" }];
+
+
+  return (
+    <section className="round-preset-selector" aria-label="Herd game length">
+      <span>Game length</span>
+      <div className="round-preset-options">
+        {options.map((option) =>
+        <button className={preset === option.id ? "is-selected" : ""} type="button" key={option.id} aria-pressed={preset === option.id} onClick={() => onChange?.(option.id)}>
+            <strong>{option.title}</strong>
+            <em>{option.detail}</em>
+          </button>
+        )}
+      </div>
+      {preset === "custom" ?
+      <label className="herd-round-target">
+          <span>Rounds</span>
+          <input type="number" min="1" max="20" value={target} onChange={(event) => onRoundTarget?.(Number(event.target.value))} />
+        </label> :
+      null}
+      <p className="round-preset-summary">
+        {playerCount ?
+        <>Everyone writes one prompt and up to four answers. This game plays <strong>{plannedRounds}</strong> round{plannedRounds === 1 ? "" : "s"}.</> :
+        "Waiting for players."}
+      </p>
+    </section>);
+
 }
 
 function GameFamilySelector({ value = "quiz", onChange, actions = null }) {
@@ -1959,7 +1998,7 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
     const previousQuestionLimit = lobby.maxQuestionsPerPlayer;
     const isQuestionLimitUpdate = path === "/api/host/settings" && Object.prototype.hasOwnProperty.call(payload, "maxQuestionsPerPlayer");
     const optimisticSettings = path === "/api/host/settings" ?
-    Object.fromEntries(Object.entries(payload).filter(([key]) => ["gameMode", "gameFamily", "quizScoring", "approveQuestions", "roundPreset", "allowCustomProfiles", "allowCustomGahooks", "promptStyle"].includes(key))) :
+    Object.fromEntries(Object.entries(payload).filter(([key]) => ["gameMode", "gameFamily", "quizScoring", "approveQuestions", "roundPreset", "allowCustomProfiles", "allowCustomGahooks", "promptStyle", "herdRoundTarget"].includes(key))) :
     {};
     if (Object.prototype.hasOwnProperty.call(payload, "roundPreset")) {
       optimisticSettings.plannedTotalQuestions = 0;
@@ -2313,7 +2352,7 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
           </button>
           <GameFamilySelector value={familyOf(lobby)} onChange={onFamilyChange} actions={<ModeTutorialLauncher mode={lobby.gameMode} autoOpen autoOpenMode="host" includeHost />} />
           {familyOf(lobby) === "quiz" ? <MajorityScoringToggle scoring={scoringOf(lobby)} onChange={onScoringChange} /> : null}
-          {familyOf(lobby) === "herd" ? <section className="herd-length-summary"><span>Herd game length</span><strong>One question per player</strong><small>Everyone writes up to four answers, then every player-created question goes live.</small></section> : <RoundPresetSelector lobby={lobby} value={visibleRoundPreset} playerCount={connectedPlayers.length} customLimit={visibleQuestionLimit} onChange={selectRoundPreset} onQuestionLimit={selectQuestionLimit} />}
+          {familyOf(lobby) === "herd" ? <HerdLengthSelector lobby={lobby} playerCount={connectedPlayers.length} onChange={selectRoundPreset} onRoundTarget={(value) => onSettings?.({ herdRoundTarget: value })} /> : <RoundPresetSelector lobby={lobby} value={visibleRoundPreset} playerCount={connectedPlayers.length} customLimit={visibleQuestionLimit} onChange={selectRoundPreset} onQuestionLimit={selectQuestionLimit} />}
           <EffectsPreferenceButtons />
           <HostRulesModal lobby={lobby} open={rulesOpen} saving={rulesSaving} error={rulesError} onCancel={closeRules} onSave={saveRules} />
           <button className="primary-button start-button lock-setup-button" type="button" disabled={!canLockSetup} onClick={lockSetup}>Begin Game</button>

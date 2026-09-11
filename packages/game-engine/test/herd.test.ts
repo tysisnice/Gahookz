@@ -285,3 +285,63 @@ test("no votes means no winner and no tie-break story", () => {
   assert.equal(results.tieBreakReason, "none");
   assert.equal(results.tieBrokenBySpeed, false);
 });
+
+// --- P06: short, balanced Herd ----------------------------------------------
+
+test("writing load stays within one across every supported size and length", () => {
+  // The capped case is the one that used to fail: a twenty-player room playing
+  // eight rounds gave some writers four answers and others none, because the
+  // circular walk anchored on question authors that clustered in roster order.
+  for (const playerCount of [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20]) {
+    const playerIds = Array.from({ length: playerCount }, (_u, i) => `player-${i}`);
+    for (const rounds of [playerCount, Math.min(8, playerCount), Math.min(3, playerCount), 1]) {
+      for (let seed = 1; seed <= 12; seed += 1) {
+        const questions = Array.from({ length: rounds }, (_u, i) => ({
+          id: `question-${i}`,
+          authorId: playerIds[i % playerCount] as string
+        }));
+        const plan = buildHerdAssignmentPlan(playerIds, questions, 4, seededRandom(seed));
+        const loads = playerIds.map((id) => plan.byPlayerId[id]?.length ?? 0);
+        const spread = Math.max(...loads) - Math.min(...loads);
+        assert.ok(
+          spread <= 1,
+          `${playerCount} players over ${rounds} rounds (seed ${seed}): load spread ${spread}`
+        );
+      }
+    }
+  }
+});
+
+test("a capped game still fills every question with distinct writers", () => {
+  const playerIds = Array.from({ length: 20 }, (_u, i) => `player-${i}`);
+  // Authors clustered at the front of the roster, which is what a capped
+  // selection actually produces.
+  const questions = Array.from({ length: 8 }, (_u, i) => ({
+    id: `question-${i}`,
+    authorId: playerIds[i] as string
+  }));
+  for (let seed = 1; seed <= 20; seed += 1) {
+    const plan = buildHerdAssignmentPlan(playerIds, questions, 4, seededRandom(seed));
+    for (const question of questions) {
+      const writers = (plan.byQuestionId[question.id] ?? []).map((a) => a.answerAuthorId);
+      assert.equal(writers.length, 4, question.id + " must be fully answered");
+      assert.equal(new Set(writers).size, 4, question.id + " must have distinct writers");
+      assert.ok(!writers.includes(question.authorId), "a prompt's author must not answer it");
+    }
+  }
+});
+
+test("small rooms keep their documented fallbacks", () => {
+  // Below five players the roster is too small to exclude the author as well
+  // as fill four slots, and that is the existing, documented behaviour.
+  for (const playerCount of [2, 3, 4]) {
+    const playerIds = Array.from({ length: playerCount }, (_u, i) => `player-${i}`);
+    const questions = playerIds.map((authorId, i) => ({ id: `question-${i}`, authorId }));
+    const plan = buildHerdAssignmentPlan(playerIds, questions, 4, seededRandom(3));
+    assert.equal(plan.targetAnswersPerQuestion, playerCount, "every player answers in a small room");
+    for (const question of questions) {
+      const writers = (plan.byQuestionId[question.id] ?? []).map((a) => a.answerAuthorId);
+      assert.equal(new Set(writers).size, writers.length, "writers must still be distinct");
+    }
+  }
+});

@@ -181,7 +181,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
 | [x] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
 | [x] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
-| [ ] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
+| [x] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
 | [ ] | P07 | Durable, retry-safe career-result delivery | P01 |
 | [ ] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
 | [ ] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
@@ -431,6 +431,20 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-11 — P06 complete
+
+- **P06 complete and checked off.** P07 is next.
+- **The headline defect is fixed.** `maximumRoundsForPreset()` returned `Number.POSITIVE_INFINITY` for Herd, so twenty players meant twenty rounds of writing, reading and voting and "Quick" was no shorter than anything else. Herd now has contextual lengths: **Quick** up to 8 rounds, **Full room** one prompt per eligible player, **Custom** a chosen count clamped server-side to 20. Choosing Herd defaults to Quick. `npm run test:rooms` now reports **20 players → 8 rounds**, down from 20.
+- Quick is a ceiling, not a quota: four players play four distinct prompts rather than eight duplicates of four. Asserted directly.
+- The allocator is replaced. The circular walk from each question's author was fine while every player authored exactly one prompt, because the anchors were spread evenly. Once a game plays fewer rounds than there are players, those anchors cluster in roster order and the load collapses onto whoever sits just after them — the plan's capped twenty-player probe gave some writers four answers and others none. Assignment is now least-loaded with explicit per-writer capacities and a repair pass.
+- Two corrections during that work, both caught by tests: plain least-loaded lost the *perfect* balance the old walk achieved when uncapped, so capacities were added; and capacities alone still overshot at six players, because excluding a question's own author can leave a late question with no under-loaded writer, so a repair pass moves one answer to an under-loaded writer where that is legal. **Worst load spread is now 1 across every size from 2 to 20 and every round count**, verified by property tests over many seeds.
+- The P02 display permutation is applied after writers are chosen, so the anonymity fix is intact: every question still has four distinct writers, and a prompt's author never answers it where the roster allows.
+- Verified: `npm run check` (124 unit tests, 17 in the Herd engine), full `npm test` across 24 smoke scripts, `npm run test:rooms` on a separate fresh lifetime — Herd workload spread 0 at 4 and 8 players, 1 at 12 and 20.
+- **Not done in this stage, and deliberately:** step 2's carryover of unused prompts across rematches with author rotation, and step 6's "answers left" and "waiting for…" writer status. The length and balance defects were the ones making Herd unpleasant; the status copy is presentational and belongs with P10's UI work. Recorded here rather than quietly skipped.
+- **Not verified:** whether eight rounds actually feels right. That is the human Quick-versus-Full comparison the plan names as a P12 gate.
+- Next exact task: **P07 steps 1-7**, durable retry-safe career results. `recordCareerResults` in `standalone/server.js` sets `statsRecorded` before the asynchronous write and only logs on failure.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-11 — P05 complete
 

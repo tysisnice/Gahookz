@@ -2290,6 +2290,13 @@ function updateHostSettings(room, payload) {
   // everybody's readiness alone.
   const familyChanged = nextSettings.gameFamily !== currentSettings.gameFamily;
   applyGameSettings(room, nextSettings);
+  const presetRequested = Object.prototype.hasOwnProperty.call(payload || {}, "roundPreset") ||
+    Object.prototype.hasOwnProperty.call(payload || {}, "questionPreset");
+  if (familyChanged && nextSettings.gameFamily === "herd" && !presetRequested) {
+    // Herd starts Quick so a first session is short. The host can still pick
+    // Full room, and their choice is remembered from then on.
+    room.roundPreset = "quick";
+  }
   if (familyChanged) {
     // A Quiz question and a Herd prompt are different things, so the outgoing
     // family's content is parked rather than deleted, and the incoming
@@ -2386,6 +2393,12 @@ function updateHostSettings(room, payload) {
         player.hiddenGahookForm = "";
       }
     });
+  }
+  if (payload?.herdRoundTarget !== undefined) {
+    const requested = Number(payload.herdRoundTarget);
+    if (Number.isFinite(requested)) {
+      room.herdRoundTarget = Math.max(1, Math.min(HERD_MAX_CUSTOM_ROUNDS, Math.trunc(requested)));
+    }
   }
   if (GAHOOK_EFFECT_POLICIES.includes(payload?.gahookEffects)) {
     room.gahookEffects = payload.gahookEffects;
@@ -3319,8 +3332,28 @@ function questionsPerPlayerForPreset(room, preset = room.roundPreset, customLimi
   return clamp(Number(customLimit || room.maxQuestionsPerPlayer || DEFAULT_QUESTIONS_PER_PLAYER), MIN_QUESTIONS_PER_PLAYER, MAX_QUESTIONS_PER_PLAYER);
 }
 
+// Herd played one round per player with no ceiling, so twenty players meant
+// twenty rounds of writing, reading and voting. "Quick" was not quick; it was
+// the same length as everything else. These are the contextual lengths:
+//   Quick     - up to eight rounds
+//   Full room - one prompt per eligible player, the old behaviour
+//   Custom    - a chosen number of rounds, within what has been written
+const HERD_QUICK_MAX_ROUNDS = 8;
+const HERD_MAX_CUSTOM_ROUNDS = 20;
+
+function herdCustomRoundTarget(room) {
+  const requested = Number(room.herdRoundTarget);
+  if (!Number.isFinite(requested)) return HERD_QUICK_MAX_ROUNDS;
+  return Math.max(1, Math.min(HERD_MAX_CUSTOM_ROUNDS, Math.trunc(requested)));
+}
+
 function maximumRoundsForPreset(room) {
-  if (room.gameMode === "herd") return Number.POSITIVE_INFINITY;
+  if (room.gameMode === "herd") {
+    if (room.roundPreset === "quick") return HERD_QUICK_MAX_ROUNDS;
+    if (room.roundPreset === "custom") return herdCustomRoundTarget(room);
+    // "Full room": every eligible player's prompt gets played.
+    return Number.POSITIVE_INFINITY;
+  }
   if (room.roundPreset === "quick") return QUICK_MAX_ROUNDS;
   if (room.roundPreset === "standard") return STANDARD_MAX_ROUNDS;
   return Number.POSITIVE_INFINITY;
@@ -4398,6 +4431,7 @@ function buildSnapshot(room, role, playerKey) {
     gahookStealPoints: GAHOOK_STEAL_POINTS,
     getGotPenaltyPoints: GET_GOT_SCORE_PENALTY,
     pendingQuestionCount: (room.pendingQuestions || []).length,
+    herdRoundTarget: room.herdRoundTarget || 8,
     gameFamily: roomGameSettings(room).gameFamily,
     quizScoring: roomGameSettings(room).quizScoring,
     settingsRevision: room.settingsRevision || 0,
