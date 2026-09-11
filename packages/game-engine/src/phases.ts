@@ -47,6 +47,11 @@ export function nextPhase(state: RoundState, now: number): PhaseTransition {
 
   if (state.questionCount <= 0) return finish(0);
 
+  // Finished is terminal. Without this, a duplicated advance, a retried
+  // command or two timers racing would fall through to the default below and
+  // reopen a completed game at question zero.
+  if (state.phase === "finished") return finish(state.questionIndex);
+
   if (state.phase === "reading") {
     return { phase: "answering", questionIndex: state.questionIndex, endsAt: now + PHASE_DURATIONS_MS.answering };
   }

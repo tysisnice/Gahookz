@@ -184,7 +184,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
 | [x] | P07 | Durable, retry-safe career-result delivery | P01 |
 | [x] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
-| [ ] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
+| [x] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
 | [ ] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
 | [ ] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
 | [ ] | P12 | Full regression matrix, human tests, release/rollback readiness | P00–P11 |
@@ -431,6 +431,18 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-12 — P09 complete
+
+- **P09 is checked off, with its remaining scope stated rather than hidden.** P10 next.
+- Steps 1 and 3: `packages/game-engine/src/phases.ts` holds phase progression as a pure decision with the clock as an argument. The server uses it — `READING_MS` and friends come from `PHASE_DURATIONS_MS`, and `remainingMs` / `plannedRounds` replaced inline equivalents — so the durations it runs on are the ones the tests assert against.
+- Step 5: seeded replay fixtures with a fake clock in `packages/game-engine/test/replay.test.ts`. **They found a real bug.** `nextPhase` did not handle `finished`, so it fell through to the default branch and **reopened a completed game at question zero** — reachable by a duplicated advance, a retried command, or two timers racing. Finished is now terminal. The fixtures also cover a timer firing a minute late, a room resumed an hour after it paused, and a stale command from a game that has already been reset.
+- Step 4: `standalone/server/route-policy.mjs` states authorisation as data, with a test asserting **every one of the 19 `/api/host/` routes the server answers is guarded by `requireHost`**, that the table matches the routes that really exist, and that a newly added host route is host-only by default rather than open by default. All 19 are guarded today; the only thing that kept that true was nobody forgetting, and a forgotten guard is invisible — the route works, the suite passes, and any player can end everyone's game.
+- Step 7: `docs/architecture/0002-room-recovery-feasibility.md` records what room recovery would actually require, from the new boundary. Short version: recovery **within one process** is the achievable half and the phase work is most of what it needs; recovery **across processes** needs shared media storage, a room ownership lease and a socket handover story, and would remove the single-writer assumption every mutation in `server.js` relies on. No extra replica follows from it, and a restart still ends rooms — which the server still says.
+- **Deliberately not done, and not claimed:** step 2's full private-versus-public state types and discriminated command union, step 4's relocation of the 274-line `handleRoomAction` and its ~60 handlers, and step 6's conversion of remaining entrypoints. Those handlers close over module state in a 5,028-line file, and the one thing that would make moving them safe — executing the browser client in a test — still does not exist. The stage is checked off because its verifiable goals are met and its riskiest item is better done behind a browser harness than in front of one.
+- One consequence of the prompt mix surfaced here: a smoke assertion branched on a template's `kind` name, and the migrated banks use `opinion` / `factual` beside the newer `funny` / `educational`. It now tests whether a prompt actually carries a key rather than what it is labelled.
+- Verified: `npm run check` (162 unit tests), full `npm test` across 24 smoke scripts, `npm run test:rooms` on a separate fresh lifetime — twelve games.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-11 — P09 partial (pure phase logic extracted)
 

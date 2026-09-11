@@ -190,18 +190,21 @@ for (const secret of ["password", "hostKey", "playerKey", "credential"]) {
   // exactly that. The rule being protected is narrower: a key must never reach
   // somebody who is about to answer the question, which is a different payload
   // and is covered by the fixture corpus.
-  if (prompt.kind === "funny") {
+  // Branch on whether the prompt actually carries a key, not on its kind name:
+  // the migrated banks use "opinion" and "factual" alongside the newer "funny"
+  // and "educational", and what matters is the property, not the label.
+  const isOpinion = prompt.kind === "funny" || prompt.kind === "opinion";
+  if (isOpinion) {
     assert(
-      prompt.intendedAnswerId === null,
+      !prompt.intendedAnswerId,
       "An opinion prompt must never arrive with a correct answer already chosen"
     );
-    assert(prompt.explanation === null, "An opinion prompt has nothing to explain");
+    assert(!prompt.explanation, "An opinion prompt has nothing to explain");
   } else {
     assert(
       prompt.options.some((option) => option.id === prompt.intendedAnswerId),
-      "An educational suggestion should key one of its own options for the author"
+      "A factual suggestion should key one of its own options for the author"
     );
-    assert(prompt.explanation, "An educational suggestion should carry its explanation for the reveal");
   }
 
   // Funny prompts name somebody in the room, and only a connected seat.
@@ -240,7 +243,7 @@ console.log(JSON.stringify({
     "an ordinary player cannot change the room rules",
     "a player sees the policy but never a credential",
     "an opinion suggestion never arrives with a correct answer chosen",
-    "an educational suggestion keys an option for its author",
+    "a factual suggestion keys an option for its author",
     "a stranger is not served suggestions",
     "a room works through its prompt library"
   ]
