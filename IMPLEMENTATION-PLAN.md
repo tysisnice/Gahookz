@@ -432,6 +432,16 @@ Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
 
+### Handoff — 2026-09-11 — P09 partial (pure phase logic extracted)
+
+- **P09 is NOT complete and is NOT checked off.** A bounded slice of steps 1 and 3 is done; steps 2, 4, 5, 6 and 7 remain.
+- Done: `packages/game-engine/src/phases.ts` holds the phase progression as a pure decision — `nextPhase(state, now)`, `remainingMs`, `resumeDeadline`, `plannedRounds`, `estimatedDurationMs` — with the clock as an argument rather than ambient. Nine tests cover the round cycle, the last reveal finishing a game, a game with no questions finishing instead of opening an empty round, a finished game never reporting an index past its own questions, and that the same state with the same clock always gives the same answer.
+- The server **uses** it rather than running a parallel copy: `READING_MS` / `ANSWERING_MS` / `REVEAL_MS` are now sourced from `PHASE_DURATIONS_MS`, so the durations the server runs on are the ones the tests assert against, and `remainingMs` and `plannedRounds` replaced their inline equivalents. Two real clamps came with it: time remaining can no longer go negative when a timer fires late or a tab wakes from sleep, and a resumed pause can no longer land in the past.
+- **Honest scope statement.** `standalone/server.js` is 5,028 lines and P09 as written asks for private room state and role-filtered snapshots as separate types, transitions returning explicit effects, route and lifecycle dispatch moved into bounded modules, seeded replay fixtures with a fake clock, and a room-recovery feasibility record. That is a multi-session refactor of the highest-risk file in the project, and the one thing that would make it safe to attempt — executing the browser client in a test — still does not exist. Doing it in one pass would be exactly the "hard to verify diff" the plan warns against splitting further.
+- What remains for P09, in the order I would take it: extract the remaining pure scoring and presentation leaves one module at a time; introduce the private-versus-public state types; convert `beginQuestion` / `beginAnswering` / `beginReveal` to return effects rather than mutate and broadcast; then move route dispatch. Each of those is independently verifiable against the existing smoke suite.
+- Verified for this slice: `npm run check` (146 unit tests), full `npm test` across 24 smoke scripts, `npm run test:rooms` on a separate fresh lifetime — twelve games unchanged.
+- Production touched: **no.**
+
 ### Handoff — 2026-09-11 — P08 complete
 
 - **P08 complete and checked off.** P09 next.

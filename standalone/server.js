@@ -25,7 +25,13 @@ import { accountResultLocation, createAccountService } from "./server/accounts.m
 import { allActivePlayersAnswered as roomAllActivePlayersAnswered, allActivePlayersProgressReady as roomAllActivePlayersProgressReady, phaseProgressKey as roomPhaseProgressKey } from "./server/gameplay.mjs";
 import { customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "./server/custom-gahook.mjs";
 import { buildMajorityResults } from "./server/majority.mjs";
-import { buildHerdAssignmentPlan, buildHerdRoundResults } from "../packages/game-engine/src/index.ts";
+import {
+  PHASE_DURATIONS_MS,
+  buildHerdAssignmentPlan,
+  buildHerdRoundResults,
+  plannedRounds,
+  remainingMs
+} from "../packages/game-engine/src/index.ts";
 import { DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
 import { TemplateBag, findTemplate, instantiateTemplate } from "../packages/content/src/index.ts";
 import { initialiseRoomMedia, pruneRoomMedia, roomAssetDataUrl, serveRoomMedia, storeRoomImage } from "./server/media.mjs";
@@ -70,9 +76,11 @@ if (process.env.GAHOOKZ_REQUIRE_POSTGRES === "1" && accountService.persistence !
   throw new Error("GAHOOKZ_REQUIRE_POSTGRES is enabled but the PostgreSQL account repository is unavailable.");
 }
 
-const READING_MS = 5000;
-const ANSWERING_MS = 14000;
-const REVEAL_MS = 12000;
+// Sourced from packages/game-engine so the durations the server runs on are
+// the same ones the phase-transition tests assert against.
+const READING_MS = PHASE_DURATIONS_MS.reading;
+const ANSWERING_MS = PHASE_DURATIONS_MS.answering;
+const REVEAL_MS = PHASE_DURATIONS_MS.reveal;
 const ULTIMATE_GAHOOK_GRACE_MS = 1000;
 const ULTIMATE_GAHOOK_BASE_THRESHOLD_MS = 5000;
 const ULTIMATE_GAHOOK_THRESHOLD_STEP_MS = 1000;
@@ -3386,7 +3394,7 @@ function plannedQuestionCount(room) {
   const playerCount = connectedSetupPlayerCount(room);
   if (playerCount === 0) return 0;
   const submittedTotal = playerCount * questionsPerPlayerForPreset(room);
-  return Math.min(submittedTotal, maximumRoundsForPreset(room));
+  return plannedRounds(submittedTotal, maximumRoundsForPreset(room));
 }
 
 function estimatedGameDurationMs(room) {
@@ -4286,7 +4294,7 @@ function setGamePaused(room, payload) {
 
   if (paused) {
     const now = Date.now();
-    room.pausedRemainingMs = room.phaseEndsAt ? Math.max(0, room.phaseEndsAt - now) : 0;
+    room.pausedRemainingMs = remainingMs(room.phaseEndsAt, now);
     room.pausedWaitingForProgress = Boolean(room.game.waitingForProgress);
     room.paused = true;
     room.pausedAt = now;
