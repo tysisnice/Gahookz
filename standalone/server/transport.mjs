@@ -98,7 +98,20 @@ export async function readJson(req, options = {}) {
   return payload;
 }
 
+/**
+ * Write one state frame, honouring backpressure.
+ *
+ * Two things matter here. The frame goes out as a **single** write, so a slow
+ * socket can never leave half an event on the wire for the next one to finish.
+ * And the return value of `res.write` is the signal that the kernel buffer is
+ * full: ignoring it, as this used to, means Node queues every snapshot for a
+ * reader that is not draining, and one stalled phone grows the server's memory
+ * for as long as it stays connected.
+ *
+ * Returns false when the socket is saturated. The caller decides what to do --
+ * for room state the answer is to hold only the newest snapshot, because state
+ * is replaceable and a stalled client gains nothing from the backlog.
+ */
 export function writeSseState(res, snapshot) {
-  res.write("event: state\n");
-  res.write("data: " + JSON.stringify(snapshot) + "\n\n");
+  return res.write("event: state\ndata: " + JSON.stringify(snapshot) + "\n\n");
 }

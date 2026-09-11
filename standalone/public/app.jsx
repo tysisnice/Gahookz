@@ -1037,6 +1037,8 @@ function useEvents(mode, code, playerKey) {
 
     let active = true;
     let consecutiveFailures = 0;
+    const nowMs = () => typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
+    let lastActivityAt = nowMs();
 
     dispatch({ type: "ROOM_CONNECTION_RESET" });
 
@@ -1054,6 +1056,7 @@ function useEvents(mode, code, playerKey) {
       timers: browserTimers,
       apply: (snapshot) => {
         if (!active) return;
+        lastActivityAt = nowMs();
         // A snapshot this client cannot render must produce an explanation, not
         // a half-drawn room. Happens mid-deploy, and is not a room fault.
         const compatibility = describeSnapshotCompatibility(snapshot, SNAPSHOT_SCHEMA_VERSION);
@@ -1139,7 +1142,10 @@ function useEvents(mode, code, playerKey) {
       reconnectMs: 1500,
       room: { code, role: mode, playerKey },
       onSnapshot: queueSnapshot,
-      onConnected: (value) => dispatch({ type: "CONNECTED", value }),
+      onConnected: (value) => {
+        if (value) lastActivityAt = nowMs();
+        dispatch({ type: "CONNECTED", value });
+      },
       onFailure: reportFailure,
       onRoomMissing: () => navigateTo(buildWelcomePath(code)),
       onBanned: () => navigateTo(buildWelcomePath(code)),
@@ -1149,7 +1155,37 @@ function useEvents(mode, code, playerKey) {
 
     connectEvents();
     fetchSnapshot();
-    const interval = setInterval(fetchSnapshot, 1800);
+
+    // Recovery polling used to run every 1.8 seconds forever, whether or not
+    // the live stream was working. On a healthy connection that is pure waste:
+    // every tab in the room asked for the whole room state 33 times a minute
+    // and threw almost all of it away.
+    //
+    // The stream sends a keepalive every 15 seconds, so silence past that plus
+    // a margin is the signal that something is wrong. Only then is a snapshot
+    // worth fetching.
+    const SERVER_HEARTBEAT_MS = 15_000;
+    const SILENCE_BEFORE_RECOVERY_MS = SERVER_HEARTBEAT_MS + 10_000;
+    const RECOVERY_CHECK_MS = 5_000;
+
+    const recoverIfStale = () => {
+      if (!active) return;
+      // Monotonic where available: a device clock that jumps must not make the
+      // stream look dead, or resuming from sleep triggers a stampede.
+      const elapsed = nowMs() - lastActivityAt;
+      if (elapsed >= SILENCE_BEFORE_RECOVERY_MS) fetchSnapshot();
+    };
+    const interval = setInterval(recoverIfStale, RECOVERY_CHECK_MS);
+
+    // Coming back to a backgrounded tab is the one moment a snapshot is always
+    // worth it: timers are throttled while hidden, so the stream may have been
+    // starved regardless of its health.
+    const onVisible = () => {
+      if (!active || document.visibilityState !== "visible") return;
+      lastActivityAt = nowMs();
+      fetchSnapshot();
+    };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       active = false;
@@ -1159,6 +1195,7 @@ function useEvents(mode, code, playerKey) {
       // Both own their own timers and stream, and both are safe to call twice.
       gate.dispose();
       live.close();
+      document.removeEventListener("visibilitychange", onVisible);
       clearInterval(interval);
     };
   }, [mode, code, playerKey, dispatch]);

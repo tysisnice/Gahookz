@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import test from "node:test";
-import { HttpError, assertSameOrigin, readJson } from "./transport.mjs";
+import { HttpError, assertSameOrigin, readJson, writeSseState } from "./transport.mjs";
 
 function request(body, headers = { "content-type": "application/json" }) {
   const stream = Readable.from(body === undefined ? [] : [body]);
@@ -44,4 +44,18 @@ test("same-origin checks reject browser cross-site mutations", () => {
     () => assertSameOrigin({ headers: { host: "play.example.com", "sec-fetch-site": "cross-site" } }),
     (error) => error instanceof HttpError && error.statusCode === 403
   );
+});
+
+test("a state frame is one write, and reports backpressure", () => {
+  // One write so a slow socket cannot be left holding half an event, and the
+  // return value is the signal that the socket is full. Ignoring it is how one
+  // stalled reader grows the server's memory for as long as it stays connected.
+  const writes = [];
+  const fullSocket = { write(chunk) { writes.push(chunk); return false; } };
+  assert.equal(writeSseState(fullSocket, { stateVersion: 1 }), false);
+  assert.equal(writes.length, 1, "a frame must not be split across writes");
+  assert.match(writes[0], /^event: state\ndata: \{.*\}\n\n$/);
+
+  const readySocket = { write() { return true; } };
+  assert.equal(writeSseState(readySocket, { stateVersion: 2 }), true);
 });

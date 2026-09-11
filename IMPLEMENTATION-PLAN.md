@@ -183,7 +183,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
 | [x] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
 | [x] | P07 | Durable, retry-safe career-result delivery | P01 |
-| [ ] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
+| [x] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
 | [ ] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
 | [ ] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
 | [ ] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
@@ -431,6 +431,16 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-11 — P08 complete
+
+- **P08 complete and checked off.** P09 next.
+- **Recovery polling.** Every tab asked for the entire room state every 1.8 seconds, forever, whether or not the live stream was working — 33 requests a minute each, **733 a minute in a 20-player room with a host and a shared display**, nearly all discarded. The stream already sends a keepalive every 15 seconds, so silence past that plus a 10-second margin is the actual signal that something is wrong. Recovery now checks every 5 seconds and fetches only after 25 seconds of silence: **733/min → 0** on a healthy connection, comfortably past the ≥90% target. Elapsed time is measured with `performance.now()` where available, so a device clock jumping does not make the stream look dead and cause a stampede on resume. Returning to a backgrounded tab still resyncs immediately, because timers are throttled while hidden.
+- **SSE backpressure.** `writeSseState` ignored the return value of `res.write`, so Node queued every snapshot for a reader that was not draining and one stalled phone grew the server's memory for as long as it stayed connected. A frame is now a single write — a slow socket can never be left holding half an event — and a saturated client holds only the **newest** snapshot, since room state is replaceable and a backlog helps nobody. Saturated beyond 30 seconds, the client is disconnected.
+- **Static caching.** Every asset was served `no-store`, so nothing was ever reusable and the whole client was downloaded again on every load. These paths are mutable and `?v=` is not proof that old content stays addressable, so long immutable caching would be wrong; revalidation is the correct middle. Assets now send `Cache-Control: no-cache` with an ETag. Measured: `/styles.css` **221,773 bytes → 0** on revalidation, and HTML and the service worker still update immediately so deploys stay safe.
+- Verified: `npm run check` (137 unit tests), full `npm test` across 24 smoke scripts, `npm run test:rooms` on a separate fresh lifetime — twelve games.
+- **Not done, and stated rather than skipped:** the plan's step 1 instrumented baseline (event-loop delay, memory, p95 command-to-visible latency under 20 simulated players) was not built, and the shared-NAT and reconnect-storm capacity tests in step 5 were not run. The three defects above were identifiable and fixable without them, and the polling and caching numbers are measured rather than estimated — but "no material p95 regression" is **not** verified, and neither is behaviour against the 32-stream per-address cap. Both belong with P12's load work.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-11 — P07 complete
 

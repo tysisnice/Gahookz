@@ -450,7 +450,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    serveStatic(url, res);
+    serveStatic(url, res, req);
   } catch (error) {
     const statusCode = Number(error?.statusCode);
     if (Number.isInteger(statusCode) && statusCode >= 400 && statusCode <= 599) {
@@ -4732,6 +4732,11 @@ function questionResults(room) {
   };
 }
 
+// How long a client may stay saturated before it is disconnected. A reader
+// that cannot keep up with its own room is not going to catch up, and holding
+// the socket open costs everyone else.
+const SATURATED_CLIENT_LIMIT_MS = 30_000;
+
 function sendState(client) {
   const room = getLobbyFromCode(client.code);
   if (!room) {
@@ -4739,7 +4744,31 @@ function sendState(client) {
   }
   try {
     const snapshot = buildSnapshot(room, client.role, client.playerKey);
-    writeSseState(client.res, snapshot);
+
+    if (client.saturated) {
+      // Hold only the newest snapshot. Room state is replaceable, so a stalled
+      // reader gains nothing from a backlog and queueing one costs memory for
+      // as long as they stay connected.
+      client.pendingSnapshot = snapshot;
+      if (client.saturatedSince && Date.now() - client.saturatedSince > SATURATED_CLIENT_LIMIT_MS) {
+        clients.delete(client.id);
+        client.res.end();
+      }
+      return;
+    }
+
+    if (writeSseState(client.res, snapshot) === false) {
+      client.saturated = true;
+      client.saturatedSince = Date.now();
+      client.res.once("drain", () => {
+        client.saturated = false;
+        client.saturatedSince = 0;
+        const queued = client.pendingSnapshot;
+        client.pendingSnapshot = null;
+        // Send the newest state, not the one that was queued first.
+        if (queued && clients.has(client.id)) sendState(client);
+      });
+    }
   } catch (_error) {
     clients.delete(client.id);
   }
@@ -4883,7 +4912,7 @@ function triggerDevReload() {
   }
 }
 
-function serveStatic(url, res) {
+function serveStatic(url, res, request = null) {
   let pathname = decodeURIComponent(url.pathname);
   if (
   pathname === "/" ||
@@ -4920,17 +4949,48 @@ function serveStatic(url, res) {
     return;
   }
 
-  serveFile(absolutePath, res);
+  serveFile(absolutePath, res, request);
 }
 
-function serveFile(absolutePath, res) {
+function serveFile(absolutePath, res, request = null) {
+  // Static assets were served `no-store`, so every asset was downloaded in
+  // full on every single load -- nothing was ever reusable, on any connection.
+  //
+  // These paths are mutable: `/styles.css` is a different file after a build,
+  // and the `?v=` query is not proof that the old content is still addressable,
+  // so long immutable caching would be wrong. Revalidation is the correct
+  // middle: the browser may keep a copy, but must ask before using it, and an
+  // unchanged file costs a 304 instead of its whole body. HTML and the service
+  // worker still update immediately, which is what makes a deploy safe.
+  let stats = null;
+  try {
+    stats = fs.statSync(absolutePath);
+  } catch {
+    res.writeHead(404);
+    res.end("Not found");
+    return;
+  }
+
+  const etag = '"' + stats.size.toString(16) + "-" + Math.trunc(stats.mtimeMs).toString(16) + '"';
+  const headers = {
+    "Content-Type": contentType(absolutePath),
+    "Cache-Control": "no-cache",
+    ETag: etag
+  };
+
+  if (request?.headers?.["if-none-match"] === etag) {
+    res.writeHead(304, headers);
+    res.end();
+    return;
+  }
+
   fs.createReadStream(absolutePath).
   on("error", () => {
-    res.writeHead(404);
+    if (!res.headersSent) res.writeHead(404);
     res.end("Not found");
   }).
   on("open", () => {
-    res.writeHead(200, { "Content-Type": contentType(absolutePath), "Cache-Control": "no-store" });
+    res.writeHead(200, headers);
   }).
   pipe(res);
 }
