@@ -6,8 +6,11 @@ import {
   EDUCATIONAL_TEMPLATES,
   FUNNY_TEMPLATES,
   PLAYER_PLACEHOLDER,
+  DEFAULT_PERSONALISED_SHARE,
   TemplateBag,
   choosePlayer,
+  isPersonalised,
+  poolForStyle,
   instantiateTemplate,
   substitutePlayerName,
   templatesForStyle,
@@ -157,14 +160,53 @@ test("options are shuffled but keep their ids, so the key survives", () => {
   assert.ok(orders.size > 1, "options should not always appear in the same order");
 });
 
-test("a room sees the whole library before anything repeats", () => {
+test("a room works through both libraries before anything repeats", () => {
+  const pool = poolForStyle("funny");
   const bag = new TemplateBag("funny", seeded(11));
   const drawn = new Set<string>();
-  for (let index = 0; index < FUNNY_TEMPLATES.length; index += 1) {
-    drawn.add(bag.next().id);
+  // Two bags are drawn from, so exhausting both takes at least the pool size.
+  for (let index = 0; index < pool.length * 3; index += 1) drawn.add(bag.next().id);
+  assert.equal(drawn.size, pool.length, "every prompt in the library should be reachable");
+});
+
+test("funny prompts mix named and unnamed, rather than naming somebody every time", () => {
+  // Every suggestion being "What would Sam..." wears thin and leaves whoever is
+  // not named with nothing to do. The personalised prompts are a seasoning.
+  const bag = new TemplateBag("funny", seeded(17));
+  let named = 0;
+  const draws = 600;
+  for (let index = 0; index < draws; index += 1) {
+    if (isPersonalised(bag.next())) named += 1;
   }
-  assert.equal(drawn.size, FUNNY_TEMPLATES.length, "the bag repeated before the library was exhausted");
-  assert.ok(bag.next(), "the bag must refill rather than run dry");
+  const share = named / draws;
+  assert.ok(share > 0.15, "personalised prompts should still show up, got " + share.toFixed(2));
+  assert.ok(share < 0.6, "they should not be most of them, got " + share.toFixed(2));
+});
+
+test("the general opinion bank is reachable at all", () => {
+  // This was the bug: the funny bag drew only from the twenty personalised
+  // templates, so eighty-six migrated opinion prompts could never appear.
+  const pool = poolForStyle("funny");
+  assert.ok(pool.length > 100, "the funny pool should include the migrated bank, got " + pool.length);
+  assert.ok(pool.some((template) => !isPersonalised(template)), "unnamed prompts must exist in the pool");
+  assert.ok(pool.some(isPersonalised), "named prompts must exist in the pool");
+});
+
+test("a room that wants no personalised prompts gets none", () => {
+  const bag = new TemplateBag("funny", seeded(23), 0);
+  for (let index = 0; index < 60; index += 1) {
+    assert.equal(isPersonalised(bag.next()), false, "a zero share must never name a player");
+  }
+});
+
+test("the educational pool includes the migrated questions too", () => {
+  const pool = poolForStyle("educational");
+  assert.ok(pool.length > 70, "expected the 58 migrated educational prompts as well, got " + pool.length);
+  assert.ok(pool.every((template) => !isPersonalised(template)), "educational prompts never name a player");
+});
+
+test("the default mix is stated, not accidental", () => {
+  assert.ok(DEFAULT_PERSONALISED_SHARE > 0 && DEFAULT_PERSONALISED_SHARE < 1);
 });
 
 test("a style only ever yields its own templates", () => {

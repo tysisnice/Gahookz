@@ -7,12 +7,21 @@
 
 import {
   ABSENT_PLAYER_NAME,
+  EDUCATIONAL_TEMPLATES,
+  FUNNY_TEMPLATES,
   PLAYER_PLACEHOLDER,
   type PromptTemplate,
   type TemplateOption,
-  findTemplate,
-  templatesForStyle
+  isPersonalised
 } from "./templates.ts";
+import { LEGACY_TEMPLATES, type LegacyTemplate } from "./legacy.ts";
+
+/** Anything the generator can render: a new catalogue entry or a migrated one. */
+export type PlayableTemplate = PromptTemplate | LegacyTemplate;
+
+function hasAnswerKey(template: PlayableTemplate): boolean {
+  return template.kind === "educational" || template.kind === "factual";
+}
 
 export interface EligiblePlayer {
   readonly id: string;
@@ -22,7 +31,7 @@ export interface EligiblePlayer {
 export interface QuestionInstance {
   readonly templateId: string;
   readonly templateVersion: number;
-  readonly kind: "educational" | "funny";
+  readonly kind: PlayableTemplate["kind"];
   /** The finished sentence. Never re-rendered. */
   readonly text: string;
   /** Ids of the players named in it, for moderation and for tests. */
@@ -92,7 +101,7 @@ function shuffled<T>(values: readonly T[], random: () => number): T[] {
  * during answering has decided the round for whoever reads the payload.
  */
 export function instantiateTemplate(
-  template: PromptTemplate,
+  template: PlayableTemplate,
   options: {
     readonly eligible?: readonly EligiblePlayer[];
     readonly random?: () => number;
@@ -116,47 +125,80 @@ export function instantiateTemplate(
     namedPlayerIds: chosen ? [chosen.id] : [],
     namedPlayerNames: chosen ? [chosen.name] : [],
     options: shuffled(template.options, random),
-    factualAnswerId: includeAnswerKey && template.kind === "educational" ? template.factualAnswerId : null,
+    factualAnswerId: includeAnswerKey && hasAnswerKey(template) ? (template as { factualAnswerId: string | null }).factualAnswerId ?? null : null,
     explanation: includeAnswerKey && template.kind === "educational" ? template.explanation : null
   };
 }
 
 /**
- * A shuffled bag of template ids, drawn without replacement.
+ * How often a funny prompt names somebody.
  *
- * Random choice alone repeats a prompt embarrassingly often in a short game.
- * A bag guarantees the whole library is seen before anything comes round
- * again. Player selection stays independent and uniform, so this is not a
- * claim that the *questions* are uniformly distributed over time.
+ * Not all of them, on purpose. Every suggestion being "What would Sam..." wears
+ * thin quickly and leaves whoever is not named with nothing to do, so the
+ * personalised prompts are a seasoning rather than the whole menu. The rest
+ * come from the general opinion bank, which is much larger.
+ */
+export const DEFAULT_PERSONALISED_SHARE = 0.35;
+
+/** Everything playable for a style: the new catalogue plus the migrated banks. */
+export function poolForStyle(style: "educational" | "funny"): readonly PlayableTemplate[] {
+  if (style === "educational") {
+    return [...EDUCATIONAL_TEMPLATES, ...LEGACY_TEMPLATES.filter((entry) => entry.kind === "factual")];
+  }
+  return [...FUNNY_TEMPLATES, ...LEGACY_TEMPLATES.filter((entry) => entry.kind === "opinion")];
+}
+
+/**
+ * Draws prompts for a room, without replacement, mixing personalised prompts
+ * in at a deliberate rate.
+ *
+ * Two bags rather than one. Drawing uniformly from a combined pool would make
+ * the twenty personalised prompts vanish among the eighty-six general ones;
+ * drawing only from the personalised pool, which is what this did at first,
+ * names somebody in every single question. Each bag is still exhausted before
+ * it repeats, so a room works through both libraries.
  */
 export class TemplateBag {
-  private remaining: string[] = [];
+  private personalised: string[] = [];
+  private general: string[] = [];
+  private readonly byId = new Map<string, PlayableTemplate>();
+  private readonly personalisedIds: string[];
+  private readonly generalIds: string[];
 
   constructor(
     private readonly style: "educational" | "funny",
-    private readonly random: () => number = Math.random
-  ) {}
-
-  private refill(): void {
-    this.remaining = shuffled(
-      templatesForStyle(this.style).map((template) => template.id),
-      this.random
-    );
+    private readonly random: () => number = Math.random,
+    private readonly personalisedShare: number = DEFAULT_PERSONALISED_SHARE
+  ) {
+    const pool = poolForStyle(style);
+    for (const template of pool) this.byId.set(template.id, template);
+    this.personalisedIds = pool.filter(isPersonalised).map((template) => template.id);
+    this.generalIds = pool.filter((template) => !isPersonalised(template)).map((template) => template.id);
   }
 
-  /** The next template, refilling when the library has been exhausted. */
-  next(): PromptTemplate {
-    if (!this.remaining.length) this.refill();
-    const id = this.remaining.pop();
-    const template = id ? findTemplate(id) : null;
-    if (!template) {
-      const all = templatesForStyle(this.style);
-      return all[0] as PromptTemplate;
+  private draw(which: "personalised" | "general"): string | undefined {
+    const source = which === "personalised" ? this.personalisedIds : this.generalIds;
+    if (!source.length) return undefined;
+    if (which === "personalised") {
+      if (!this.personalised.length) this.personalised = shuffled(source, this.random);
+      return this.personalised.pop();
     }
-    return template;
+    if (!this.general.length) this.general = shuffled(source, this.random);
+    return this.general.pop();
+  }
+
+  /** The next template, refilling a bag when its library has been exhausted. */
+  next(): PlayableTemplate {
+    const drawn = this.random();
+    const roll = Number.isFinite(drawn) ? Math.min(Math.max(drawn, 0), 0.999_999_999) : 0.5;
+    const wantPersonalised = roll < this.personalisedShare && this.personalisedIds.length > 0;
+    const id = this.draw(wantPersonalised ? "personalised" : "general") ??
+      this.draw(wantPersonalised ? "general" : "personalised");
+    const template = id ? this.byId.get(id) : undefined;
+    return template ?? (poolForStyle(this.style)[0] as PlayableTemplate);
   }
 
   get remainingCount(): number {
-    return this.remaining.length;
+    return this.personalised.length + this.general.length;
   }
 }

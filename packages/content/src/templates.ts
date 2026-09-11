@@ -577,6 +577,11 @@ export function templatesForStyle(style: "educational" | "funny"): readonly Prom
   return style === "educational" ? EDUCATIONAL_TEMPLATES : FUNNY_TEMPLATES;
 }
 
+/** True when a template names a player and therefore needs one to render. */
+export function isPersonalised(template: { question: string }): boolean {
+  return template.question.includes(PLAYER_PLACEHOLDER);
+}
+
 export function findTemplate(id: string): PromptTemplate | null {
   return ALL_TEMPLATES.find((template) => template.id === id) ?? null;
 }
