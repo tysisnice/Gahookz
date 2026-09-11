@@ -10298,3 +10298,76 @@ button.answer-tile {
   color: #f2c230;
   font-weight: 800;
 }
+
+/* Round score breakdown.
+   Herd scores two different things and they are earned differently, so they
+   are shown separately with a total that reconciles against the leaderboard
+   rather than leaving people to add it up during a twelve-second reveal. */
+.round-score-breakdown {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.round-score-breakdown > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.round-score-breakdown dt {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.85rem;
+}
+
+.round-score-breakdown dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.round-score-total {
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.round-score-total dt { color: #fff; font-weight: 700; }
+.round-score-total dd { color: #f2c230; font-size: 1.05rem; }
+
+.majority-bonus-rule {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* Non-colour cues.
+   Answer identity is carried by colour, which is not available to everyone.
+   The label and shape already exist in the markup; this makes sure the winning
+   and correct markers do not rely on hue alone. */
+.herd-answer-author,
+.answer-correct-marker {
+  font-variant-numeric: tabular-nums;
+}
+
+.answer-correct-marker::before {
+  content: "✓ ";
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .round-score-breakdown,
+  .fact-check,
+  .majority-toggle-switch,
+  .rules-modal {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -4369,9 +4369,24 @@ function HerdRevealBreakdown({ question, lobby }) {
         <p>Up to 500 points for picking the favourite, plus up to 500 for every vote your authored answer attracted.</p>
       </header>
       <AnswerGrid answers={question.answers || []} reveal answerSelections={lobby.answerSelections} players={lobby.players} questionId={question.id} />
-      <div className="majority-result-footer">
-        {ownVote ? <span>Your vote: <strong>+{ownVote.points} points</strong></span> : <span>Your vote: <strong>no pick</strong></span>}
-        {ownAuthor ? <span>Your answer earned: <strong>+{ownAuthor.points} points</strong></span> : null}
+      {/* Two separate ways to score a Herd round, kept visually separate
+          because they are earned differently: one for picking the room's
+          favourite, one for writing an answer other people picked. The total
+          is shown so it reconciles with the leaderboard rather than leaving
+          people to add it up. */}
+      <div className="round-score-breakdown">
+        <div>
+          <dt>Points for your vote</dt>
+          <dd>{ownVote ? "+" + ownVote.points : "no pick"}</dd>
+        </div>
+        <div>
+          <dt>Points for your answer</dt>
+          <dd>{ownAuthor ? "+" + ownAuthor.points : "—"}</dd>
+        </div>
+        <div className="round-score-total">
+          <dt>This round</dt>
+          <dd>+{(ownVote?.points || 0) + (ownAuthor?.points || 0)}</dd>
+        </div>
       </div>
     </section>);
 }
@@ -4386,12 +4401,29 @@ function MajorityRevealBreakdown({ question, lobby }) {
       <header>
         <span>{tieBreakLabel(results, "The room has spoken")}</span><FactCheckPanel results={results} />
         <strong>{results.topCount} vote{results.topCount === 1 ? "" : "s"} for the winner</strong>
-        <p>{results.authorBonusAwarded ? "Perfect prediction — the author earns +100 bonus points." : results.unanimous ? "Everyone agreed, but the author predicted another answer." : "The most popular answer is correct for this round."}</p>
+        {/* The bonus condition is stated exactly, because it is stricter than
+            it looks: it needs *every* eligible voter to pick the predicted
+            answer, not merely the largest group. And a vote winner is not a
+            fact, so it is never described as correct. */}
+        <p>{results.authorBonusAwarded ?
+        "Every voter picked the author's prediction — that earns the +" + (results.authorBonusValue || 100) + " bonus." :
+        results.unanimous ?
+        "Everyone agreed, but the author predicted a different answer, so no bonus." :
+        "The room's most-voted answer wins this round."}</p>
+        {!results.authorBonusAwarded ?
+        <small className="majority-bonus-rule">The author bonus needs every voter to choose their prediction, not just the biggest group.</small> :
+        null}
       </header>
       <AnswerGrid answers={question.answers || []} reveal answerSelections={lobby.answerSelections} players={lobby.players} questionId={question.id} />
-      <div className="majority-result-footer">
-        <span>Author prediction: <strong>{prediction?.text || "Not available"}</strong></span>
-        {ownResult ? <span>Your answer: <strong>+{ownResult.points} points</strong></span> : null}
+      <div className="round-score-breakdown">
+        <div>
+          <dt>Author predicted</dt>
+          <dd>{prediction?.text || "no prediction"}</dd>
+        </div>
+        <div className="round-score-total">
+          <dt>This round</dt>
+          <dd>{ownResult ? "+" + ownResult.points : "+0"}</dd>
+        </div>
       </div>
     </section>);
 }

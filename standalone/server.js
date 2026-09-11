@@ -24,7 +24,7 @@ import { createAdmissionController, requestAddress } from "./server/admission.mj
 import { accountResultLocation, createAccountService } from "./server/accounts.mjs";
 import { allActivePlayersAnswered as roomAllActivePlayersAnswered, allActivePlayersProgressReady as roomAllActivePlayersProgressReady, phaseProgressKey as roomPhaseProgressKey } from "./server/gameplay.mjs";
 import { customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "./server/custom-gahook.mjs";
-import { buildMajorityResults } from "./server/majority.mjs";
+import { MAJORITY_AUTHOR_BONUS, buildMajorityResults } from "./server/majority.mjs";
 import {
   PHASE_DURATIONS_MS,
   buildHerdAssignmentPlan,
@@ -4667,6 +4667,10 @@ function publicMajorityResults(room, question) {
     unanimous: Boolean(results.unanimous),
     authorBonus: results.authorBonus || 0,
     authorBonusAwarded: Boolean(results.authorBonusAwarded),
+    // The value the rule actually pays, so the reveal states it rather than
+    // hard-coding a number that could drift from the engine.
+    authorBonusValue: MAJORITY_AUTHOR_BONUS,
+    unanimous: Boolean(results.unanimous),
     groups: (results.groups || []).map((group) => ({
       answerId: group.answerId,
       label: group.label,

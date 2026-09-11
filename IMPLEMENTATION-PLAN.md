@@ -432,6 +432,19 @@ Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
 
+### Handoff — 2026-09-12 — P10 partial (scoring clarity done, browser tests blocked)
+
+- **P10 is NOT checked off.** Steps 4, 5 and part of 6 are done. Steps 1, 2, 3 and 7 remain, and **step 7 is blocked on a decision only the owner can make.**
+- Step 4 fixed two things the reveal was saying that were not true. The Majority author bonus was described as "Perfect prediction — the author earns +100 bonus points", which omits that the bonus needs **every eligible voter** to choose the author's prediction, not merely the largest group — so the copy taught a rule the game does not have. It now states the condition, and the value comes from `MAJORITY_AUTHOR_BONUS` on the server rather than being written into the sentence. The other line said "The most popular answer is correct for this round"; a vote winner is not a fact, and it now reads "The room's most-voted answer wins this round".
+- Step 5 separates "Points for your vote" from "Points for your answer" in the Herd reveal and shows a round total, so the numbers reconcile against the leaderboard instead of leaving people to add them up during a twelve-second reveal.
+- Part of step 6: a non-colour marker for the correct answer, tabular numerals so scores do not jitter, and a `prefers-reduced-motion` block covering the new surfaces.
+- The copy is pinned by tests in `smoke-finals.mjs`, because these are claims about the rules rather than decoration and should not be free to drift.
+- **Blocked, and this is the third stage it has blocked: there is no way to execute the browser client in a test.** P10 step 7 asks for browser interaction tests across lobby → writing → vote → reveal → finale → rematch for host, player and spectator at four viewports, and its acceptance criterion is "all major phases work in real browser interaction tests". P12 needs the same thing plus physical devices. Nothing in this project can run the client: `npm test` drives the server over HTTP, and `tsconfig.web.json` does not even type-check `.jsx`.
+- **The decision the owner needs to make:** adding Playwright or Puppeteer would unblock P10 step 7, P12's automated half, and make the remaining P09 refactor safe to attempt — but this project deliberately has two runtime dependencies and five dev dependencies, and a browser engine is a large one. There is also no system Chromium on this host. I have not made that call unilaterally.
+- Steps 1, 2 and 3 — extracting feature-owned components and styles, and the lobby hierarchy — are not blocked, but they are a large mechanical refactor of `app.jsx` whose acceptance criteria are explicitly visual and browser-tested, so they are better done after the harness decision than before it.
+- Verified for this slice: `npm run check` (162 unit tests), full `npm test` across 24 smoke scripts, `npm run test:rooms` on a separate fresh lifetime — twelve games.
+- Production touched: **no.**
+
 ### Handoff — 2026-09-12 — P09 complete
 
 - **P09 is checked off, with its remaining scope stated rather than hidden.** P10 next.

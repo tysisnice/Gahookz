@@ -268,3 +268,38 @@ const ui = runFinalUiContractSmoke();
 const api = await runFinalApiSmoke();
 
 console.log(JSON.stringify({ ok: true, baseUrl: BASE_URL, ui, api }, null, 2));
+
+// --- P10: the reveal must describe the rules it actually uses ---------------
+
+{
+  // The Majority author bonus is stricter than it reads: it needs *every*
+  // eligible voter to choose the author's prediction, not merely the largest
+  // group. Copy that says "perfect prediction" without saying that teaches
+  // people a rule the game does not have.
+  assert(
+    app.includes("needs every voter to choose their prediction"),
+    "The Majority reveal must state the real author-bonus condition"
+  );
+  assert(
+    app.includes("results.authorBonusValue"),
+    "The bonus value must come from the server, not be written into the copy"
+  );
+  assert(
+    !app.includes("The most popular answer is correct for this round"),
+    "A vote winner is not a fact and must not be described as correct"
+  );
+  assert(
+    app.includes("The room's most-voted answer wins this round"),
+    "The Majority reveal should say the most-voted answer wins"
+  );
+
+  // Herd scores two different things, earned differently.
+  assert(
+    app.includes("Points for your vote") && app.includes("Points for your answer"),
+    "The Herd reveal must separate vote points from authored points"
+  );
+  assert(
+    app.includes("round-score-total"),
+    "The reveal must show a round total that reconciles with the leaderboard"
+  );
+}
