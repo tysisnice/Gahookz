@@ -432,6 +432,18 @@ Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
 
+### Handoff — 2026-09-11 — P05 partial (catalogue, substitution, endpoint)
+
+- **P05 steps 2, 3 and 7 are done, and step 1 is partial. Steps 4, 5 and 6 remain, so P05 is NOT checked off.**
+- New workspace package `packages/content` holds the shared catalogue. **All 40 new drafts are in and validated**: 20 educational with a keyed option and an explanation, 20 funny with four suggestions and deliberately no answer key. They were **generated from the Appendix A and B tables rather than transcribed**, so the catalogue cannot drift from the approved wording by a typo.
+- Step 3 is complete and is the part worth trusting. `substitutePlayerName` splits on the placeholder and joins, so a display name is inserted as literal text: `$&`, `` $` ``, `$'`, markup, emoji and a name that is itself `{Player1}` all stay inert, and nothing is expanded twice. An instance freezes its text and chosen player, so a rename, a departure or a new joiner cannot reword a question already in play. An empty pool renders "your imaginary teammate" rather than a raw token. Options shuffle while ids stay stable, so the key survives.
+- Step 2: `/api/question/suggest` renders instances server-side for a seated player. The factual answer and explanation are withheld unless explicitly requested, which never happens on a path reaching a browser. A per-room, per-style `TemplateBag` draws without replacement, so a room works through its library before repeating — verified as at least 10 distinct prompts in 12 draws.
+- Step 7: `smoke-prompt-library.mjs` now **imports and validates** the catalogue instead of counting entries with a regular expression over `app.jsx`. It asserts all 40 ids, four distinct options each, only supported tokens, a real explanation on every educational entry, that no educational prompt names a player, and that no funny prompt carries a key. The script runs under `tsx` now. Legacy bank counts are still matched by pattern because those arrays remain inline in `app.jsx`.
+- **A test caught a flaw in my own test, not the code.** The player-selection distribution check drew once from each of 80 seeds and saw only two of four players. A linear generator advances by a fixed step, so its first output for consecutive seeds barely moves — that looks exactly like a biased chooser while proving nothing. Rewritten to draw 2,000 times from one stream; every player lands between 15% and 35%.
+- Verified: `npm run check` (118 unit tests, 15 of them in the new content package), full `npm test` across 24 smoke scripts.
+- Outstanding for P05: **step 1** migrating the 148 legacy inline entries (50 party, 40 Majority, 58 educational) into the catalogue with stable ids and deduplication — the new 40 are additive and the legacy banks still serve the client; **step 4** replacing both `QuestionBuilder` suggestion branches and the server force-fill with the shared service, including the explicit automatic-Classic fallback; **step 5** unset intended-key selection and the "Predict the room's choice" control; **step 6** fact-check reveal copy.
+- Production touched: **no.**
+
 ### Handoff — 2026-09-11 — P04 complete
 
 - **P04 steps 1-7 complete and checked off.** P05 is next.

@@ -1,6 +1,57 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
+// The 40 new prompts are imported and validated rather than counted with a
+// regular expression over source. Counting source text was how a content
+// mistake could sit behind a green test: the count matched, so nobody looked
+// at what the entries actually said. The legacy banks below are still matched
+// by pattern because they remain inline arrays in app.jsx; migrating them into
+// the catalogue is the rest of P05 step 1.
+import {
+  EDUCATIONAL_TEMPLATES,
+  FUNNY_TEMPLATES,
+  PLAYER_PLACEHOLDER,
+  validateCatalogue
+} from "../packages/content/src/index.ts";
+
+{
+  const problems = validateCatalogue();
+  assert.deepEqual(problems, [], "The shared catalogue must be structurally valid: " + JSON.stringify(problems));
+
+  assert.equal(EDUCATIONAL_TEMPLATES.length, 20, "Appendix A contributes exactly 20 educational prompts");
+  assert.equal(FUNNY_TEMPLATES.length, 20, "Appendix B contributes exactly 20 funny prompts");
+
+  for (let index = 1; index <= 20; index += 1) {
+    const suffix = String(index).padStart(2, "0");
+    assert.ok(EDUCATIONAL_TEMPLATES.some((entry) => entry.id === "EDU-NEW-" + suffix), "Missing EDU-NEW-" + suffix);
+    assert.ok(FUNNY_TEMPLATES.some((entry) => entry.id === "FUN-NEW-" + suffix), "Missing FUN-NEW-" + suffix);
+  }
+
+  for (const template of [...EDUCATIONAL_TEMPLATES, ...FUNNY_TEMPLATES]) {
+    assert.equal(template.options.length, 4, template.id + " needs four options");
+    const texts = template.options.map((option) => option.text.trim().toLowerCase());
+    assert.equal(new Set(texts).size, 4, template.id + " has duplicate options");
+    const tokens = template.question.match(/\{[^}]*\}/g) || [];
+    for (const token of tokens) {
+      assert.equal(token, PLAYER_PLACEHOLDER, template.id + " uses an unsupported token " + token);
+    }
+  }
+
+  for (const template of EDUCATIONAL_TEMPLATES) {
+    assert.ok(
+      template.options.some((option) => option.id === template.factualAnswerId),
+      template.id + " keys an option that does not exist"
+    );
+    assert.ok(template.explanation.trim().length > 8, template.id + " needs a real explanation");
+    assert.ok(!template.question.includes(PLAYER_PLACEHOLDER), template.id + " must not name a player");
+  }
+
+  for (const template of FUNNY_TEMPLATES) {
+    assert.ok(template.question.includes(PLAYER_PLACEHOLDER), template.id + " must name a player");
+    assert.equal(template.factualAnswerId, undefined, template.id + " must not carry an answer key");
+  }
+}
+
 const source = (await fs.readFile(new URL("./public/app.jsx", import.meta.url), "utf8")).replaceAll("\r\n", "\n");
 
 function sourceBetween(start, end) {

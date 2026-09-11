@@ -26,6 +26,7 @@ import { customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "
 import { buildMajorityResults } from "./server/majority.mjs";
 import { buildHerdAssignmentPlan, buildHerdRoundResults } from "../packages/game-engine/src/index.ts";
 import { DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
+import { TemplateBag, instantiateTemplate } from "../packages/content/src/index.ts";
 import { initialiseRoomMedia, pruneRoomMedia, roomAssetDataUrl, serveRoomMedia, storeRoomImage } from "./server/media.mjs";
 import { presentPlayer } from "./server/presentation.mjs";
 import { MAX_ACTIVE_ROOMS, MAX_PLAYERS_PER_ROOM } from "./server/room.mjs";
@@ -663,6 +664,9 @@ async function handleAction(pathname, payload, context = {}) {
 async function handleRoomAction(room, pathname, payload, context = {}) {
   if (pathname === "/api/player/join") {
     return joinPlayer(room, payload, context);
+  }
+  if (pathname === "/api/question/suggest") {
+    return suggestQuestion(room, payload);
   }
   if (pathname === "/api/question") {
     return submitQuestion(room, payload);
@@ -3063,6 +3067,49 @@ function takeFamilyQuestions(room, family) {
 function savedQuestionCount(room, family) {
   const slot = savedBankSlot(room, family);
   return slot.questions.length + slot.pending.length;
+}
+
+
+// Suggestions come from the shared catalogue, rendered here rather than in the
+// browser. Two reasons: the factual answer and its explanation never enter a
+// player's bundle, and the host's chosen style is applied in one place instead
+// of the client and the server each picking content their own way.
+//
+// The bag is per room and per style, so a room works through the library before
+// a prompt comes round again. It is two small objects, so it cannot grow.
+function roomTemplateBag(room, style) {
+  if (!room.promptBags) room.promptBags = {};
+  if (!room.promptBags[style]) room.promptBags[style] = new TemplateBag(style);
+  return room.promptBags[style];
+}
+
+function suggestQuestion(room, payload) {
+  const player = resolvePlayer(room, cleanText(payload?.playerId, 80)) || getPlayerByCredential(room, payload?.playerKey);
+  if (!player && !isHostCredential(room, payload?.playerKey)) {
+    return { ok: false, error: "Join the room before asking for a suggestion." };
+  }
+
+  const style = room.promptStyle === "education" ? "educational" : "funny";
+  // Only connected player seats are eligible to be named. A removed, banned or
+  // disconnected seat must never appear in a prompt.
+  const eligible = Object.values(room.players).
+    filter((seat) => seat.connected && seat.id).
+    map((seat) => ({ id: seat.id, name: cleanText(seat.name, 24) || "Player" }));
+
+  const template = roomTemplateBag(room, style).next();
+  // includeAnswerKey is deliberately omitted: this reply reaches a browser.
+  const instance = instantiateTemplate(template, { eligible });
+
+  return {
+    ok: true,
+    suggestion: {
+      templateId: instance.templateId,
+      templateVersion: instance.templateVersion,
+      kind: instance.kind,
+      text: instance.text,
+      options: instance.options.map((option) => ({ id: option.id, text: option.text }))
+    }
+  };
 }
 
 function normaliseGameMode(value, fallback = DEFAULT_GAME_MODE) {

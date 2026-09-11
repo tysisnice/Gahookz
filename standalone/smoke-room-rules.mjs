@@ -177,6 +177,45 @@ for (const secret of ["password", "hostKey", "playerKey", "credential"]) {
   );
 }
 
+// --- P05: server-rendered suggestions ---------------------------------------
+
+{
+  const suggestion = await post("/api/question/suggest", { playerKey: players[0] });
+  assert(suggestion.ok, "A joined player must be able to ask for a suggestion: " + suggestion.error);
+  const prompt = suggestion.suggestion;
+  assert(prompt.text && !prompt.text.includes("{Player1}"), "A suggestion must never contain an unresolved token: " + prompt.text);
+  assert(prompt.options.length === 4, "A suggestion must offer four options");
+  assert(
+    prompt.factualAnswerId === undefined && prompt.explanation === undefined,
+    "A suggestion sent to a browser must not carry the answer key"
+  );
+  assert(
+    !JSON.stringify(prompt).includes("factualAnswerId"),
+    "The answer key must not appear anywhere in a suggestion payload"
+  );
+
+  // Funny prompts name somebody in the room, and only a connected seat.
+  const names = (await state()).players.map((player) => player.name);
+  if (prompt.kind === "funny") {
+    assert(
+      names.some((name) => prompt.text.includes(name)) || prompt.text.includes("your imaginary teammate"),
+      "A funny suggestion should name a connected player: " + prompt.text
+    );
+  }
+
+  // A stranger with no seat gets nothing.
+  const stranger = await post("/api/question/suggest", { playerKey: randomUUID() });
+  assert(stranger.ok === false, "Somebody who has not joined must not be served suggestions");
+
+  // The room works through its library rather than repeating immediately.
+  const seen = new Set();
+  for (let index = 0; index < 12; index += 1) {
+    const next = await post("/api/question/suggest", { playerKey: players[0] });
+    seen.add(next.suggestion.templateId);
+  }
+  assert(seen.size >= 10, "A room should work through its library, saw " + seen.size + " distinct prompts in 12 draws");
+}
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -189,6 +228,9 @@ console.log(JSON.stringify({
     "Visual only allows the reaction but moves no score",
     "Off refuses the Gahook outright",
     "an ordinary player cannot change the room rules",
-    "a player sees the policy but never a credential"
+    "a player sees the policy but never a credential",
+    "suggestions are rendered server-side with no answer key",
+    "a stranger is not served suggestions",
+    "a room works through its prompt library"
   ]
 }, null, 2));

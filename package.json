@@ -34,7 +34,7 @@
     "standalone:smoke:dash": "node standalone/smoke-dash.mjs",
     "standalone:smoke:social-media": "node standalone/smoke-social-media.mjs",
     "standalone:smoke:social-creation": "node standalone/smoke-social-creation.mjs",
-    "standalone:smoke:prompts": "node standalone/smoke-prompt-library.mjs",
+    "standalone:smoke:prompts": "node --import tsx standalone/smoke-prompt-library.mjs",
     "standalone:smoke:deployment": "node standalone/smoke-deployment.mjs",
     "standalone:smoke:security": "node standalone/smoke-security.mjs",
     "deploy:fedora": "bash scripts/docker-deploy.sh",
