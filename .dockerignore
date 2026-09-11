@@ -41,3 +41,6 @@ standalone/public/**/*.test.ts
 
 # Runtime journal; the image must not carry one.
 standalone/.data/
+
+# Chromium for browser tests; never part of an image.
+.cache/puppeteer

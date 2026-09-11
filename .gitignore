@@ -69,3 +69,6 @@ standalone/.data/
 Thumbs.db
 Desktop.ini
 /standalone/public/client/arena.js
+
+# Puppeteer's downloaded browser.
+.cache/

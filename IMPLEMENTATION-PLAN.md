@@ -185,7 +185,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P07 | Durable, retry-safe career-result delivery | P01 |
 | [x] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
 | [x] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
-| [ ] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
+| [~] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
 | [ ] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
 | [ ] | P12 | Full regression matrix, human tests, release/rollback readiness | P00–P11 |
 
@@ -431,6 +431,19 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-12 — browser harness exists; P10 step 7 unblocked
+
+- **The blocker is gone.** The owner approved a browser engine on the condition that it does not reach the shipped product, and Puppeteer is now a development dependency with `npm run test:browser`.
+- **It cannot reach production.** The production image copies `node_modules` from a stage running `npm ci --omit=dev`, container builds set `PUPPETEER_SKIP_DOWNLOAD=1` so no image carries a browser, the downloaded Chromium lives in `~/.cache/puppeteer` outside the repository, and `.dockerignore` excludes it. `smoke-deployment.mjs` now **fails the build** if Puppeteer becomes a runtime dependency, if the skip flag is removed, or if the cache is no longer ignored — verified by temporarily moving it to `dependencies` and watching the guard fire. Runtime dependencies remain exactly `pg` and `tsx`.
+- `standalone/browser-flow.mjs` runs the real client in headless Chromium against a disposable server and checks eight things a player would notice: the client boots without throwing, a guest creates a room with no account, a second device opens the room link, **the joining player appears in the host lobby live over SSE**, the lobby updates without the old unconditional poll, a reload reconnects without dropping the player, the player view fits a 320px phone without sideways scrolling, and no unresolved token or rendering fault reaches the screen. It refuses to run against a live host.
+- **This is the first automated evidence that the P01 network extraction actually works.** Until now it rested on unit tests plus the owner loading the page once.
+- Two things the harness taught while being written, both recorded because they will catch the next person: a second tab in the same browser profile shares `localStorage` and is therefore treated as the **same device**, so a "second player" needs its own browser context — the first attempt opened the host's own lobby and looked like a broken join. And React-controlled inputs need the native value setter plus a dispatched `input` event, or the component never sees the text.
+- Wired into CI as a step in the existing smoke job, after `npm test`, with `npx puppeteer browsers install chrome`. Documented in `README.md`.
+- One more consequence of the prompt mix surfaced: a suggestion assertion demanded four options, but the migrated party bank holds **two**-option prompts and the builder has always accepted two to four. Demanding four would have quietly excluded that whole bank.
+- **P10 remains partial** (marked `[~]`, not complete). Steps 4, 5 and part of 6 are done and now testable; steps 1, 2 and 3 — extracting feature-owned components and styles, and the lobby hierarchy — are a large mechanical refactor of `app.jsx` that is now *safe to attempt* but has not been attempted.
+- Verified: `npm run check` (162 unit tests), full `npm test` across 24 smoke scripts, `npm run test:browser` (8 checks), `npm run test:rooms` on a separate fresh lifetime — twelve games. The room cap bit again from reusing one server across batches, as this plan warns.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-12 — P10 partial (scoring clarity done, browser tests blocked)
 

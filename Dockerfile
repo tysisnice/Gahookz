@@ -19,6 +19,9 @@ COPY package.json package-lock.json ./
 COPY packages/accounts/package.json ./packages/accounts/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/game-engine/package.json ./packages/game-engine/package.json
+# Browser tests run on a developer machine, never in a container. Skipping
+# the download keeps roughly 200MB of Chromium out of the development image.
+ENV PUPPETEER_SKIP_DOWNLOAD=1
 RUN npm ci --include=dev
 
 FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS production-dependencies

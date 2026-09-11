@@ -62,7 +62,13 @@ const checks = [
   [server.includes('process.once("SIGTERM"'), "Server must handle Docker shutdown."],
   [server.includes('url.pathname === "/api/health"'), "Server health endpoint is missing."],
   [productionTargets.length === 0, "Smoke tests must not default to the production port 3102: " + productionTargets.join(", ")],
-  [server.includes("release: releaseInfo.version"), "Server health must identify the running release."]
+  [server.includes("release: releaseInfo.version"), "Server health must identify the running release."],
+  // Puppeteer is a development tool. A browser engine in the shipped image
+  // would be roughly 200MB of runtime nobody uses.
+  [!JSON.parse(packageSource).dependencies?.puppeteer, "Puppeteer must not be a runtime dependency."],
+  [Boolean(JSON.parse(packageSource).devDependencies?.puppeteer), "Puppeteer should be a development dependency."],
+  [dockerfile.includes("PUPPETEER_SKIP_DOWNLOAD=1"), "Container builds must not download a browser engine."],
+  [dockerignore.includes(".cache/puppeteer"), "The downloaded browser must never enter an image."]
 ];
 
 for (const [ok, message] of checks) {

@@ -184,7 +184,13 @@ for (const secret of ["password", "hostKey", "playerKey", "credential"]) {
   assert(suggestion.ok, "A joined player must be able to ask for a suggestion: " + suggestion.error);
   const prompt = suggestion.suggestion;
   assert(prompt.text && !prompt.text.includes("{Player1}"), "A suggestion must never contain an unresolved token: " + prompt.text);
-  assert(prompt.options.length === 4, "A suggestion must offer four options");
+  // Two to four, not always four: the migrated party bank holds two-option
+  // prompts, and the builder has always supported between two and four
+  // answers. Demanding four here would have quietly excluded that whole bank.
+  assert(
+    prompt.options.length >= 2 && prompt.options.length <= 4,
+    "A suggestion must offer between two and four options, got " + prompt.options.length
+  );
   // The requester is the prospective author of this draft, and an author is
   // always shown the key to their own question -- `ownQuestions` already does
   // exactly that. The rule being protected is narrower: a key must never reach

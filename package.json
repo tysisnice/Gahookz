@@ -50,7 +50,8 @@
     "test": "npm run standalone:smoke",
     "capture:fixtures": "node standalone/capture-fixtures.mjs",
     "standalone:smoke:mode-settings": "node standalone/smoke-mode-settings.mjs",
-    "standalone:smoke:room-rules": "node standalone/smoke-room-rules.mjs"
+    "standalone:smoke:room-rules": "node standalone/smoke-room-rules.mjs",
+    "test:browser": "node standalone/browser-flow.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
@@ -60,6 +61,7 @@
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
     "esbuild": "0.28.1",
+    "puppeteer": "^25.10.0",
     "typescript": "7.0.2"
   },
   "dependencies": {

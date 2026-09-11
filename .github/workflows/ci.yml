@@ -116,6 +116,18 @@ jobs:
           GAHOOKZ_TEST_BASE_URL: http://127.0.0.1:3199
         run: npm test
 
+      # The client is otherwise never executed by anything: the rest of the
+      # suite drives the server over HTTP. This runs the real app in Chromium
+      # and checks what a player would notice -- a room that fills in live, a
+      # reload that reconnects, a layout that fits a small phone.
+      - name: Install Chromium for the browser test
+        run: npx puppeteer browsers install chrome
+
+      - name: Browser flow
+        env:
+          GAHOOKZ_BASE_URL: http://127.0.0.1:3199
+        run: npm run test:browser
+
       - name: Stop the server
         if: always()
         run: |

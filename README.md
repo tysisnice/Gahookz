@@ -148,6 +148,14 @@ and reset. It uses host skip to accelerate phase timers and records Herd's
 answer-writing workloads. This checks lifecycle correctness, not real-world
 network capacity or whether people enjoy the pacing.
 
+`npm run test:browser` runs the real client in headless Chromium against the
+same disposable server: it creates a room, joins from a second browser context,
+and checks that the player appears in the host lobby live, that a reload
+reconnects, and that the player view fits a 320px phone. Everything else in the
+suite drives the server over HTTP and never executes the client, so this is the
+only check that the browser app actually works. Puppeteer is a development
+dependency and is kept out of every container image.
+
 The same three jobs run in CI on every push and pull request to `main`
 (`.github/workflows/ci.yml`).
 
