@@ -18,6 +18,7 @@ import {
   unregisterPlayerCredential } from
 "./server/auth.mjs";
 import { initialiseArena, tapArena, arenaProgress } from "./server/arena.mjs";
+import { createCareerOutbox } from "./server/career-outbox.mjs";
 import { isSyncArtifact } from "./sync-artifacts.mjs";
 import { createAdmissionController, requestAddress } from "./server/admission.mjs";
 import { accountResultLocation, createAccountService } from "./server/accounts.mjs";
@@ -39,6 +40,16 @@ import { applySecurityHeaders, assertSameOrigin, readJson, sendJson, writeSseSta
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const publicDir = path.join(__dirname, "public");
+
+// Results are handed to a durable outbox rather than written fire-and-forget.
+// The journal lives on a path that must be a persistent volume in production;
+// if it is not, results survive a database outage but not a container replace.
+const careerOutbox = createCareerOutbox({
+  journalPath: process.env.GAHOOKZ_CAREER_JOURNAL || path.join(__dirname, ".data", "career.journal"),
+  deliver: (event) => accountService.recordMatch(event),
+  log: (message, detail) => console.warn("[career]", message, detail ? JSON.stringify(detail) : "")
+});
+
 let releaseInfo = readReleaseInfo();
 const envPort = typeof process !== "undefined" ? process.env?.PORT : "";
 const requestedPort = Number(globalThis.GAHOOKZ_PORT || envPort || 3001);
@@ -269,7 +280,8 @@ const server = http.createServer(async (req, res) => {
         instance: INSTANCE_ID,
         draining: draining,
         activeRooms: lobbies.size,
-        accountPersistence: accountService.persistence,
+        careerResults: careerOutbox.status(),
+    accountPersistence: accountService.persistence,
         googleLoginAvailable: accountService.googleAvailable
       });
       return;
@@ -450,6 +462,14 @@ const server = http.createServer(async (req, res) => {
     sendJson(res, 500, { ok: false, error: "Server error" });
   }
 });
+
+{
+  // Anything accepted before a previous restart is redelivered now.
+  const resumed = careerOutbox.start();
+  if (resumed.pending || resumed.corruptLines) {
+    console.warn("[career] resumed journal", JSON.stringify(resumed));
+  }
+}
 
 server.listen(PORT, HOST, () => {
   console.log("Gahookz " + releaseInfo.version + " running on http://" + HOST + ":" + PORT + "/");
@@ -4009,7 +4029,10 @@ function incrementCareerStat(player, key, amount = 1) {
 
 function recordCareerResults(room) {
   if (!room.game?.matchId || room.game.statsRecorded) return;
-  room.game.statsRecorded = true;
+  // Marked only once every eligible result has been durably accepted. Setting
+  // this first, as the old code did, meant a failed write left the room saying
+  // the match had been recorded when nothing had been.
+  let allAccepted = true;
   const eligiblePlayers = gameEligiblePlayers(room);
   const ranked = scorePlacements(eligiblePlayers).ranked;
   room.lastGameSummary = {
@@ -4035,7 +4058,7 @@ function recordCareerResults(room) {
       playerCount: ranked.length,
       roundStats: player.careerRoundStats
     });
-    void accountService.recordMatch({
+    const accepted = careerOutbox.accept({
       matchId: room.game.matchId,
       accountId: player.accountId,
       roomCode: room.code,
@@ -4044,8 +4067,19 @@ function recordCareerResults(room) {
       placement: placement.rank,
       playerCount: ranked.length,
       statDelta
-    }).catch((error) => console.error("Career result persistence failed:", error?.message || error));
+    });
+    if (!accepted.ok) {
+      allAccepted = false;
+      // The game still finishes. What must not happen is telling this player
+      // their career was updated when it was not.
+      player.careerResultPending = true;
+    } else {
+      player.careerResultPending = false;
+    }
   }
+
+  room.game.statsRecorded = allAccepted;
+  room.game.careerResultsPending = !allAccepted;
 }
 
 function finishGameNow(room) {

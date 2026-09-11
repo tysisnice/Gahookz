@@ -38,3 +38,6 @@ archive/
 
 # Test sources are never served or shipped.
 standalone/public/**/*.test.ts
+
+# Runtime journal; the image must not carry one.
+standalone/.data/

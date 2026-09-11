@@ -56,6 +56,9 @@ LAPTOP-DEPLOY-PROMPT.md
 # renaming the copies to dodge that check would defeat the protection.
 archive/
 
+# Durable career-result journal. Local runtime state, never source.
+standalone/.data/
+
 # Editor and operating-system files
 .idea/
 .vscode/

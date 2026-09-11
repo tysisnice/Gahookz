@@ -182,7 +182,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
 | [x] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
 | [x] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
-| [ ] | P07 | Durable, retry-safe career-result delivery | P01 |
+| [x] | P07 | Durable, retry-safe career-result delivery | P01 |
 | [ ] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
 | [ ] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
 | [ ] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
@@ -431,6 +431,19 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-11 — P07 complete
+
+- **P07 complete and checked off.** P08 next.
+- The defect: `recordCareerResults` set `room.game.statsRecorded = true` **before** writing anything, then fired `accountService.recordMatch` with a `.catch` that only logged. A database outage, a slow write or a restart in between lost the result while the room said it had been recorded.
+- Step 5 needed no migration: `recordMatch` is **already idempotent** in both repositories — the memory one dedupes on `matchId:accountId`, and PostgreSQL uses `ON CONFLICT DO NOTHING` on `account_match_results` inside a transaction. That is what makes redelivery safe.
+- `standalone/server/career-outbox.mjs` is a durable outbox that solves the admission boundary the plan stresses: **a database-only outbox cannot accept a result while the database is unavailable.** Acceptance appends to a local journal and `fsync`s before the caller is told anything is safe; delivery to PostgreSQL happens afterwards with bounded exponential backoff and jitter. `statsRecorded` is now set only if every eligible result was durably accepted, and a player whose result could not be accepted is marked `careerResultPending` rather than told their career was updated.
+- Twelve fault-injection tests cover the plan's list: outage before enqueue and before delivery, transient recovery, restart replay, **restart after delivery but before acknowledgement** (the worst window — redelivery is a no-op because of the existing dedupe), duplicate acceptance, partial multi-account success, exhaustion with manual replay, a torn journal line costing only itself, a bounded queue so a long outage cannot fill a disk, and honest refusal when the journal cannot be written at all.
+- Two bugs found by those tests, both mine: `flush()` returned early when a run was already in flight, so awaiting it proved nothing; and a flush took a single snapshot, so the other accounts in the same finished match waited for a timer. `flush()` now returns the in-flight run and drains.
+- `/api/health` publishes `careerResults` — queued, delivered, exhausted, corrupt lines, pending bytes — so an operator can see a backlog rather than discover it.
+- **External gate, not done and not claimable:** this has only been exercised against the in-memory repository, because `accountPersistence` is `memory` on this host. Real PostgreSQL fault injection, the persistent-volume mount for the journal, and migration rehearsal are operations work the plan gates separately. The journal path defaults to `standalone/.data/` and **must** be a persistent volume in production or results survive an outage but not a container replace.
+- Verified: `npm run check` (136 unit tests), full `npm test`, `npm run test:rooms` on a separate fresh lifetime.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-11 — P06 complete
 
