@@ -194,6 +194,27 @@ const GAME_MODES = [
 { id: "majority", title: "Majority Rulz", subtitle: "Pick what the room will pick", art: "majority", available: true },
 { id: "herd", title: "Herd", subtitle: "Write the room's answers", art: "herd", available: true }];
 
+// The selector shows two games. Majority is a scoring rule inside Quiz, not a
+// third game, so it lives on a toggle rather than a button. GAME_MODES above is
+// kept for tutorials, mode art and historical records that still speak in the
+// legacy three-value spelling.
+const GAME_FAMILIES = [
+{ id: "quiz", title: "Quiz", subtitle: "Answer the room's questions", art: "quiz", available: true },
+{ id: "herd", title: "Herd", subtitle: "Write the room's answers", art: "herd", available: true }];
+
+// Older snapshots carry only gameMode, so the canonical pair is derived when
+// the server has not sent it yet.
+function familyOf(lobby) {
+  return lobby?.gameFamily || (lobby?.gameMode === "herd" ? "herd" : "quiz");
+}
+function scoringOf(lobby) {
+  return lobby?.quizScoring || (lobby?.gameMode === "majority" ? "majority" : "classic");
+}
+function scoringLabelFor(lobby) {
+  if (familyOf(lobby) === "herd") return "Herd";
+  return scoringOf(lobby) === "majority" ? "Quiz · Majority Rulez" : "Quiz · Classic";
+}
+
 const ROUND_PRESETS = [
 { id: "quick", title: "Quick", subtitle: "Fast party hit", detail: "1 question each · up to 10 rounds" },
 { id: "standard", title: "Standard", subtitle: "Full game night", detail: "1–3 each · up to 18 rounds" },
@@ -1576,7 +1597,7 @@ function HostMode({ playerKey, code }) {
     const previousQuestionLimit = lobby.maxQuestionsPerPlayer;
     const isQuestionLimitUpdate = path === "/api/host/settings" && Object.prototype.hasOwnProperty.call(payload, "maxQuestionsPerPlayer");
     const optimisticSettings = path === "/api/host/settings" ?
-    Object.fromEntries(Object.entries(payload).filter(([key]) => ["gameMode", "approveQuestions", "roundPreset", "allowCustomProfiles", "allowCustomGahooks", "promptStyle"].includes(key))) :
+    Object.fromEntries(Object.entries(payload).filter(([key]) => ["gameMode", "gameFamily", "quizScoring", "approveQuestions", "roundPreset", "allowCustomProfiles", "allowCustomGahooks", "promptStyle"].includes(key))) :
     {};
     if (Object.prototype.hasOwnProperty.call(payload, "roundPreset")) {
       optimisticSettings.plannedTotalQuestions = 0;
@@ -1803,20 +1824,45 @@ function CounterGahookPrompt({ offer, busy = false, onCounter }) {
   </aside>;
 }
 
-function GameModeSelector({ value = "quiz", onChange, compact = false, actions = null }) {
+function GameFamilySelector({ value = "quiz", onChange, actions = null }) {
   return (
-    <section className={compact ? "mode-selector is-compact" : "mode-selector"} aria-label="Game mode">
-      {!compact ? <div className="mode-selector-heading"><span>Game mode</span>{actions}</div> : null}
+    <section className="mode-selector" aria-label="Game">
+      <div className="mode-selector-heading"><span>Game</span>{actions}</div>
       <div className="mode-selector-options">
-        {GAME_MODES.map((mode) =>
-        <button className={[value === mode.id ? "is-selected" : "", !mode.available ? "is-coming-soon" : ""].filter(Boolean).join(" ")} type="button" key={mode.id} aria-pressed={value === mode.id} disabled={!mode.available} onClick={() => mode.available && onChange?.(mode.id)}>
-            <ModeArt art={mode.art} />
-            <strong>{mode.title}</strong>
-            <small>{mode.subtitle}</small>
-            {!mode.available ? <em>Coming soon</em> : null}
+        {GAME_FAMILIES.map((family) =>
+        <button className={value === family.id ? "is-selected" : ""} type="button" key={family.id} aria-pressed={value === family.id} onClick={() => onChange?.(family.id)}>
+            <ModeArt art={family.art} />
+            <strong>{family.title}</strong>
+            <small>{family.subtitle}</small>
           </button>
         )}
       </div>
+    </section>);
+
+}
+
+function MajorityScoringToggle({ scoring = "classic", onChange }) {
+  const [helpOpen, setHelpOpen] = useState(false);
+  const on = scoring === "majority";
+  return (
+    <section className="majority-toggle" aria-label="Majority Rulez">
+      <div className="majority-toggle-row">
+        <div className="majority-toggle-label">
+          <strong>Majority Rulez</strong>
+          <small>Most-voted answer wins.</small>
+        </div>
+        <button className={on ? "majority-toggle-switch is-on" : "majority-toggle-switch"} type="button" role="switch" aria-checked={on} onClick={() => onChange?.(on ? "classic" : "majority")}>
+          <span>{on ? "On" : "Off"}</span>
+        </button>
+      </div>
+      {/* A real button, not a hover tooltip: this has to work by touch and by
+          keyboard, which is how most people will meet it. */}
+      <button className="majority-toggle-help-button" type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen(!helpOpen)}>
+        {helpOpen ? "Hide details" : "What does this change?"}
+      </button>
+      {helpOpen ?
+      <p className="majority-toggle-help">The room's most-voted answer wins, rather than a preset answer. Ties use the displayed tie-break rules.</p> :
+      null}
     </section>);
 
 }
@@ -2009,7 +2055,7 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
     const previousQuestionLimit = lobby.maxQuestionsPerPlayer;
     const isQuestionLimitUpdate = path === "/api/host/settings" && Object.prototype.hasOwnProperty.call(payload, "maxQuestionsPerPlayer");
     const optimisticSettings = path === "/api/host/settings" ?
-    Object.fromEntries(Object.entries(payload).filter(([key]) => ["gameMode", "approveQuestions", "roundPreset", "allowCustomProfiles", "allowCustomGahooks", "promptStyle"].includes(key))) :
+    Object.fromEntries(Object.entries(payload).filter(([key]) => ["gameMode", "gameFamily", "quizScoring", "approveQuestions", "roundPreset", "allowCustomProfiles", "allowCustomGahooks", "promptStyle"].includes(key))) :
     {};
     if (Object.prototype.hasOwnProperty.call(payload, "roundPreset")) {
       optimisticSettings.plannedTotalQuestions = 0;
@@ -2071,7 +2117,7 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
         }
       });
     };
-    return <HostLobby lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onLockSetup={() => hostAction("/api/host/lock-setup", { hostWillPlay: false })} onPoke={pokePlayer} onKick={kickPlayer} onMakeHost={makePlayerHost} onRandomizeIdentity={randomizePlayerIdentity} onUnban={(player) => hostAction("/api/host/unban", { playerId: player.id })} onPlayAsPlayer={onPlayAsPlayer} onExitAsPlayer={onExitAsPlayer} rejoiningAsPlayer={rejoiningAsPlayer} onQuestionLimit={(value) => hostAction("/api/host/settings", { maxQuestionsPerPlayer: value })} onRoundPreset={(value) => hostAction("/api/host/settings", { roundPreset: value })} onSettings={(value) => hostAction("/api/host/settings", value)} onModeChange={(value) => hostAction("/api/host/settings", { gameMode: value })} />;
+    return <HostLobby lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onLockSetup={() => hostAction("/api/host/lock-setup", { hostWillPlay: false })} onPoke={pokePlayer} onKick={kickPlayer} onMakeHost={makePlayerHost} onRandomizeIdentity={randomizePlayerIdentity} onUnban={(player) => hostAction("/api/host/unban", { playerId: player.id })} onPlayAsPlayer={onPlayAsPlayer} onExitAsPlayer={onExitAsPlayer} rejoiningAsPlayer={rejoiningAsPlayer} onQuestionLimit={(value) => hostAction("/api/host/settings", { maxQuestionsPerPlayer: value })} onRoundPreset={(value) => hostAction("/api/host/settings", { roundPreset: value })} onSettings={(value) => hostAction("/api/host/settings", value)} onFamilyChange={(value) => hostAction("/api/host/settings", { gameFamily: value })} onScoringChange={(value) => hostAction("/api/host/settings", { quizScoring: value })} />;
   }
   if (lobby.phase === "building") {
     const pokePlayer = (player) => {
@@ -2122,7 +2168,7 @@ function HostMoreOptions({ lobby, onSettings }) {
   </details>;
 }
 
-function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke, onKick, onMakeHost, onRandomizeIdentity, onUnban, onPlayAsPlayer, onExitAsPlayer, rejoiningAsPlayer = false, onQuestionLimit, onRoundPreset, onSettings, onModeChange }) {
+function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke, onKick, onMakeHost, onRandomizeIdentity, onUnban, onPlayAsPlayer, onExitAsPlayer, rejoiningAsPlayer = false, onQuestionLimit, onRoundPreset, onSettings, onFamilyChange, onScoringChange }) {
   const connectedPlayers = lobby.players.filter((player) => player.connected);
   const playerLink = buildRoomLink(lobby.code);
   const [shareNotice, setShareNotice] = useState("");
@@ -2198,10 +2244,12 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
           {lobby.bannedPlayers?.length ? <BannedPlayersPanel players={lobby.bannedPlayers} onUnban={onUnban} /> : null}
         </div>
         <aside className="host-control-panel">
-          <GameModeSelector value={lobby.gameMode} onChange={onModeChange} actions={<ModeTutorialLauncher mode={lobby.gameMode} autoOpen autoOpenMode="host" includeHost />} />
-          {lobby.gameMode === "herd" ? <section className="herd-length-summary"><span>Herd game length</span><strong>One question per player</strong><small>Everyone writes up to four answers, then every player-created question goes live.</small></section> : <RoundPresetSelector lobby={lobby} value={visibleRoundPreset} playerCount={connectedPlayers.length} customLimit={visibleQuestionLimit} onChange={selectRoundPreset} onQuestionLimit={selectQuestionLimit} />}
+          <GameFamilySelector value={familyOf(lobby)} onChange={onFamilyChange} actions={<ModeTutorialLauncher mode={lobby.gameMode} autoOpen autoOpenMode="host" includeHost />} />
+          {familyOf(lobby) === "quiz" ? <MajorityScoringToggle scoring={scoringOf(lobby)} onChange={onScoringChange} /> : null}
+          {familyOf(lobby) === "herd" ? <section className="herd-length-summary"><span>Herd game length</span><strong>One question per player</strong><small>Everyone writes up to four answers, then every player-created question goes live.</small></section> : <RoundPresetSelector lobby={lobby} value={visibleRoundPreset} playerCount={connectedPlayers.length} customLimit={visibleQuestionLimit} onChange={selectRoundPreset} onQuestionLimit={selectQuestionLimit} />}
           <HostMoreOptions lobby={lobby} onSettings={onSettings} />
           <button className="primary-button start-button lock-setup-button" type="button" disabled={!canLockSetup} onClick={lockSetup}>Begin Game</button>
+          <p className="start-scoring-summary">Playing <strong>{scoringLabelFor(lobby)}</strong>{familyOf(lobby) === "quiz" ? <span>{scoringOf(lobby) === "majority" ? " — pick what you think the room will choose." : " — pick the preset answer."}</span> : null}</p>
           <p className={canLockSetup ? "start-status is-ready" : "start-status"}>{canLockSetup ? "Options will lock when question making begins" : "Wait for a player, or join as a player yourself"}</p>
         </aside>
         <RoomSocialHub lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />

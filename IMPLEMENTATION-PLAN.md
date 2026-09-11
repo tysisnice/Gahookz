@@ -432,6 +432,19 @@ Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
 
+### Handoff — 2026-09-11 — P03 partial (steps 1-4 done)
+
+- **P03 steps 1, 2, 3 and 4 are done. Steps 5 and 6 remain, so P03 is NOT checked off.**
+- **A correction to this plan's findings table.** "Settings can silently destroy questions" is listed as a confirmed defect citing `updateHostSettings()` clearing every question queue on a mode change. The code is real but was **unreachable**: questions are refused in `lobby` ("Wait for the host to lock in the game options") and settings are refused everywhere else ("Settings are locked once the quiz starts"), so the two states are mutually exclusive. Verified against a live server, not read off the source. It becomes reachable exactly when P03 step 5 and P04 land, so the guard is still needed — as prevention, not as a fix for a live bug, and it should not be reported as one.
+- Step 1: `standalone/smoke-mode-settings.mjs` locks the lifecycle before any UI moved — questions refused in lobby, settings refused outside it, submissions retained in building, unused questions carried by `new-game`, `reset` clearing the bank, and legacy `gameMode` requests still working. Registered in the smoke chain (now 23 scripts).
+- Steps 2 and 4: the room keeps `gameSettings`, the canonical `{ gameFamily, quizScoring }` pair, and derives `room.gameMode` from it. **Only a family change invalidates written content now**; switching Classic and Majority leaves the bank and everybody's readiness alone, where previously any mode change ran the full reset. Selecting Herd keeps the Majority toggle's position so returning to Quiz restores it. Contradictory payloads are refused.
+- Step 3: the three-button selector is gone. `GameFamilySelector` shows **Quiz** and **Herd**; `MajorityScoringToggle` sits directly above the game length control and only under Quiz. Its help is a real button with `aria-expanded`, not a hover tooltip, because most people meet this on a phone. The lobby names the rule in force next to Begin Game ("Playing Quiz · Majority Rulez — pick what you think the room will choose."). `GAME_MODES` is retained for tutorials, mode art and historical records.
+- **Both** optimistic settings allowlists were updated (`app.jsx` lines ~1579 and ~2012). The plan warns about this and it is real: with only one updated, that host route would appear not to save the toggle.
+- `smoke-party-view` assertions were strengthened rather than renamed: the lobby must expose the family selector *and* the Majority toggle, the toggle must be Quiz-only, the lobby must name the scoring rule, and neither control may appear during question building.
+- Verified: `npm run check` (103 unit tests), full `npm test` (23 smoke scripts), `npm run test:rooms` on a separate fresh lifetime — twelve games. dev.gahookz.com serves the new lobby.
+- Outstanding for P03: **step 5**, separating the saved question bank from the questions selected for a game so drafts survive a family switch and overflow survives a shorter game; **step 6**, freezing effective rules at start and handling the host Save versus Begin Game race atomically. `LockedGameRules` already exists in contracts.
+- Production touched: **no.**
+
 ### Handoff — 2026-09-11 — P02 complete
 
 - **P02 steps 1-6 complete and checked off.** P03 is next.

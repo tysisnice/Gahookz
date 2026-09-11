@@ -10025,3 +10025,94 @@ button.answer-tile {
 .welcome-legal-link:focus-visible {
   opacity: 1;
 }
+
+/* Majority Rulez scoring toggle.
+   Sits directly above the game length control and belongs to Quiz only. The
+   help is a real button rather than a hover tooltip, because most people meet
+   this on a phone where there is no hover. */
+.majority-toggle {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.majority-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.majority-toggle-label {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.majority-toggle-label strong { font-size: 1rem; }
+
+.majority-toggle-label small {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.82rem;
+}
+
+.majority-toggle-switch {
+  flex: 0 0 auto;
+  min-width: 72px;
+  min-height: 44px; /* stays a comfortable touch target */
+  padding: 0 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.majority-toggle-switch.is-on {
+  background: #7c3aed;
+  border-color: #7c3aed;
+}
+
+.majority-toggle-switch:focus-visible,
+.majority-toggle-help-button:focus-visible {
+  outline: 3px solid #f2c230;
+  outline-offset: 2px;
+}
+
+.majority-toggle-help-button {
+  justify-self: start;
+  padding: 6px 0;
+  min-height: 32px;
+  background: none;
+  border: 0;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.majority-toggle-help {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+/* Names the rule actually in force, next to the button that commits to it. */
+.start-scoring-summary {
+  margin: 0;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.88rem;
+}
+
+.start-scoring-summary strong { color: #fff; }
+
+@media (prefers-reduced-motion: reduce) {
+  .majority-toggle-switch { transition: none; }
+}

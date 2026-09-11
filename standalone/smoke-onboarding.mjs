@@ -45,7 +45,7 @@ assert(app.includes("Everyone makes one; 10 are selected fairly"), "Quick should
 assert(app.includes("questionUseSpent || inGame && player.id === ownPlayer.id"), "The in-game roster should disable every target after one use and never offer self-steals");
 assert(app.includes('usedPokeIds={questionUseIds(lobby)}'), "Reading, answering, and reveal should share one client Gahook budget");
 
-const socialHub = app.slice(app.indexOf("function RoomSocialHub"), app.indexOf("function GameModeSelector"));
+const socialHub = app.slice(app.indexOf("function RoomSocialHub"), app.indexOf("function GameFamilySelector"));
 const joinScreen = app.slice(app.indexOf("function JoinScreen"), app.indexOf("function PlayerWaitingLobby"));
 const playerWaitingLobby = app.slice(app.indexOf("function PlayerWaitingLobby"), app.indexOf("function PlayerLobby"));
 const hostLobby = app.slice(app.indexOf("function HostLobby("), app.indexOf("function HostLobbyPokeEffects"));

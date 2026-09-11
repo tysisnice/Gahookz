@@ -64,7 +64,11 @@ function runPartyViewSmoke() {
   assertIncludes(hostLobby, "<HostTopBar", "Host lobby should use the shared party top bar");
   assertIncludes(hostLobby, 'code={lobby.code}', "Host party-view top bar should show the room code");
   assertIncludes(hostLobby, 'className="host-lobby-layout has-room-status"', "Host lobby should use the shared two-panel party layout with its explainer first");
-  assertIncludes(hostLobby, "<GameModeSelector", "Host lobby should expose mode selection");
+  // Two games, and Majority as a scoring toggle rather than a third button.
+  assertIncludes(hostLobby, "<GameFamilySelector", "Host lobby should expose game selection");
+  assertIncludes(hostLobby, "<MajorityScoringToggle", "Host lobby should offer Majority Rulez as a scoring toggle");
+  assertIncludes(hostLobby, 'familyOf(lobby) === "quiz" ? <MajorityScoringToggle', "The Majority toggle belongs to Quiz only");
+  assertIncludes(hostLobby, "scoringLabelFor(lobby)", "The host lobby should name the scoring rule in force");
   assertIncludes(hostLobby, "Join game as player", "Host setup should offer a participant card for the host");
   assertIncludes(hostLobby, 'className="host-join-player-card"', "Host play entry should look like an extra player banner");
   assertIncludes(hostLobby, "onRemoveSelf", "A participating host should be able to remove themselves from the player list");
@@ -79,7 +83,8 @@ function runPartyViewSmoke() {
   assertIncludes(hostBuildingLobby, "<ForceStartControl", "Host party view should offer force start while players are unfinished");
   assertIncludes(hostBuildingLobby, "onForceStart={onForceStart}", "Host party view should connect force start to the server action");
   assertIncludes(hostBuildingLobby, '"Enter as player"', "Host should still be able to enter as a player during question making");
-  assertNotIncludes(hostBuildingLobby, "<GameModeSelector", "Game mode should not be editable during question making");
+  assertNotIncludes(hostBuildingLobby, "<GameFamilySelector", "The game should not be selectable during question making");
+  assertNotIncludes(hostBuildingLobby, "<MajorityScoringToggle", "Scoring should not be editable during question making");
 
   const joinScreen = getFunctionSection("JoinScreen");
   assertIncludes(joinScreen, 'className="host-screen host-lobby player-party-join"', "Join screen should use the party-view shell");
@@ -191,7 +196,7 @@ function runPartyViewSmoke() {
   assertNotIncludes(hostQuickMenu, "Player actions", "Host menu should not include player action controls");
   assertNotIncludes(hostQuickMenu, "Approve questions", "Host menu should not include lobby option controls");
   assertNotIncludes(hostQuickMenu, "Questions each", "Host menu should not include question count controls");
-  assertNotIncludes(hostQuickMenu, "GameModeSelector", "Host menu should not include mode controls");
+  assertNotIncludes(hostQuickMenu, "GameFamilySelector", "Host menu should not include game controls");
   assertNotIncludes(hostQuickMenu, "host-menu-code", "Host menu should not show the lobby code");
 
   const playerQuickMenu = getFunctionSection("PlayerQuickMenu");
