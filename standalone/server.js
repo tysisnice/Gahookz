@@ -25,6 +25,7 @@ import { allActivePlayersAnswered as roomAllActivePlayersAnswered, allActivePlay
 import { customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "./server/custom-gahook.mjs";
 import { buildMajorityResults } from "./server/majority.mjs";
 import { buildHerdAssignmentPlan, buildHerdRoundResults } from "../packages/game-engine/src/index.ts";
+import { DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
 import { initialiseRoomMedia, pruneRoomMedia, roomAssetDataUrl, serveRoomMedia, storeRoomImage } from "./server/media.mjs";
 import { presentPlayer } from "./server/presentation.mjs";
 import { MAX_ACTIVE_ROOMS, MAX_PLAYERS_PER_ROOM } from "./server/room.mjs";
@@ -2212,9 +2213,19 @@ function updateHostSettings(room, payload) {
     return { ok: false, error: "Settings are locked once the quiz starts." };
   }
 
-  const nextMode = normaliseGameMode(payload?.gameMode, room.gameMode);
-  if (nextMode !== room.gameMode) {
-    room.gameMode = nextMode;
+  const currentSettings = roomGameSettings(room);
+  const normalised = normaliseGameSettings(payload || {}, currentSettings);
+  if (!normalised.ok) {
+    return { ok: false, error: normalised.error };
+  }
+  const nextSettings = normalised.settings;
+  // Only a change of *game family* invalidates written content: a Quiz question
+  // and a Herd prompt are different things. Switching Classic and Majority
+  // changes how the same questions are scored, so it must leave the bank and
+  // everybody's readiness alone.
+  const familyChanged = nextSettings.gameFamily !== currentSettings.gameFamily;
+  applyGameSettings(room, nextSettings);
+  if (familyChanged) {
     room.questions = [];
     room.pendingQuestions = [];
     room.quizQuestions = [];
@@ -2826,6 +2837,7 @@ function makeLobby(code = generateRoomCode()) {
     passwordHash: "",
     passwordSalt: "",
     gameMode: DEFAULT_GAME_MODE,
+    gameSettings: { ...DEFAULT_GAME_SETTINGS },
     approveQuestions: false,
     allowCustomProfiles: true,
     allowCustomGahooks: true,
@@ -2884,6 +2896,22 @@ function normaliseRoomCode(value) {
   slice(0, 4).
   toUpperCase();
   return code.length === 4 ? code : "";
+}
+
+
+// The room keeps one writable truth for what is being played: `gameSettings`,
+// the canonical { gameFamily, quizScoring } pair. `room.gameMode` is derived
+// from it for the many existing call sites and for old clients, and is never
+// written independently -- two writable spellings of the same fact drift, and
+// the drift is silent.
+function roomGameSettings(room) {
+  return room.gameSettings || (room.gameSettings = { ...DEFAULT_GAME_SETTINGS });
+}
+
+function applyGameSettings(room, settings) {
+  room.gameSettings = { gameFamily: settings.gameFamily, quizScoring: settings.quizScoring };
+  room.gameMode = toLegacyGameMode(room.gameSettings);
+  return room.gameSettings;
 }
 
 function normaliseGameMode(value, fallback = DEFAULT_GAME_MODE) {
@@ -4115,6 +4143,8 @@ function buildSnapshot(room, role, playerKey) {
     hasPassword: roomHasPassword(room),
     isHost,
     gameMode: room.gameMode || DEFAULT_GAME_MODE,
+    gameFamily: roomGameSettings(room).gameFamily,
+    quizScoring: roomGameSettings(room).quizScoring,
     roundPreset: normaliseRoundPreset(room.roundPreset),
     approveQuestions: room.approveQuestions,
     allowCustomProfiles: room.allowCustomProfiles !== false,
