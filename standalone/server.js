@@ -89,6 +89,32 @@ const PROGRESS_FORCE_ADVANCE_MS = 5000;
 // without waiting five minutes. Clamped so a typo cannot disable room reaping.
 const ROOM_EXPIRE_MS = clamp(Number(process.env.GAHOOKZ_ROOM_EXPIRE_MS) || 5 * 60 * 1000, 250, 60 * 60 * 1000);
 const LIVE_GAME_PHASES = ["reading", "answering", "reveal"];
+
+// How far Gahook interruptions may go during the main game.
+//
+// Enforced here rather than by hiding a button: a client that keeps sending the
+// request must not be able to steal points the host has switched off. "chaos"
+// is the existing behaviour and stays the default so no room changes silently.
+const GAHOOK_EFFECT_POLICIES = ["off", "visual", "chaos"];
+const DEFAULT_GAHOOK_EFFECTS = "chaos";
+
+function gahookEffectsPolicy(room) {
+  return GAHOOK_EFFECT_POLICIES.includes(room?.gahookEffects) ? room.gahookEffects : DEFAULT_GAHOOK_EFFECTS;
+}
+
+/** Only "chaos" may move anybody's score. */
+function gahookScoringAllowed(room) {
+  return gahookEffectsPolicy(room) === "chaos";
+}
+
+/** "off" suppresses the interruption itself during a live round. */
+function gahookEffectsAllowed(room) {
+  return gahookEffectsPolicy(room) !== "off";
+}
+
+function lobbyArenaEnabled(room) {
+  return room?.lobbyArenaEnabled !== false;
+}
 const DEFAULT_QUESTIONS_PER_PLAYER = 3;
 const MIN_QUESTIONS_PER_PLAYER = 1;
 const MAX_QUESTIONS_PER_PLAYER = 5;
@@ -673,6 +699,12 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
   }
   if (pathname === "/api/player/dash") {
     return updatePlayerDash(room, payload);
+  }
+  if (pathname === "/api/player/poke" && LIVE_GAME_PHASES.includes(room.phase) && !gahookEffectsAllowed(room)) {
+    return { ok: false, error: "The host has turned Gahook effects off for this game." };
+  }
+  if (pathname === "/api/player/duel-challenge" && !lobbyArenaEnabled(room)) {
+    return { ok: false, error: "The host has turned off lobby duels." };
   }
   if (pathname === "/api/player/poke") {
     return pokeFromPlayer(room, payload);
@@ -1502,7 +1534,7 @@ function pokePlayer(room, payload, fromName, options = {}) {
   let scorePenalty = 0;
   let pointsStolen = 0;
 
-  if (!isFinalSpecial && !isInteractiveSpecial && LIVE_GAME_PHASES.includes(room.phase) && senderPlayer?.id && senderPlayer.id !== player.id) {
+  if (!isFinalSpecial && !isInteractiveSpecial && LIVE_GAME_PHASES.includes(room.phase) && senderPlayer?.id && senderPlayer.id !== player.id && gahookScoringAllowed(room)) {
     pointsStolen = GAHOOK_STEAL_POINTS;
     player.score = Number(player.score || 0) - pointsStolen;
     senderPlayer.score = Number(senderPlayer.score || 0) + pointsStolen;
@@ -1790,7 +1822,7 @@ function clearUltimateCongratulationsState(player, clearLatest = false) {
 
 function applyGetGot(room, player) {
   let scorePenalty = 0;
-  if (LIVE_GAME_PHASES.includes(room.phase)) {
+  if (LIVE_GAME_PHASES.includes(room.phase) && gahookScoringAllowed(room)) {
     player.score -= GET_GOT_SCORE_PENALTY;
     scorePenalty = GET_GOT_SCORE_PENALTY;
   }
@@ -2309,17 +2341,41 @@ function updateHostSettings(room, payload) {
   }
   if (typeof payload?.allowCustomProfiles === "boolean") {
     room.allowCustomProfiles = payload.allowCustomProfiles;
-    if (!room.allowCustomProfiles) {
-      Object.values(room.players).forEach(player => { player.avatarImageDataUrl = ""; });
-    }
+    // Hidden for the room, never deleted. Blanking the field destroyed an
+    // upload outright, so turning the setting back on could not restore it and
+    // the player had to find and upload their picture again.
+    Object.values(room.players).forEach((player) => {
+      if (!room.allowCustomProfiles) {
+        if (player.avatarImageDataUrl) player.hiddenAvatarImageDataUrl = player.avatarImageDataUrl;
+        player.avatarImageDataUrl = "";
+      } else if (player.hiddenAvatarImageDataUrl) {
+        player.avatarImageDataUrl = player.hiddenAvatarImageDataUrl;
+        player.hiddenAvatarImageDataUrl = "";
+      }
+    });
   }
   if (typeof payload?.allowCustomGahooks === "boolean") {
     room.allowCustomGahooks = payload.allowCustomGahooks;
-    if (!room.allowCustomGahooks) {
-      Object.values(room.players).forEach(player => {
-        if (normaliseGahookForm(player.gahookForm) === "custom") player.gahookForm = "monkey";
-      });
-    }
+    Object.values(room.players).forEach((player) => {
+      if (!room.allowCustomGahooks) {
+        if (normaliseGahookForm(player.gahookForm) === "custom") {
+          player.hiddenGahookForm = "custom";
+          player.gahookForm = "monkey";
+        }
+      } else if (player.hiddenGahookForm) {
+        player.gahookForm = player.hiddenGahookForm;
+        player.hiddenGahookForm = "";
+      }
+    });
+  }
+  if (GAHOOK_EFFECT_POLICIES.includes(payload?.gahookEffects)) {
+    room.gahookEffects = payload.gahookEffects;
+  }
+  if (typeof payload?.lobbyArenaEnabled === "boolean") {
+    room.lobbyArenaEnabled = payload.lobbyArenaEnabled;
+    // Turning duels off cancels anything in flight, neutrally: nobody forfeits
+    // and no score changes, because the host changed the rules, not the players.
+    if (!room.lobbyArenaEnabled) clearGahookDuel(room);
   }
   if (payload?.promptStyle === "fun" || payload?.promptStyle === "education") {
     room.promptStyle = payload.promptStyle;
@@ -2341,6 +2397,12 @@ function updateHostSettings(room, payload) {
     gameMode: room.gameMode,
     allowCustomProfiles: room.allowCustomProfiles !== false,
     allowCustomGahooks: room.allowCustomGahooks !== false,
+    gahookEffects: gahookEffectsPolicy(room),
+    lobbyArenaEnabled: lobbyArenaEnabled(room),
+    // Published from the constants so the UI states the real rules rather than
+    // a guess that drifts from the server.
+    gahookStealPoints: GAHOOK_STEAL_POINTS,
+    getGotPenaltyPoints: GET_GOT_SCORE_PENALTY,
     promptStyle: room.promptStyle || "fun"
   };
 }
@@ -2372,7 +2434,7 @@ function lockSetup(room, payload) {
     gameMode: toLegacyGameMode(lockedSettings),
     roundPreset: room.roundPreset,
     maxQuestionsPerPlayer: room.maxQuestionsPerPlayer,
-    promptStyle: room.promptStyle || "funny",
+    promptStyle: room.promptStyle || "fun",
     lockedAt: Date.now()
   };
 
@@ -2889,6 +2951,8 @@ function makeLobby(code = generateRoomCode()) {
     approveQuestions: false,
     allowCustomProfiles: true,
     allowCustomGahooks: true,
+    gahookEffects: DEFAULT_GAHOOK_EFFECTS,
+    lobbyArenaEnabled: true,
     promptStyle: "fun",
     roundPreset: DEFAULT_ROUND_PRESET,
     maxQuestionsPerPlayer: DEFAULT_QUESTIONS_PER_PLAYER,
@@ -4241,6 +4305,13 @@ function buildSnapshot(room, role, playerKey) {
     hasPassword: roomHasPassword(room),
     isHost,
     gameMode: room.gameMode || DEFAULT_GAME_MODE,
+    gahookEffects: gahookEffectsPolicy(room),
+    lobbyArenaEnabled: lobbyArenaEnabled(room),
+    // Published from the constants so the UI states the real rules rather than
+    // a guess that drifts from the server.
+    gahookStealPoints: GAHOOK_STEAL_POINTS,
+    getGotPenaltyPoints: GET_GOT_SCORE_PENALTY,
+    pendingQuestionCount: (room.pendingQuestions || []).length,
     gameFamily: roomGameSettings(room).gameFamily,
     quizScoring: roomGameSettings(room).quizScoring,
     settingsRevision: room.settingsRevision || 0,

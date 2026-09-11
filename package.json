@@ -46,10 +46,11 @@
     "start:docker": "docker compose up -d gahookz-dev gahookz",
     "start:docker:dev": "docker compose up -d gahookz-dev",
     "start:docker:prod": "docker compose up -d gahookz",
-    "standalone:smoke": "npm run test:simulation && npm run standalone:smoke:security && npm run standalone:smoke:room-expiry && npm run standalone:smoke:mode-settings && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment",
+    "standalone:smoke": "npm run test:simulation && npm run standalone:smoke:security && npm run standalone:smoke:room-expiry && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment",
     "test": "npm run standalone:smoke",
     "capture:fixtures": "node standalone/capture-fixtures.mjs",
-    "standalone:smoke:mode-settings": "node standalone/smoke-mode-settings.mjs"
+    "standalone:smoke:mode-settings": "node standalone/smoke-mode-settings.mjs",
+    "standalone:smoke:room-rules": "node standalone/smoke-room-rules.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -1625,6 +1625,7 @@ function HostMode({ playerKey, code }) {
       window.gahookzRefreshSnapshot?.();
     }
     return result;
+    return result;
   };
 
   useEffect(() => {
@@ -2083,6 +2084,7 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
       window.gahookzRefreshSnapshot?.();
     }
     return result;
+    return result;
   };
 
   const kickPlayer = async (player) => {
@@ -2149,23 +2151,155 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
   return <HostGame lobby={lobby} connected={connected} hostMenu={hostMenu} onSkip={() => hostAction("/api/host/skip")} onPause={(paused) => hostAction("/api/host/pause", { paused })} onLeaderboardPoke={pokePlayer} />;
 }
 
-function HostMoreOptions({ lobby, onSettings }) {
-  return <details className="host-more-options">
-    <summary>More Options</summary>
-    <div>
-      <label className="host-checkbox"><input type="checkbox" checked={Boolean(lobby.approveQuestions)} onChange={(event) => onSettings?.({ approveQuestions: event.target.checked })} /><span>Approve questions</span></label>
-      <label className="host-checkbox"><input type="checkbox" checked={lobby.allowCustomProfiles !== false} onChange={(event) => onSettings?.({ allowCustomProfiles: event.target.checked })} /><span>Allow custom profiles</span></label>
-      <label className="host-checkbox"><input type="checkbox" checked={lobby.allowCustomGahooks !== false} onChange={(event) => onSettings?.({ allowCustomGahooks: event.target.checked })} /><span>Allow custom Gahooks</span></label>
-      {lobby.gameMode === "quiz" ? <div className="host-prompt-style" role="group" aria-label="Default prompt style">
-        <span>Prompt style</span>
-        <div>
-          <button className={lobby.promptStyle !== "education" ? "is-selected" : ""} type="button" aria-pressed={lobby.promptStyle !== "education"} onClick={() => onSettings?.({ promptStyle: "fun" })}>For fun</button>
-          <button className={lobby.promptStyle === "education" ? "is-selected" : ""} type="button" aria-pressed={lobby.promptStyle === "education"} onClick={() => onSettings?.({ promptStyle: "education" })}>Education</button>
+// The rules a host owns for the room, in one place, saved atomically.
+//
+// Deliberately NOT in here: the game selector and the game length. Those are
+// the two decisions a host makes constantly and they belong on the screen, not
+// behind a button.
+const RULES_FIELDS = ["approveQuestions", "promptStyle", "allowCustomProfiles", "allowCustomGahooks", "gahookEffects", "lobbyArenaEnabled"];
+
+function currentRules(lobby) {
+  return {
+    approveQuestions: Boolean(lobby.approveQuestions),
+    promptStyle: lobby.promptStyle === "education" ? "education" : "fun",
+    allowCustomProfiles: lobby.allowCustomProfiles !== false,
+    allowCustomGahooks: lobby.allowCustomGahooks !== false,
+    gahookEffects: ["off", "visual", "chaos"].includes(lobby.gahookEffects) ? lobby.gahookEffects : "chaos",
+    lobbyArenaEnabled: lobby.lobbyArenaEnabled !== false
+  };
+}
+
+function GahookEffectsHelp({ lobby }) {
+  // The real numbers, read from the room rather than written into the copy,
+  // so this cannot drift away from what the server actually does.
+  const steal = Number(lobby.gahookStealPoints || 0);
+  const penalty = Number(lobby.getGotPenaltyPoints || 0);
+  return (
+    <ul className="rules-help-list">
+      <li><strong>Off</strong> — no Gahook interruptions during a round.</li>
+      <li><strong>Visual only</strong> — reactions still happen, but nobody loses points.</li>
+      <li><strong>Chaos</strong> — a Gahook steals {steal} points, and GET GOT costs {penalty}.</li>
+    </ul>);
+
+}
+
+function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
+  const [draft, setDraft] = useState(() => currentRules(lobby));
+  const dialogRef = useRef(null);
+
+  useEffect(() => {
+    if (open) setDraft(currentRules(lobby));
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    dialogRef.current?.focus();
+    const onKeyDown = (event) => {
+      // Escape cancels. It must never be mistaken for Save, because a host who
+      // dismisses a dialog has not agreed to anything in it.
+      if (event.key === "Escape" && !saving) {
+        event.stopPropagation();
+        onCancel?.();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = dialogRef.current?.querySelectorAll('button:not([disabled]), input:not([disabled]), select, [tabindex]:not([tabindex="-1"])');
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open, saving, onCancel]);
+
+  if (!open) return null;
+
+  const set = (patch) => setDraft((previous) => ({ ...previous, ...patch }));
+  const pendingCount = Number(lobby.pendingQuestionCount || 0);
+  const turningApprovalOff = Boolean(lobby.approveQuestions) && !draft.approveQuestions;
+  const changed = RULES_FIELDS.some((field) => draft[field] !== currentRules(lobby)[field]);
+
+  return (
+    <div className="rules-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onCancel?.(); }}>
+      <section className="rules-modal" role="dialog" aria-modal="true" aria-labelledby="rules-modal-title" tabIndex={-1} ref={dialogRef}>
+        <header className="rules-modal-header">
+          <h2 id="rules-modal-title">Lobby rules</h2>
+          <p>These apply to everyone in the room.</p>
+        </header>
+
+        <div className="rules-modal-body">
+          <fieldset className="rules-section">
+            <legend>Questions</legend>
+            <label className="host-checkbox"><input type="checkbox" checked={draft.approveQuestions} onChange={(event) => set({ approveQuestions: event.target.checked })} /><span>Approve questions before they go in</span></label>
+            {turningApprovalOff && pendingCount > 0 ?
+            <p className="rules-consequence">Turning this off will let {pendingCount} waiting question{pendingCount === 1 ? "" : "s"} straight in. Anything over a player's limit stays saved for later.</p> :
+            null}
+            <div className="rules-choice" role="group" aria-label="Generated prompts">
+              <span>Generated prompts</span>
+              <div>
+                <button className={draft.promptStyle === "fun" ? "is-selected" : ""} type="button" aria-pressed={draft.promptStyle === "fun"} onClick={() => set({ promptStyle: "fun" })}>Funny</button>
+                <button className={draft.promptStyle === "education" ? "is-selected" : ""} type="button" aria-pressed={draft.promptStyle === "education"} onClick={() => set({ promptStyle: "education" })}>Educational</button>
+              </div>
+              <small>Changes what gets suggested next. It never rewrites a question someone already wrote.</small>
+            </div>
+          </fieldset>
+
+          <fieldset className="rules-section">
+            <legend>Gahook effects</legend>
+            <div className="rules-choice" role="group" aria-label="Gahook effects">
+              <div>
+                {[["off", "Off"], ["visual", "Visual only"], ["chaos", "Chaos"]].map(([id, label]) =>
+                <button className={draft.gahookEffects === id ? "is-selected" : ""} type="button" key={id} aria-pressed={draft.gahookEffects === id} onClick={() => set({ gahookEffects: id })}>{label}</button>
+                )}
+              </div>
+            </div>
+            <GahookEffectsHelp lobby={lobby} />
+            <label className="host-checkbox"><input type="checkbox" checked={draft.lobbyArenaEnabled} onChange={(event) => set({ lobbyArenaEnabled: event.target.checked })} /><span>Allow 1v1 duels in the lobby</span></label>
+            {!draft.lobbyArenaEnabled && lobby.lobbyArenaEnabled !== false ?
+            <p className="rules-consequence">Any duel in progress will be cancelled. Nobody loses.</p> :
+            null}
+          </fieldset>
+
+          <fieldset className="rules-section">
+            <legend>What players may bring</legend>
+            <label className="host-checkbox"><input type="checkbox" checked={draft.allowCustomProfiles} onChange={(event) => set({ allowCustomProfiles: event.target.checked })} /><span>Custom profile pictures</span></label>
+            <label className="host-checkbox"><input type="checkbox" checked={draft.allowCustomGahooks} onChange={(event) => set({ allowCustomGahooks: event.target.checked })} /><span>Custom Gahooks</span></label>
+            <small className="rules-note">Turning these off hides what people uploaded for this room. It is never deleted, and comes back if you turn them on again.</small>
+          </fieldset>
         </div>
-      </div> : null}
-      <EffectsPreferenceButtons />
-    </div>
-  </details>;
+
+        {error ? <p className="rules-modal-error" role="alert">{error}</p> : null}
+
+        <footer className="rules-modal-footer">
+          <button className="secondary-button" type="button" disabled={saving} onClick={onCancel}>Cancel</button>
+          <button className="primary-button" type="button" disabled={saving || !changed} onClick={() => onSave?.(draft)}>{saving ? "Saving..." : "Save changes"}</button>
+        </footer>
+      </section>
+    </div>);
+
+}
+
+function LockedRulesSummary({ lobby }) {
+  const rules = lobby.lockedRules;
+  if (!rules) return null;
+  const effects = { off: "Off", visual: "Visual only", chaos: "Chaos" }[lobby.gahookEffects] || "Chaos";
+  return (
+    <section className="locked-rules-summary" aria-label="Rules for this game">
+      <div className="locked-rules-heading"><strong>Lobby rules</strong><em>Locked for this game</em></div>
+      <dl>
+        <div><dt>Playing</dt><dd>{scoringLabelFor({ gameFamily: rules.gameFamily, quizScoring: rules.quizScoring })}</dd></div>
+        <div><dt>Gahook effects</dt><dd>{effects}</dd></div>
+        <div><dt>Generated prompts</dt><dd>{rules.promptStyle === "education" ? "Educational" : "Funny"}</dd></div>
+      </dl>
+    </section>);
+
 }
 
 function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke, onKick, onMakeHost, onRandomizeIdentity, onUnban, onPlayAsPlayer, onExitAsPlayer, rejoiningAsPlayer = false, onQuestionLimit, onRoundPreset, onSettings, onFamilyChange, onScoringChange }) {
@@ -2177,6 +2311,32 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
   const questionLimitRequestRef = useRef(0);
   const roundPresetRequestRef = useRef(0);
   const canLockSetup = connectedPlayers.length > 0;
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [rulesSaving, setRulesSaving] = useState(false);
+  const [rulesError, setRulesError] = useState("");
+  const rulesTriggerRef = useRef(null);
+
+  const closeRules = () => {
+    setRulesOpen(false);
+    setRulesError("");
+    // Focus goes back where it came from, or a keyboard user is dumped at the
+    // top of the document with no idea what happened.
+    rulesTriggerRef.current?.focus();
+  };
+
+  const saveRules = async (draft) => {
+    setRulesSaving(true);
+    setRulesError("");
+    // One request for the whole dialog, carrying the revision the host was
+    // looking at. A stale Save is refused outright rather than half-applied.
+    const result = await onSettings?.({ ...draft, settingsRevision: lobby.settingsRevision });
+    setRulesSaving(false);
+    if (result?.ok === false) {
+      setRulesError(result.error || "Those rules could not be saved.");
+      return;
+    }
+    closeRules();
+  };
 
   useEffect(() => {
     if (!questionLimitRequestRef.current) {
@@ -2244,10 +2404,15 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
           {lobby.bannedPlayers?.length ? <BannedPlayersPanel players={lobby.bannedPlayers} onUnban={onUnban} /> : null}
         </div>
         <aside className="host-control-panel">
+          <button className="rules-modal-trigger" type="button" ref={rulesTriggerRef} aria-haspopup="dialog" aria-expanded={rulesOpen} onClick={() => setRulesOpen(true)}>
+            <span>Lobby rules</span>
+            <span aria-hidden="true">⚙</span>
+          </button>
           <GameFamilySelector value={familyOf(lobby)} onChange={onFamilyChange} actions={<ModeTutorialLauncher mode={lobby.gameMode} autoOpen autoOpenMode="host" includeHost />} />
           {familyOf(lobby) === "quiz" ? <MajorityScoringToggle scoring={scoringOf(lobby)} onChange={onScoringChange} /> : null}
           {familyOf(lobby) === "herd" ? <section className="herd-length-summary"><span>Herd game length</span><strong>One question per player</strong><small>Everyone writes up to four answers, then every player-created question goes live.</small></section> : <RoundPresetSelector lobby={lobby} value={visibleRoundPreset} playerCount={connectedPlayers.length} customLimit={visibleQuestionLimit} onChange={selectRoundPreset} onQuestionLimit={selectQuestionLimit} />}
-          <HostMoreOptions lobby={lobby} onSettings={onSettings} />
+          <EffectsPreferenceButtons />
+          <HostRulesModal lobby={lobby} open={rulesOpen} saving={rulesSaving} error={rulesError} onCancel={closeRules} onSave={saveRules} />
           <button className="primary-button start-button lock-setup-button" type="button" disabled={!canLockSetup} onClick={lockSetup}>Begin Game</button>
           <p className="start-scoring-summary">Playing <strong>{scoringLabelFor(lobby)}</strong>{familyOf(lobby) === "quiz" ? <span>{scoringOf(lobby) === "majority" ? " — pick what you think the room will choose." : " — pick the preset answer."}</span> : null}</p>
           <p className={canLockSetup ? "start-status is-ready" : "start-status"}>{canLockSetup ? "Options will lock when question making begins" : "Wait for a player, or join as a player yourself"}</p>

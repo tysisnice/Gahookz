@@ -179,7 +179,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P01 | Runtime contracts, compatible schema evolution, typed client adapter/build seam | P00 |
 | [x] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
 | [x] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
-| [ ] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
+| [x] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
 | [ ] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
 | [ ] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
 | [ ] | P07 | Durable, retry-safe career-result delivery | P01 |
@@ -431,6 +431,20 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-11 — P04 complete
+
+- **P04 steps 1-7 complete and checked off.** P05 is next.
+- The `Lobby rules` button sits above the game selector and opens a host-only dialog. The game selector and game length deliberately stay on the screen: those are the two decisions a host makes constantly. `HostMoreOptions` is gone now that every setting it held is mapped.
+- Draft state with Save and Cancel. Escape and a backdrop click both cancel and never save, focus returns to the trigger, Tab is trapped inside the dialog, and Save sends **one** request carrying `settingsRevision`, so a stale Save is refused whole rather than half-applied and the error is shown in the dialog. `hostAction` now returns its result so the dialog can show that.
+- Step 6 is enforced on the server, not by hiding a button. `gahookEffects` is `off` / `visual` / `chaos`, default `chaos` so no room changes silently. The 50-point steal and the GET GOT penalty are both gated on `chaos`; `off` refuses the Gahook outright during a live round. **The real GET GOT penalty is 1000, not a guess** — it and the steal value are published from the server constants so the help text cannot drift from behaviour.
+- Step 7: `lobbyArenaEnabled` defaults on. Turning it off cancels any duel in flight neutrally — nobody forfeits, no score changes — and a challenge is refused server-side even if a client keeps sending it. `LockedRulesSummary` shows the frozen rules read-only, marked "Locked for this game".
+- Step 5 fixed a real defect: disabling custom profiles ran `player.avatarImageDataUrl = ""`, which **destroyed** the upload, so re-enabling could not bring it back and the player had to find and upload their picture again. Media is now hidden and restored. The same applies to a custom Gahook form.
+- Two of my own mistakes, both caught by the tests rather than by review: the policy fields were first published on the settings *response* instead of the public snapshot, so players could not see them; and an assertion hard-coded `"chaos"` when room rules survive a reset and the room was left on `"off"`. It now compares the player's view with the host's instead of asserting a default.
+- Verified: `npm run check` (103 unit tests), full `npm test` across 24 smoke scripts including 10 checks in the new `smoke-room-rules`, and `npm run test:rooms` on a separate fresh lifetime — twelve games. The score assertions are real: Chaos still steals 50, Visual moves nothing, Off refuses.
+- **Not verified and still open:** the accessibility claims are structural only — focus order, Tab trapping, `aria-modal`, 44px targets and a 320px layout are implemented and reasoned about, but no screen reader or physical phone has been near them. That is a P10/P12 gate and needs a human.
+- Next exact task: **P05 steps 1-7**, the shared prompt catalogue, safe `{Player1}` substitution and the 40 new drafts in Appendices A and B.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-11 — P03 complete
 

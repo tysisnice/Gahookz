@@ -10116,3 +10116,148 @@ button.answer-tile {
 @media (prefers-reduced-motion: reduce) {
   .majority-toggle-switch { transition: none; }
 }
+
+/* Host Lobby rules.
+   The trigger sits above the game selector; the game and its length stay on
+   the screen because those are the decisions a host makes constantly. */
+.rules-modal-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.rules-modal-trigger:focus-visible { outline: 3px solid #f2c230; outline-offset: 2px; }
+
+.rules-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  background: rgba(8, 8, 12, 0.72);
+}
+
+.rules-modal {
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  /* Fits a 320px-wide phone and a short landscape window; the body scrolls
+     rather than the dialog growing past the viewport. */
+  max-height: min(90vh, 720px);
+  border-radius: 20px;
+  background: #16161d;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.rules-modal:focus-visible { outline: 3px solid #f2c230; outline-offset: 2px; }
+
+.rules-modal-header { padding: 18px 20px 6px; }
+.rules-modal-header h2 { margin: 0; font-size: 1.2rem; }
+.rules-modal-header p { margin: 4px 0 0; color: rgba(255, 255, 255, 0.66); font-size: 0.86rem; }
+
+.rules-modal-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 12px 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.rules-section {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  margin: 0;
+  padding: 14px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.rules-section legend {
+  padding: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.56);
+}
+
+.rules-choice { display: grid; gap: 6px; }
+.rules-choice > span { font-size: 0.9rem; }
+.rules-choice > div { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.rules-choice button {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  cursor: pointer;
+}
+
+.rules-choice button.is-selected { background: #7c3aed; border-color: #7c3aed; }
+.rules-choice button:focus-visible { outline: 3px solid #f2c230; outline-offset: 2px; }
+.rules-choice small, .rules-note { color: rgba(255, 255, 255, 0.6); font-size: 0.8rem; }
+
+.rules-help-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: rgba(255, 255, 255, 0.72); font-size: 0.84rem; }
+
+/* Says what will happen before it happens, not after. */
+.rules-consequence {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(242, 194, 48, 0.12);
+  border: 1px solid rgba(242, 194, 48, 0.3);
+  color: #f6d98a;
+  font-size: 0.82rem;
+}
+
+.rules-modal-error {
+  margin: 0 20px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(239, 68, 68, 0.36);
+  color: #ffb4b4;
+  font-size: 0.84rem;
+}
+
+.rules-modal-footer {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.rules-modal-footer button { flex: 1 1 0; min-height: 48px; }
+
+.locked-rules-summary {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.locked-rules-heading { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.locked-rules-heading em { font-style: normal; font-size: 0.76rem; color: rgba(255, 255, 255, 0.56); }
+.locked-rules-summary dl { margin: 0; display: grid; gap: 4px; }
+.locked-rules-summary dl > div { display: flex; justify-content: space-between; gap: 10px; font-size: 0.85rem; }
+.locked-rules-summary dt { color: rgba(255, 255, 255, 0.62); }
+
+@media (max-width: 360px) {
+  .rules-modal-footer { flex-direction: column; }
+}
