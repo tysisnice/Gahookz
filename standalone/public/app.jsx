@@ -316,6 +316,42 @@ function FactCheckPanel({ results }) {
 
 }
 
+// Emphasise the player a prompt names.
+//
+// Done by splitting the text and returning React elements, never by putting
+// markup into the string. A display name is chosen by the player it belongs
+// to, so building HTML from it would hand every room an injection vector for
+// the price of typing a name. React escapes each fragment it renders here.
+function PromptText({ text, names = [] }) {
+  const value = String(text ?? "");
+  const matches = (names || []).map((name) => String(name ?? "")).filter((name) => name.length > 1);
+  if (!matches.length) return value;
+
+  // Longest first, so a name that contains another is not split by it.
+  const ordered = [...matches].sort((left, right) => right.length - left.length);
+  let parts = [value];
+  for (const name of ordered) {
+    const next = [];
+    for (const part of parts) {
+      if (typeof part !== "string") {
+        next.push(part);
+        continue;
+      }
+      const pieces = part.split(name);
+      pieces.forEach((piece, index) => {
+        if (index > 0) next.push({ name });
+        if (piece) next.push(piece);
+      });
+    }
+    parts = next;
+  }
+  return parts.map((part, index) =>
+  typeof part === "string" ?
+  <React.Fragment key={index}>{part}</React.Fragment> :
+  <strong className="prompt-player-name" key={index}>{part.name}</strong>
+  );
+}
+
 function tieBreakLabel(results, settledText) {
   const reason = results?.tieBreakReason ||
     (results?.tieBrokenBySpeed ? "fastest" : results?.tiedByVotes ? "order" : "none");
@@ -2463,7 +2499,7 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
           <section className="herd-host-review">
             <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span></div>
             <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
-              <span>{item.question.text}</span><strong>{item.text || "Waiting for an answer…"}</strong><small>Answer by {item.answerAuthor.name}</small>
+              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || "Waiting for an answer…"}</strong><small>Answer by {item.answerAuthor.name}</small>
             </article>)}</div>
           </section>
         </div>
@@ -2495,7 +2531,7 @@ function HerdAnswerWriter({ assignment, playerKey }) {
   return (
     <form className={assignment.submitted ? "herd-answer-writer is-submitted" : "herd-answer-writer"} onSubmit={save}>
       <span>Question by {assignment.question.author.name}</span>
-      <h2>{assignment.question.text}</h2>
+      <h2><PromptText text={assignment.question.text} names={assignment.question.namedPlayerNames} /></h2>
       {assignment.question.imageDataUrl ? <img src={assignment.question.imageDataUrl} alt="Question" /> : null}
       <label><span>Your answer</span><input value={text} onChange={(event) => setText(event.target.value)} maxLength="80" placeholder="Make it the answer everyone wants to pick" /></label>
       <button className="primary-button" type="submit" disabled={!text.trim() || saving || text.trim() === assignment.text}>{saving ? "Saving" : assignment.submitted ? "Update answer" : "Lock this answer"}</button>
@@ -2625,7 +2661,7 @@ function QuestionApprovalPanel({ questions, onApprove, onReject }) {
             <AvatarBadge player={question.author} small />
             <span>{question.authorName}</span>
           </div>
-          <strong>{question.text}</strong>
+          <strong><PromptText text={question.text} names={question.namedPlayerNames} /></strong>
           {question.imageDataUrl ? <img src={question.imageDataUrl} alt="Pending question" /> : null}
           {question.answers?.length ?
         <ol>
@@ -3521,7 +3557,7 @@ function SubmittedQuestionList({ questions, editingQuestionId, onEdit }) {
       {questions.map((question, index) =>
       <article className={["submitted-question-banner", question.status === "pending" ? "is-pending" : "", question.id === editingQuestionId ? "is-editing" : ""].filter(Boolean).join(" ")} key={question.id} title={question.status === "pending" ? "Pending host approval" : "Submitted"}>
           <strong className="submitted-question-number">{index + 1}</strong>
-          <p>{question.text}</p>
+          <p><PromptText text={question.text} names={question.namedPlayerNames} /></p>
           <button className="edit-question-button" type="button" aria-label={"Edit question " + (index + 1)} title={"Edit question " + (index + 1)} onClick={() => onEdit(question)}><EditMiniIcon /></button>
         </article>
       )}
@@ -3555,6 +3591,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
   const [suggesting, setSuggesting] = useState(false);
   const [suggestionNote, setSuggestionNote] = useState("");
   const [templateId, setTemplateId] = useState("");
+  const [namedPlayerNames, setNamedPlayerNames] = useState([]);
   const useRandomPreset = async () => {
     setSuggesting(true);
     setSuggestionNote("");
@@ -3569,6 +3606,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
     }
     const suggestion = result.suggestion;
     setTemplateId(suggestion.templateId);
+    setNamedPlayerNames(suggestion.namedPlayerNames || []);
     setText(suggestion.text);
     if (isHerd) {
       // Herd uses the prompt as a writing seed. The suggested options are not
@@ -3630,6 +3668,9 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
       // Lets the server attach the verified fact for a reveal fact check. It
       // is not a scoring key and does not decide any points.
       ...(templateId ? { templateId } : {}),
+      // The server re-checks these against its own roster before storing them,
+      // so this is a hint, not a grant.
+      ...(namedPlayerNames.length ? { namedPlayerNames } : {}),
       answers: isHerd ? [] : answers.map((answer, index) => ({
         text: answer,
         correct: !isMajority && index === correctIndex,
@@ -3774,7 +3815,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
           </div> : null}
           <div className="question-copy">
             <span className="phase-chip">{questionNumberLabel}</span>
-            <h1>{question.text}</h1>
+            <h1><PromptText text={question.text} names={question.namedPlayerNames} /></h1>
             {question.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}
           </div>
           {question.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}

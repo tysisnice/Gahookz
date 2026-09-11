@@ -671,6 +671,15 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
   if (pathname === "/api/question" && payload && typeof payload === "object") {
     const factCheck = factCheckForTemplate(payload.templateId);
     if (factCheck) payload.__factCheck = factCheck;
+    // Recorded so the prompt can emphasise the name wherever it is shown.
+    // Validated against the room's own players rather than trusted, so a
+    // crafted request cannot make arbitrary text bold.
+    const claimed = Array.isArray(payload.namedPlayerNames) ? payload.namedPlayerNames : [];
+    const realNames = new Set(Object.values(room.players).map((seat) => cleanText(seat.name, 24)));
+    payload.__namedPlayerNames = claimed.
+      map((name) => cleanText(name, 24)).
+      filter((name) => name && realNames.has(name)).
+      slice(0, 4);
   }
   if (pathname === "/api/question") {
     return submitQuestion(room, payload);
@@ -1936,6 +1945,7 @@ function submitQuestion(room, payload) {
   try {
     const question = normaliseQuestion(room, payload, player);
     if (payload?.__factCheck) question.factCheck = payload.__factCheck;
+    if (payload?.__namedPlayerNames?.length) question.namedPlayerNames = payload.__namedPlayerNames;
     if (room.approveQuestions) {
       room.pendingQuestions.push(question);
     } else {
@@ -3116,6 +3126,7 @@ function suggestQuestion(room, payload) {
       kind: instance.kind,
       text: instance.text,
       options: instance.options.map((option) => ({ id: option.id, text: option.text })),
+      namedPlayerNames: instance.namedPlayerNames,
       // Null for every funny prompt. The author must choose one themselves
       // before the question can be played under Classic rules.
       intendedAnswerId: instance.factualAnswerId,
@@ -3526,6 +3537,7 @@ function publicPendingQuestion(room, question) {
     id: question.id,
     mode: question.mode || room.gameMode || DEFAULT_GAME_MODE,
     text: question.text,
+    namedPlayerNames: question.namedPlayerNames || [],
     imageDataUrl: question.imageDataUrl,
     authorId: question.authorId,
     authorName: question.authorName,
@@ -3557,6 +3569,7 @@ function publicEditableQuestion(room, question, status = "submitted") {
     id: question.id,
     mode: question.mode || room.gameMode || DEFAULT_GAME_MODE,
     text: question.text,
+    namedPlayerNames: question.namedPlayerNames || [],
     imageDataUrl: question.imageDataUrl || "",
     answers: (question.answers || []).map((answer) => ({
       id: answer.id,
@@ -3589,6 +3602,8 @@ function publicHerdAssignments(room, playerId = "") {
       question: {
         id: question.id,
         text: question.text,
+        namedPlayerNames: question.namedPlayerNames || [],
+    namedPlayerNames: question.namedPlayerNames || [],
         imageDataUrl: question.imageDataUrl || "",
         author: publicQuestionAuthor(room, question)
       },
@@ -4469,6 +4484,7 @@ function publicQuestion(room, question, role, phase, viewerPlayerId = "") {
     id: question.id,
     mode,
     text: question.text,
+    namedPlayerNames: question.namedPlayerNames || [],
     imageDataUrl: question.imageDataUrl,
     authorName: question.authorName,
     author: publicQuestionAuthor(room, question),
@@ -4622,6 +4638,7 @@ function publicQuestionResult(room, question) {
     id: question.id,
     mode: question.mode || room.gameMode || DEFAULT_GAME_MODE,
     text: question.text,
+    namedPlayerNames: question.namedPlayerNames || [],
     authorName: question.authorName,
     author: publicQuestionAuthor(room, question),
     goodVotes: summary.good,

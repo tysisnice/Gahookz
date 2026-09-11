@@ -10291,3 +10291,10 @@ button.answer-tile {
   font-size: 0.82rem;
   color: rgba(255, 255, 255, 0.72);
 }
+
+/* The player a prompt names. Emphasis only - the name itself is rendered as
+   text by React, never as markup. */
+.prompt-player-name {
+  color: #f2c230;
+  font-weight: 800;
+}

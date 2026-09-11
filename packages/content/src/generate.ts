@@ -27,6 +27,13 @@ export interface QuestionInstance {
   readonly text: string;
   /** Ids of the players named in it, for moderation and for tests. */
   readonly namedPlayerIds: readonly string[];
+  /**
+   * The display names actually used. The client emphasises these when it
+   * renders the prompt, by splitting the string and wrapping the matches in
+   * elements -- never by putting markup into the text, which would turn a
+   * display name into an injection vector.
+   */
+  readonly namedPlayerNames: readonly string[];
   /** Presented order; ids stay stable so the key survives the shuffle. */
   readonly options: readonly TemplateOption[];
   /** Present only for educational templates, and only server-side. */
@@ -107,6 +114,7 @@ export function instantiateTemplate(
     kind: template.kind,
     text,
     namedPlayerIds: chosen ? [chosen.id] : [],
+    namedPlayerNames: chosen ? [chosen.name] : [],
     options: shuffled(template.options, random),
     factualAnswerId: includeAnswerKey && template.kind === "educational" ? template.factualAnswerId : null,
     explanation: includeAnswerKey && template.kind === "educational" ? template.explanation : null

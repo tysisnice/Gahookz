@@ -180,3 +180,32 @@ test("a broken random source cannot produce an out-of-range choice", () => {
     assert.ok(chosen && eligible.includes(chosen), "a hostile random must still yield a real player");
   }
 });
+
+test("an instance reports the names it used, for emphasis", () => {
+  const instance = instantiateTemplate(funny, {
+    eligible: [{ id: "p1", name: "Sam" }],
+    random: seeded(4)
+  });
+  assert.deepEqual(instance.namedPlayerNames, ["Sam"]);
+  assert.ok(instance.text.includes("Sam"));
+});
+
+test("a hostile display name is still only ever data", () => {
+  // Emphasis is applied by the client splitting the string and rendering
+  // elements. Nothing here may produce markup, or a player could name
+  // themselves into everyone else's prompt.
+  const hostile = '<strong onclick="steal()">Sam</strong>';
+  const instance = instantiateTemplate(funny, {
+    eligible: [{ id: "p1", name: hostile }],
+    random: seeded(6)
+  });
+  assert.deepEqual(instance.namedPlayerNames, [hostile]);
+  assert.ok(instance.text.includes(hostile), "the name must survive verbatim as text");
+  // The instance carries no markup of its own for a client to trust.
+  assert.ok(!instance.text.includes("</em>"));
+});
+
+test("an empty room names nobody, so nothing is emphasised", () => {
+  const instance = instantiateTemplate(funny, { eligible: [], random: seeded(8) });
+  assert.deepEqual(instance.namedPlayerNames, []);
+});
