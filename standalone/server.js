@@ -2213,6 +2213,20 @@ function updateHostSettings(room, payload) {
     return { ok: false, error: "Settings are locked once the quiz starts." };
   }
 
+  // Checked before anything is touched, so a rejected Save leaves the whole
+  // room unchanged rather than half-applied. A host looking at a stale modal
+  // must not silently revert a change somebody else already made.
+  if (room.settingsRevision === undefined) room.settingsRevision = 0;
+  const expectedRevision = payload?.settingsRevision;
+  if (expectedRevision !== undefined && Number(expectedRevision) !== room.settingsRevision) {
+    return {
+      ok: false,
+      error: "These settings changed while you were editing. Reopen the rules and try again.",
+      settingsRevision: room.settingsRevision,
+      stale: true
+    };
+  }
+
   const currentSettings = roomGameSettings(room);
   const normalised = normaliseGameSettings(payload || {}, currentSettings);
   if (!normalised.ok) {
@@ -2226,16 +2240,22 @@ function updateHostSettings(room, payload) {
   const familyChanged = nextSettings.gameFamily !== currentSettings.gameFamily;
   applyGameSettings(room, nextSettings);
   if (familyChanged) {
+    // A Quiz question and a Herd prompt are different things, so the outgoing
+    // family's content is parked rather than deleted, and the incoming
+    // family's own content comes back.
+    stashFamilyQuestions(room, currentSettings.gameFamily);
     room.questions = [];
     room.pendingQuestions = [];
     room.quizQuestions = [];
-    Object.values(room.players).forEach((player) => {
-      player.ready = false;
-      player.questionsSubmitted = 0;
-    });
   }
+  // Merge whatever is parked for the family now in force. Doing this before the
+  // quota is applied is what makes raising a limit restore parked questions.
+  const restored = takeFamilyQuestions(room, nextSettings.gameFamily);
+  room.questions = [...(room.questions || []), ...restored.questions];
+  room.pendingQuestions = [...(room.pendingQuestions || []), ...restored.pending];
 
-  const hasPreset = Object.prototype.hasOwnProperty.call(payload || {}, "roundPreset") ||
+  room.settingsRevision += 1;
+    const hasPreset = Object.prototype.hasOwnProperty.call(payload || {}, "roundPreset") ||
     Object.prototype.hasOwnProperty.call(payload || {}, "questionPreset");
   const hasCustomLimit = Object.prototype.hasOwnProperty.call(payload || {}, "maxQuestionsPerPlayer");
   const presetValue = payload?.roundPreset ?? payload?.questionPreset;
@@ -2245,10 +2265,15 @@ function updateHostSettings(room, payload) {
   room.roundPreset = nextPreset;
   const nextLimit = questionsPerPlayerForPreset(room, nextPreset, payload?.maxQuestionsPerPlayer);
   room.maxQuestionsPerPlayer = nextLimit;
+  const parkedSlot = savedBankSlot(room, nextSettings.gameFamily);
   const keptByPlayer = {};
   room.questions = room.questions.filter((question) => {
     const nextCount = (keptByPlayer[question.authorId] || 0) + 1;
-    if (nextCount > nextLimit) return false;
+    if (nextCount > nextLimit) {
+      // Over the per-player quota for this game. Parked, not lost.
+      parkedSlot.questions.push(question);
+      return false;
+    }
     keptByPlayer[question.authorId] = nextCount;
     return true;
   });
@@ -2256,7 +2281,16 @@ function updateHostSettings(room, payload) {
   room.pendingQuestions = room.pendingQuestions.filter((question) => {
     const approvedCount = keptByPlayer[question.authorId] || 0;
     pendingKeptByPlayer[question.authorId] = (pendingKeptByPlayer[question.authorId] || 0) + 1;
-    return approvedCount + pendingKeptByPlayer[question.authorId] <= nextLimit;
+    if (approvedCount + pendingKeptByPlayer[question.authorId] > nextLimit) {
+      parkedSlot.pending.push(question);
+      return false;
+    }
+    return true;
+  });
+  // Readiness follows what each player actually has in play now.
+  Object.values(room.players).forEach((player) => {
+    player.questionsSubmitted = countQuestionsForPlayer(room, player.id);
+    if (player.questionsSubmitted < nextLimit) player.ready = false;
   });
   if (typeof payload?.approveQuestions === "boolean") {
     const wasApproving = room.approveQuestions;
@@ -2328,11 +2362,25 @@ function lockSetup(room, payload) {
     room.maxQuestionsPerPlayer = questionsPerPlayerForPreset(room, room.roundPreset);
   }
 
+  // Freeze the rules this game is played under. Results must be scored and
+  // explained by what was in force when setup locked, not by whatever the
+  // lobby shows later; on reconnect these win over a cached lobby snapshot.
+  const lockedSettings = roomGameSettings(room);
+  room.lockedRules = {
+    gameFamily: lockedSettings.gameFamily,
+    quizScoring: lockedSettings.quizScoring,
+    gameMode: toLegacyGameMode(lockedSettings),
+    roundPreset: room.roundPreset,
+    maxQuestionsPerPlayer: room.maxQuestionsPerPlayer,
+    promptStyle: room.promptStyle || "funny",
+    lockedAt: Date.now()
+  };
+
   room.phase = "building";
   room.phaseEndsAt = null;
   Object.values(room.players).forEach((player) => {
     player.ready = false;
-    player.questionsSubmitted = 0;
+    player.questionsSubmitted = countQuestionsForPlayer(room, player.id);
     player.herdAnswersSubmitted = 0;
   });
   broadcastState(room, { immediate: true });
@@ -2912,6 +2960,45 @@ function applyGameSettings(room, settings) {
   room.gameSettings = { gameFamily: settings.gameFamily, quizScoring: settings.quizScoring };
   room.gameMode = toLegacyGameMode(room.gameSettings);
   return room.gameSettings;
+}
+
+// Player-written content is kept in a saved bank, keyed by game family, that is
+// separate from the questions selected for a game.
+//
+// Three quantities used to be conflated: what people have written, what this
+// game will actually play, and how many each player may submit. Treating them
+// as one meant a shorter game or a switch to Herd destroyed writing that people
+// had done. Parking rather than deleting also makes the quota symmetric --
+// raising it again brings the parked questions straight back.
+function savedQuestionBank(room) {
+  if (!room.savedQuestionBank) room.savedQuestionBank = {};
+  return room.savedQuestionBank;
+}
+
+function savedBankSlot(room, family) {
+  const bank = savedQuestionBank(room);
+  if (!bank[family]) bank[family] = { questions: [], pending: [] };
+  return bank[family];
+}
+
+/** Park the room's current written content under a family, keeping nothing. */
+function stashFamilyQuestions(room, family) {
+  const slot = savedBankSlot(room, family);
+  slot.questions.push(...(room.questions || []));
+  slot.pending.push(...(room.pendingQuestions || []));
+}
+
+/** Take everything parked for a family, emptying its slot. */
+function takeFamilyQuestions(room, family) {
+  const slot = savedBankSlot(room, family);
+  const taken = { questions: slot.questions, pending: slot.pending };
+  savedQuestionBank(room)[family] = { questions: [], pending: [] };
+  return taken;
+}
+
+function savedQuestionCount(room, family) {
+  const slot = savedBankSlot(room, family);
+  return slot.questions.length + slot.pending.length;
 }
 
 function normaliseGameMode(value, fallback = DEFAULT_GAME_MODE) {
@@ -4041,11 +4128,22 @@ function resetLobby(room, options = {}) {
   // watching the room, and cancelling the pending deadline without scheduling a
   // replacement left the room resident forever when no client was connected.
   clearGahookDuel(room);
+  room.lockedRules = null;
   const playedQuestionIds = new Set(room.game?.playedQuestionIds || []);
   const lastGameSummary = room.lastGameSummary || null;
-  const reusableQuestions = options.reuseUnusedQuestions ? room.questions.
+  const unplayedQuestions = (room.questions || []).
     filter((question) => !playedQuestionIds.has(question.id) && (question.mode || room.gameMode) === room.gameMode).
-    map((question) => cleanQuestionRoundState(question, { carriedOver: true })) : [];
+    map((question) => cleanQuestionRoundState(question, { carriedOver: true }));
+  const reusableQuestions = options.reuseUnusedQuestions ? unplayedQuestions : [];
+  if (!options.reuseUnusedQuestions) {
+    // A full reset returns to a clean lobby, but the writing people did is
+    // parked under its family rather than thrown away. It comes back when the
+    // room next settles on that family, and `savedQuestionCount` makes it
+    // visible in the meantime so nothing disappears silently.
+    const slot = savedBankSlot(room, roomGameSettings(room).gameFamily);
+    slot.questions.push(...unplayedQuestions);
+    slot.pending.push(...(room.pendingQuestions || []));
+  }
   Object.values(room.players).forEach((player) => {
     clearUltimateGahookState(player);
     clearUltimateCongratulationsState(player, true);
@@ -4145,6 +4243,10 @@ function buildSnapshot(room, role, playerKey) {
     gameMode: room.gameMode || DEFAULT_GAME_MODE,
     gameFamily: roomGameSettings(room).gameFamily,
     quizScoring: roomGameSettings(room).quizScoring,
+    settingsRevision: room.settingsRevision || 0,
+    lockedRules: room.lockedRules || null,
+    savedQuestionCount: savedQuestionCount(room, roomGameSettings(room).gameFamily),
+    savedQuestionCountOtherFamily: savedQuestionCount(room, roomGameSettings(room).gameFamily === "quiz" ? "herd" : "quiz"),
     roundPreset: normaliseRoundPreset(room.roundPreset),
     approveQuestions: room.approveQuestions,
     allowCustomProfiles: room.allowCustomProfiles !== false,

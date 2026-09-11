@@ -178,7 +178,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P00 | Preserved source baseline and conflict-safe verification | — |
 | [x] | P01 | Runtime contracts, compatible schema evolution, typed client adapter/build seam | P00 |
 | [x] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
-| [ ] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
+| [x] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
 | [ ] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
 | [ ] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
 | [ ] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
@@ -431,6 +431,17 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-11 — P03 complete
+
+- **P03 steps 1-6 complete and checked off.** P04 is next.
+- Step 5: `room.savedQuestionBank` keys written content by game family, separate from the questions selected for a game. Switching family parks the outgoing family's content and restores the incoming family's. The per-player quota now **parks** overflow instead of deleting it, and because the bank is merged back before the quota is applied, raising a limit restores what it parked — the operation is symmetric. `resetLobby` parks unplayed content rather than discarding it, so a full reset still gives a clean lobby while the writing survives. `savedQuestionCount` and `savedQuestionCountOtherFamily` are published so nothing disappears silently.
+- Step 6: `room.settingsRevision` advances on every accepted write, and a Save carrying a stale revision is refused **before anything is touched**, so a rejected Save leaves the room completely unchanged and does not advance the revision. `room.lockedRules` freezes family, scoring, derived legacy mode, preset, quota, prompt style and `lockedAt` when setup locks; a reset clears it. Settings remain refused outside the lobby, so rules cannot change under a running game.
+- **Two of the step 5 assertions were vacuous when first written** and were fixed rather than banked as a green result. After a reset the room held no questions, so the shrink and family-switch checks compared zero with zero. They are meaningful only because reset now parks content. Concrete numbers are asserted throughout: 8 written, 4 selected under a quota of 1, 8 again when it is raised.
+- A third assertion was simply wrong and the code was right. Selecting Herd sets the per-player quota to one, and that quota survives the trip back to Quiz, so returning restores all 8 drafts but selects 4. That is the quota working, not data loss. The assertion now checks the real invariant — selected plus parked is conserved — and separately that restoring the quota reselects all 8.
+- Verified: `npm run check` (103 unit tests), full `npm test` across 23 smoke scripts with 15 checks in `smoke-mode-settings`, and `npm run test:rooms` on a separate fresh lifetime — twelve games identical to the P00 baseline.
+- Note for P04: the settings-destroys-questions hazard this plan listed is now **genuinely reachable**, because a bank can exist while the lobby is editable. It is guarded, and `smoke-mode-settings` fails if that regresses. P04's modal must send `settingsRevision` to get the staleness protection.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-11 — P03 partial (steps 1-4 done)
 

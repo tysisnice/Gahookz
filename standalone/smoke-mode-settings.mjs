@@ -105,7 +105,11 @@ assert(
 await post("/api/host/reset");
 const afterReset = await state();
 assert(afterReset.phase === "lobby", "Reset returns to the lobby");
-assert(afterReset.questionCount === 0, "Reset clears the question bank");
+assert(afterReset.questionCount === 0, "Reset returns a clean lobby with nothing selected");
+assert(
+  Number(afterReset.savedQuestionCount || 0) === 8,
+  "Reset must park the writing people did, not destroy it; got " + afterReset.savedQuestionCount
+);
 
 // --- switching scoring in an empty lobby disturbs nothing -------------------
 
@@ -169,6 +173,97 @@ assert(backToQuizAgain.gameMode === "majority", "The derived legacy field must f
 const contradiction = await post("/api/host/settings", { gameMode: "herd", gameFamily: "quiz" });
 assert(contradiction.ok === false, "A contradictory settings request must be refused, not guessed at");
 
+// --- P03 step 5: the saved bank is separate from the selected questions -----
+//
+// These were vacuous when first written: after a reset the room held no
+// questions, so every count compared zero with zero. They only mean something
+// because a reset now parks written content instead of discarding it.
+
+await post("/api/host/settings", { gameFamily: "quiz", quizScoring: "classic", roundPreset: "custom", maxQuestionsPerPlayer: 3 });
+const restored = await state();
+assert(
+  restored.questionCount === 8,
+  "Settling on a family must bring its parked questions back, got " + restored.questionCount
+);
+const bankTotal = restored.questionCount + Number(restored.savedQuestionCount || 0);
+assert(bankTotal === 8, "Nothing should be duplicated or lost on restore, got " + bankTotal);
+
+// Shrinking the per-player quota parks the overflow rather than deleting it.
+await post("/api/host/settings", { maxQuestionsPerPlayer: 1 });
+const shrunk = await state();
+assert(shrunk.questionCount === 4, "One question each from four players should stay selected, got " + shrunk.questionCount);
+assert(
+  shrunk.questionCount + Number(shrunk.savedQuestionCount || 0) === 8,
+  "Shrinking the quota must lose nothing: " + shrunk.questionCount + " + " + shrunk.savedQuestionCount
+);
+
+// Raising it again brings them straight back.
+await post("/api/host/settings", { maxQuestionsPerPlayer: 3 });
+const raised = await state();
+assert(raised.questionCount === 8, "Raising the quota must restore parked questions, got " + raised.questionCount);
+assert(Number(raised.savedQuestionCount || 0) === 0, "Nothing should stay parked once it fits again");
+
+// Switching family preserves the other family's drafts.
+await post("/api/host/settings", { gameFamily: "herd" });
+const onHerd = await state();
+assert(onHerd.questionCount === 0, "Herd must not inherit Quiz questions, got " + onHerd.questionCount);
+assert(
+  Number(onHerd.savedQuestionCountOtherFamily || 0) === 8,
+  "Quiz drafts must be retained while Herd is selected, got " + onHerd.savedQuestionCountOtherFamily
+);
+
+await post("/api/host/settings", { gameFamily: "quiz" });
+const backOnQuiz = await state();
+// Selecting Herd sets the per-player quota to one, and that quota survives the
+// trip back. So the invariant to assert is that nothing was lost, not that
+// everything is selected: the quota legitimately limits what this game plays.
+assert(
+  backOnQuiz.questionCount + Number(backOnQuiz.savedQuestionCount || 0) === 8,
+  "Returning to Quiz must lose nothing: " + backOnQuiz.questionCount + " + " + backOnQuiz.savedQuestionCount
+);
+await post("/api/host/settings", { roundPreset: "custom", maxQuestionsPerPlayer: 3 });
+const requota = await state();
+assert(
+  requota.questionCount === 8,
+  "Restoring the quota must reselect every retained draft, got " + requota.questionCount
+);
+
+// --- P03 step 6: a stale Save is refused, and rules freeze at lock ----------
+
+const current = await state();
+const revision = Number(current.settingsRevision);
+assert(Number.isFinite(revision), "The room must publish a settings revision");
+
+const stale = await post("/api/host/settings", { settingsRevision: revision - 1, roundPreset: "quick" });
+assert(stale.ok === false && stale.stale === true, "A stale Save must be refused");
+const afterStale = await state();
+assert(
+  afterStale.roundPreset === current.roundPreset && afterStale.questionCount === current.questionCount,
+  "A refused Save must leave the room completely unchanged"
+);
+assert(Number(afterStale.settingsRevision) === revision, "A refused Save must not advance the revision");
+
+const fresh = await post("/api/host/settings", { settingsRevision: revision, roundPreset: "quick" });
+assert(fresh.ok, "A Save carrying the current revision must be accepted");
+assert(Number((await state()).settingsRevision) === revision + 1, "An accepted Save must advance the revision");
+
+assert((await state()).lockedRules === null, "A lobby has no locked rules");
+await post("/api/host/settings", { gameFamily: "quiz", quizScoring: "majority" });
+await post("/api/host/lock-setup");
+const locked = await state();
+assert(locked.lockedRules, "Locking setup must freeze the rules for the game");
+assert(locked.lockedRules.gameFamily === "quiz", "Locked rules must record the family");
+assert(locked.lockedRules.quizScoring === "majority", "Locked rules must record the scoring in force");
+assert(locked.lockedRules.gameMode === "majority", "Locked rules must carry the derived legacy mode");
+assert(typeof locked.lockedRules.lockedAt === "number", "Locked rules must record when they froze");
+
+const saveAfterLock = await post("/api/host/settings", { quizScoring: "classic" });
+assert(saveAfterLock.ok === false, "Settings must be refused once the rules are locked");
+assert((await state()).lockedRules.quizScoring === "majority", "Locked rules must not change after locking");
+
+await post("/api/host/reset");
+assert((await state()).lockedRules === null, "A reset clears the frozen rules");
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -176,11 +271,16 @@ console.log(JSON.stringify({
     "settings refused outside the lobby",
     "submissions retained in building",
     "unused questions carried into a new game",
-    "reset clears the bank and returns to the lobby",
+    "reset returns a clean lobby and parks the writing",
     "scoring changes do not disturb the roster",
     "legacy gameMode requests still work",
     "canonical gameFamily/quizScoring travel beside the derived gameMode",
     "Herd remembers the Quiz scoring choice",
-    "contradictory old and new spellings are refused"
+    "contradictory old and new spellings are refused",
+    "shrinking the quota parks overflow instead of deleting it",
+    "raising the quota restores parked questions",
+    "each family keeps its own drafts across a switch",
+    "a stale Save is refused and changes nothing",
+    "locking setup freezes the rules, and a reset clears them"
   ]
 }, null, 2));
