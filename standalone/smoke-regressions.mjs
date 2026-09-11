@@ -41,6 +41,23 @@ const bundle = readAll(shippedModuleFiles);
   }
 }
 
+// NOTE: there is no automated guard here for a browser constant that is
+// referenced but never declared, and that gap is real. Removing a block from
+// app.jsx also removed GAME_MODES, GAME_FAMILIES and ROUND_PRESETS while every
+// check stayed green: esbuild transforms each file without resolving globals,
+// and tsconfig.web does not type-check .jsx at all.
+//
+// A regex guard was written for exactly this and then removed, because it did
+// not work and said nothing was wrong. Stripping string literals from JSX with
+// a regular expression is not possible: prose containing an apostrophe, such
+// as "the room's answers", opens a single-quoted string that swallows
+// everything up to the next apostrophe, including the reference being checked.
+// It reported success on a file with the constant deleted.
+//
+// The real fix is to type-check the browser source, which is P09 and P10 work.
+// A parser-based lint would also do it, but that is a dependency decision for
+// the owner in a project that deliberately has two runtime dependencies.
+
 function assert(value, message) {
   if (!value) throw new Error(message);
 }

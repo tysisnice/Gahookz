@@ -185,14 +185,24 @@ for (const secret of ["password", "hostKey", "playerKey", "credential"]) {
   const prompt = suggestion.suggestion;
   assert(prompt.text && !prompt.text.includes("{Player1}"), "A suggestion must never contain an unresolved token: " + prompt.text);
   assert(prompt.options.length === 4, "A suggestion must offer four options");
-  assert(
-    prompt.factualAnswerId === undefined && prompt.explanation === undefined,
-    "A suggestion sent to a browser must not carry the answer key"
-  );
-  assert(
-    !JSON.stringify(prompt).includes("factualAnswerId"),
-    "The answer key must not appear anywhere in a suggestion payload"
-  );
+  // The requester is the prospective author of this draft, and an author is
+  // always shown the key to their own question -- `ownQuestions` already does
+  // exactly that. The rule being protected is narrower: a key must never reach
+  // somebody who is about to answer the question, which is a different payload
+  // and is covered by the fixture corpus.
+  if (prompt.kind === "funny") {
+    assert(
+      prompt.intendedAnswerId === null,
+      "An opinion prompt must never arrive with a correct answer already chosen"
+    );
+    assert(prompt.explanation === null, "An opinion prompt has nothing to explain");
+  } else {
+    assert(
+      prompt.options.some((option) => option.id === prompt.intendedAnswerId),
+      "An educational suggestion should key one of its own options for the author"
+    );
+    assert(prompt.explanation, "An educational suggestion should carry its explanation for the reveal");
+  }
 
   // Funny prompts name somebody in the room, and only a connected seat.
   const names = (await state()).players.map((player) => player.name);
@@ -229,7 +239,8 @@ console.log(JSON.stringify({
     "Off refuses the Gahook outright",
     "an ordinary player cannot change the room rules",
     "a player sees the policy but never a credential",
-    "suggestions are rendered server-side with no answer key",
+    "an opinion suggestion never arrives with a correct answer chosen",
+    "an educational suggestion keys an option for its author",
     "a stranger is not served suggestions",
     "a room works through its prompt library"
   ]

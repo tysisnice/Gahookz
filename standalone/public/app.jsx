@@ -137,57 +137,10 @@ const FUNNY_ANIMAL_NAMES = [
 "Loopy Llama", "Mighty Meerkat", "Noodle Narwhal", "Pogo Penguin", "Rowdy Raccoon",
 "Sassy Salamander", "Toasty Toucan", "Wacky Wallaby", "Zippy Zebra", "Cheeky Capybara"];
 
-const PARTY_QUESTION_PRESETS = [
-{ text: "Who is most likely to become famous for something ridiculous?", answers: ["The loudest person", "The quiet wildcard"] },
-{ text: "What is the best snack to bring to a chaotic party?", answers: ["Emergency pizza", "A suspicious cheese wheel"] },
-{ text: "Who would survive the longest with no phone for a week?", answers: ["The outdoorsy one", "The one with a secret spare"] },
-{ text: "What song instantly makes the room worse in a funny way?", answers: ["A recorder solo", "An eight-minute remix"] },
-{ text: "Who is most likely to accidentally start a group chat argument?", answers: ["The accidental replier", "The chaos commentator"] },
-{ text: "What is the funniest thing to find in someone's fridge?", answers: ["One labelled grape", "A locked lunchbox"] },
-{ text: "Who would be the worst person to trust with a secret mission?", answers: ["The oversharer", "The dramatic whisperer"] },
-{ text: "What would be the worst prize to win on live TV?", answers: ["A damp certificate", "Someone else's sock"] },
-{ text: "Who is most likely to laugh at the wrong moment?", answers: ["The nervous laugher", "The resident menace"] },
-{ text: "What is the most suspicious thing to say before leaving a room?", answers: ["You saw nothing", "That should stop smoking soon"] },
-{ text: "Who would make the best fake celebrity?", answers: ["The sunglasses expert", "The confident nobody"] },
-{ text: "What is the worst thing to name a pet?", answers: ["Password", "Emergency Contact"] },
-{ text: "Who would be class clown even as an adult?", answers: ["The meeting interrupter", "The office prankster"] },
-{ text: "What is the funniest excuse for being late?", answers: ["My map got shy", "My trousers needed advice"] },
-{ text: "Who is most likely to make a PowerPoint for no reason?", answers: ["The spreadsheet fan", "The self-appointed expert"] },
-{ text: "What food has no business being eaten in a car?", answers: ["Boiling soup", "A tower of nachos"] },
-{ text: "Who would panic first in a harmless escape room?", answers: ["The door shaker", "The clue overthinker"] },
-{ text: "What is the best fake job title?", answers: ["Senior Vibe Inspector", "Regional Snack Director"] },
-{ text: "Who would be easiest to distract with a shiny object?", answers: ["The curious one", "The bargain hunter"] },
-{ text: "What is the worst thing to hear from a pilot?", answers: ["Which button is land?", "Anyone seen my glasses?"] },
-{ text: "Who would accidentally join the wrong wedding?", answers: ["The free-food hunter", "The person who never checks invites"] },
-{ text: "What is the funniest thing to shout during a board game?", answers: ["I invoke diplomacy!", "The dice know too much!"] },
-{ text: "Who is most likely to become a local legend?", answers: ["The neighbourhood storyteller", "The accidental hero"] },
-{ text: "What is the most cursed pizza topping?", answers: ["Warm grapes", "Mint toothpaste"] },
-{ text: "Who would lose a staring contest to a statue?", answers: ["The serial blinker", "The easily intimidated one"] },
-{ text: "What is the worst theme for a birthday party?", answers: ["Tax audit", "Airport security"] },
-{ text: "Who would bring a spreadsheet to a barbecue?", answers: ["The planning enthusiast", "The sausage accountant"] },
-{ text: "What is the funniest thing to put on a trophy?", answers: ["Most Improved at Sitting", "World's Okayest Effort"] },
-{ text: "Who would be the villain in a very low budget movie?", answers: ["The one with a cape", "The person holding the torch"] },
-{ text: "What is the most dramatic way to leave a room?", answers: ["Smoke bomb and trip", "Slow clap while reversing"] },
-{ text: "What object would make the rudest roommate?", answers: ["A judgmental mirror", "A screaming kettle"] },
-{ text: "Who would accidentally become the leader of a strange club?", answers: ["The enthusiastic joiner", "The person with matching hats"] },
-{ text: "What is the worst slogan for a fancy restaurant?", answers: ["Probably edible", "Forks cost extra"] },
-{ text: "Who would be first to befriend an alien?", answers: ["The fearless chatterbox", "The snack ambassador"] },
-{ text: "What should never be delivered by drone?", answers: ["A bowl of soup", "An angry goose"] },
-{ text: "Who would turn a minor inconvenience into a documentary?", answers: ["The dramatic narrator", "The person with three cameras"] },
-{ text: "What is the least reassuring thing a dentist could say?", answers: ["This is new", "Hold my sandwich"] },
-{ text: "Who would win an argument against a vending machine?", answers: ["The relentless negotiator", "The professional button presser"] },
-{ text: "What is the worst thing to discover can talk?", answers: ["Your alarm clock", "The leftovers"] },
-{ text: "Who would wear a disguise and still be instantly recognizable?", answers: ["The loud walker", "The person in a fake moustache"] },
-{ text: "Who would accidentally adopt a traffic cone on the way home?", answers: ["The sentimental collector", "The one who names everything"] },
-{ text: "What is the worst thing to bring to karaoke night?", answers: ["A vuvuzela", "A personal fog machine"] },
-{ text: "Who would turn a grocery run into an epic quest?", answers: ["The dramatic navigator", "The snack side-quester"] },
-{ text: "What would make the worst mascot for the group?", answers: ["An anxious pigeon", "A haunted sandwich"] },
-{ text: "Who is most likely to send a voice note from the same room?", answers: ["The born narrator", "The champion of not standing up"] },
-{ text: "What is the funniest emergency announcement at a party?", answers: ["The cake has learned to drive", "The balloons have unionised"] },
-{ text: "Who would get banned from mini golf first?", answers: ["The windmill negotiator", "The suspicious scorekeeper"] },
-{ text: "What is the most suspicious housewarming gift?", answers: ["A key that opens nothing", "A portrait of their toaster"] },
-{ text: "Who would misunderstand a costume party theme the most?", answers: ["The astronaut at a medieval feast", "The knight at beach day"] },
-{ text: "What is the least useful superpower at a party?", answers: ["Making ice cubes warm", "Predicting the next song one second early"] }];
+// The prompt banks that used to live here are now in packages/content, served
+// through /api/question/suggest. Keeping a copy in the browser is what let the
+// client and the server pick content by different rules, and it shipped every
+// educational answer to every player's bundle.
 
 const GAME_MODES = [
 { id: "quiz", title: "Quiz", subtitle: "Classic Gahookz answers", art: "quiz", available: true },
@@ -221,108 +174,6 @@ const ROUND_PRESETS = [
 { id: "custom", title: "Custom", subtitle: "Choose the size", detail: "1–5 questions per player" }
 ];
 
-const MAJORITY_QUESTION_PRESETS = [
-{ text: "Which snack disappears first at every party?", answers: ["Hot chips", "Pizza", "Chocolate", "Cheese"] },
-{ text: "Which tiny inconvenience causes the biggest overreaction?", answers: ["Slow Wi-Fi", "Wet socks", "Low battery", "A squeaky door"] },
-{ text: "Which animal has the most chaotic energy?", answers: ["Goose", "Raccoon", "Monkey", "Seagull"] },
-{ text: "What is the best excuse for leaving a party early?", answers: ["Early morning", "Pet emergency", "Battery is dying", "Social battery is empty"] },
-{ text: "Which food is hardest to eat while looking dignified?", answers: ["Spaghetti", "Tacos", "Corn on the cob", "A giant burger"] },
-{ text: "What is the most suspicious sentence to hear from a friend?", answers: ["Trust me", "Don't look behind you", "I can explain", "It was like that already"] },
-{ text: "Which household object would make the worst roommate?", answers: ["Printer", "Alarm clock", "Blender", "Vacuum"] },
-{ text: "What would be the worst name for a boat?", answers: ["Unsinkable 2", "Tax Return", "Probably Fine", "Moist Vessel"] },
-{ text: "Which song choice ends karaoke night fastest?", answers: ["A ten-minute ballad", "Baby Shark", "An opera solo", "The same song again"] },
-{ text: "What should never be described as moist?", answers: ["A handshake", "A pillow", "A wallet", "The carpet"] },
-{ text: "Which smell ruins a heroic entrance most?", answers: ["Old cheese", "Wet carpet", "Burnt popcorn", "Mystery fridge"] },
-{ text: "Who in the room is most likely to accidentally become famous?", answers: ["The loud one", "The quiet wildcard", "The oversharer", "The snack expert"] },
-{ text: "Which prize would earn the weakest applause?", answers: ["One sock", "A damp coupon", "A tiny spoon", "A mystery key"] },
-{ text: "What is the most cursed pizza topping?", answers: ["Warm grapes", "Mint toothpaste", "Cold peas", "Banana slices"] },
-{ text: "Which app steals the most time?", answers: ["TikTok", "YouTube", "Instagram", "The weather app somehow"] },
-{ text: "What is the least reassuring thing a pilot could say?", answers: ["Which button lands us?", "This is probably fine", "Anyone seen my glasses?", "That's a new noise"] },
-{ text: "Which object is judging you the hardest?", answers: ["Bathroom scale", "Unread book", "Smoke alarm", "Empty laundry basket"] },
-{ text: "What is the strongest sign a party has gone wrong?", answers: ["The lights are on", "Someone brought a spreadsheet", "The host is asleep", "A chair is missing"] },
-{ text: "Which fake job sounds most believable?", answers: ["Cloud inspector", "Snack lawyer", "Chair detective", "Vibe plumber"] },
-{ text: "What is the funniest thing to put on a trophy?", answers: ["Best at sitting", "Most improved napper", "World's okayest effort", "Participation champion"] },
-{ text: "Which superpower would be least useful?", answers: ["Warm ice cubes", "Invisible socks", "One-second time travel", "Talking to printers"] },
-{ text: "What is the worst thing to find in your shoe?", answers: ["Soup", "A note", "One cold pea", "Another smaller shoe"] },
-{ text: "Which food has the strongest main-character energy?", answers: ["Lasagne", "Tacos", "Sushi", "Garlic bread"] },
-{ text: "What is the most dramatic household appliance?", answers: ["Toaster", "Blender", "Smoke alarm", "Robot vacuum"] },
-{ text: "Which animal would be the worst boss?", answers: ["Goose", "Cat", "Dolphin", "Horse"] },
-{ text: "What is the funniest emergency announcement?", answers: ["The cake can drive", "The balloons unionised", "We lost Tuesday", "The floor is optional"] },
-{ text: "Which item is least useful in an action movie?", answers: ["Kazoo", "Feather", "Nice hat", "Salad spinner"] },
-{ text: "What is the worst slogan for a fancy restaurant?", answers: ["Probably edible", "Forks cost extra", "Food may vary", "Chew at your own risk"] },
-{ text: "Which word sounds most like a secret password?", answers: ["Plonk", "Noodle", "Chair", "Mega"] },
-{ text: "What is the most suspicious housewarming gift?", answers: ["A key to nothing", "A toaster portrait", "One glove", "An unlabelled map"] },
-{ text: "Which vehicle makes the funniest dramatic arrival?", answers: ["Forklift", "Scooter", "Tiny train", "Pedal boat"] },
-{ text: "What is the worst theme for a birthday party?", answers: ["Tax audit", "Airport security", "Dentist waiting room", "Mandatory meeting"] },
-{ text: "Which snack is hardest to share fairly?", answers: ["Hot chips", "Nachos", "Chocolate", "Popcorn"] },
-{ text: "What is the best wrong answer to almost any question?", answers: ["A goose", "Tuesday", "More cheese", "Ask the dog"] },
-{ text: "Which room in a house becomes haunted first?", answers: ["Basement", "Bathroom", "Spare room", "Laundry"] },
-{ text: "What is the worst thing to hear from a dentist?", answers: ["That's interesting", "Hold my sandwich", "This is new", "Do you smell smoke?"] },
-{ text: "Which social mistake is hardest to recover from?", answers: ["Wrong group chat", "Forgot their name", "Waved at a stranger", "Replied all"] },
-{ text: "What is the funniest low-budget movie title?", answers: ["Slightly Fast", "Jurassic Car Park", "Mission: Possible", "The Okay Escape"] },
-{ text: "Which breakfast food is most overrated?", answers: ["Cereal", "Pancakes", "Avocado toast", "Cold pizza"] },
-{ text: "What would make the worst group-chat name?", answers: ["Definitely Not Gossip", "Mum Is Typing", "Reply All", "The Incident"] }];
-
-const EDUCATION_QUESTION_PRESETS = [
-  { text: "Which planet is closest to the Sun?", correct: "Mercury", wrong: ["Venus", "Earth", "Mars"] },
-  { text: "What gas do plants absorb during photosynthesis?", correct: "Carbon dioxide", wrong: ["Oxygen", "Hydrogen", "Helium"] },
-  { text: "Which ocean is the largest?", correct: "Pacific Ocean", wrong: ["Atlantic Ocean", "Indian Ocean", "Arctic Ocean"] },
-  { text: "What is 12 multiplied by 8?", correct: "96", wrong: ["86", "92", "108"] },
-  { text: "Which organ pumps blood around the body?", correct: "Heart", wrong: ["Liver", "Lung", "Kidney"] },
-  { text: "What is the chemical symbol for gold?", correct: "Au", wrong: ["Ag", "Go", "Gd"] },
-  { text: "Who wrote Romeo and Juliet?", correct: "William Shakespeare", wrong: ["Jane Austen", "Charles Dickens", "George Orwell"] },
-  { text: "Which fraction is equal to one half?", correct: "3/6", wrong: ["2/3", "4/6", "5/8"] },
-  { text: "What is the square root of 144?", correct: "12", wrong: ["10", "14", "16"] },
-  { text: "How many degrees are in the interior angles of a triangle?", correct: "180 degrees", wrong: ["90 degrees", "270 degrees", "360 degrees"] },
-  { text: "Which fraction is equal to 0.75?", correct: "3/4", wrong: ["2/3", "4/5", "7/10"] },
-  { text: "What is the perimeter of a rectangle that is 5 cm by 3 cm?", correct: "16 cm", wrong: ["8 cm", "15 cm", "25 cm"] },
-  { text: "Which of these numbers is prime?", correct: "29", wrong: ["21", "27", "39"] },
-  { text: "What is 3 to the power of 4?", correct: "81", wrong: ["12", "64", "243"] },
-  { text: "What is the mean of 4, 6, and 8?", correct: "6", wrong: ["5", "7", "18"] },
-  { text: "What is 15 percent of 200?", correct: "30", wrong: ["15", "25", "45"] },
-  { text: "If 2x + 6 = 14, what is x?", correct: "4", wrong: ["3", "7", "10"] },
-  { text: "Which formula gives the area of a circle?", correct: "Pi times radius squared", wrong: ["Two times pi times radius", "Pi times diameter", "Radius squared divided by two"] },
-  { text: "What is the SI unit of electric current?", correct: "Ampere", wrong: ["Volt", "Watt", "Ohm"] },
-  { text: "Which law links force, mass, and acceleration?", correct: "Newton's second law", wrong: ["Ohm's law", "Hooke's law", "Boyle's law"] },
-  { text: "Approximately how fast does light travel in a vacuum?", correct: "300,000 km/s", wrong: ["300 km/s", "30,000 km/s", "3,000,000 km/s"] },
-  { text: "At sea level, what temperature does pure water boil at?", correct: "100 degrees Celsius", wrong: ["0 degrees Celsius", "50 degrees Celsius", "212 degrees Celsius"] },
-  { text: "Why can sound not travel through a perfect vacuum?", correct: "There are no particles to vibrate", wrong: ["It is too cold", "Gravity blocks it", "Light absorbs it"] },
-  { text: "A ramp is an example of which simple machine?", correct: "Inclined plane", wrong: ["Pulley", "Lever", "Wheel and axle"] },
-  { text: "What type of energy does a moving object have?", correct: "Kinetic energy", wrong: ["Chemical energy", "Potential energy", "Nuclear energy"] },
-  { text: "Which surface produces a clear reflection of light?", correct: "A smooth mirror", wrong: ["Rough paper", "Dark carpet", "Unpolished wood"] },
-  { text: "Which material is a good electrical conductor?", correct: "Copper", wrong: ["Rubber", "Glass", "Dry wood"] },
-  { text: "Density is calculated by dividing mass by what?", correct: "Volume", wrong: ["Speed", "Temperature", "Area"] },
-  { text: "Which organelle is often called the powerhouse of the cell?", correct: "Mitochondrion", wrong: ["Nucleus", "Ribosome", "Vacuole"] },
-  { text: "How many chromosomes are normally found in a human body cell?", correct: "46", wrong: ["23", "44", "48"] },
-  { text: "Which blood cells carry most of the body's oxygen?", correct: "Red blood cells", wrong: ["White blood cells", "Platelets", "Plasma cells"] },
-  { text: "Which process makes new body cells for growth and repair?", correct: "Mitosis", wrong: ["Meiosis", "Fertilisation", "Respiration"] },
-  { text: "What is the largest organ of the human body?", correct: "Skin", wrong: ["Liver", "Lung", "Brain"] },
-  { text: "What shape is the structure of DNA?", correct: "Double helix", wrong: ["Single ring", "Triple spiral", "Flat sheet"] },
-  { text: "What does pollination transfer between flowers?", correct: "Pollen", wrong: ["Seeds", "Nectar", "Water"] },
-  { text: "Which organism is commonly a decomposer?", correct: "Fungus", wrong: ["Hawk", "Grass", "Rabbit"] },
-  { text: "What role do green plants usually have in a food chain?", correct: "Producer", wrong: ["Decomposer", "Predator", "Parasite"] },
-  { text: "Which vitamin can the skin produce with sunlight exposure?", correct: "Vitamin D", wrong: ["Vitamin A", "Vitamin B12", "Vitamin C"] },
-  { text: "What pH value is neutral at room temperature?", correct: "7", wrong: ["0", "5", "14"] },
-  { text: "What common substance has the chemical formula NaCl?", correct: "Table salt", wrong: ["Sugar", "Water", "Baking soda"] },
-  { text: "An element's atomic number tells you its number of what?", correct: "Protons", wrong: ["Neutrons", "Electron shells", "Molecules"] },
-  { text: "Which gas makes up most of Earth's atmosphere?", correct: "Nitrogen", wrong: ["Oxygen", "Carbon dioxide", "Argon"] },
-  { text: "What is the change from a gas to a liquid called?", correct: "Condensation", wrong: ["Evaporation", "Sublimation", "Melting"] },
-  { text: "What is Earth's outermost solid layer called?", correct: "Crust", wrong: ["Mantle", "Outer core", "Inner core"] },
-  { text: "Which type of rock forms through heat and pressure?", correct: "Metamorphic", wrong: ["Sedimentary", "Igneous", "Volcanic glass"] },
-  { text: "Which instrument records earthquake waves?", correct: "Seismograph", wrong: ["Barometer", "Anemometer", "Thermometer"] },
-  { text: "In the water cycle, what changes liquid water into water vapour?", correct: "Evaporation", wrong: ["Condensation", "Precipitation", "Freezing"] },
-  { text: "Which energy source is renewable?", correct: "Solar energy", wrong: ["Coal", "Natural gas", "Petrol"] },
-  { text: "Which is the largest planet in our solar system?", correct: "Jupiter", wrong: ["Earth", "Saturn", "Neptune"] },
-  { text: "About how long does Earth take to orbit the Sun?", correct: "365.25 days", wrong: ["24 hours", "30 days", "687 days"] },
-  { text: "What is the capital city of Japan?", correct: "Tokyo", wrong: ["Kyoto", "Osaka", "Seoul"] },
-  { text: "Which is the largest continent by land area?", correct: "Asia", wrong: ["Africa", "Europe", "North America"] },
-  { text: "The Equator divides Earth into which two hemispheres?", correct: "Northern and Southern", wrong: ["Eastern and Western", "Land and Ocean", "Tropical and Polar"] },
-  { text: "In which ancient civilisation did the Olympic Games begin?", correct: "Ancient Greece", wrong: ["Ancient Rome", "Ancient Egypt", "Mesopotamia"] },
-  { text: "Who is associated with developing Europe's movable-type printing press?", correct: "Johannes Gutenberg", wrong: ["Galileo Galilei", "Isaac Newton", "Leonardo da Vinci"] },
-  { text: "In which country was Magna Carta sealed in 1215?", correct: "England", wrong: ["France", "Spain", "Italy"] },
-  { text: "Which part of speech names a person, place, thing, or idea?", correct: "Noun", wrong: ["Verb", "Adjective", "Adverb"] },
-  { text: "What figure of speech is used in 'The classroom was a zoo'?", correct: "Metaphor", wrong: ["Simile", "Alliteration", "Onomatopoeia"] }
-];
 
 
 const emptyLobby = {
@@ -449,6 +300,22 @@ function applyOptimisticQuestionLimit(lobby, value) {
 // The reveal must describe the rule that actually decided it. "Quickest pick
 // wins" was shown for every tie, including ties settled by the stable answer
 // order, which told players something untrue about their own game.
+// Shown after a Majority or Herd reveal when the prompt came from verified
+// content. Separate from the winning answer on purpose: the room's vote decides
+// the points, and a popular wrong answer is still the winner. Saying otherwise
+// would relabel a wrong fact as correct.
+function FactCheckPanel({ results }) {
+  const factCheck = results?.factCheck;
+  if (!factCheck) return null;
+  return (
+    <section className="fact-check" aria-label="Fact check">
+      <strong>Fact check</strong>
+      <p className="fact-check-answer">{factCheck.answerText}</p>
+      {factCheck.explanation ? <p className="fact-check-explanation">{factCheck.explanation}</p> : null}
+    </section>);
+
+}
+
 function tieBreakLabel(results, settledText) {
   const reason = results?.tieBreakReason ||
     (results?.tieBrokenBySpeed ? "fastest" : results?.tiedByVotes ? "order" : "none");
@@ -3685,32 +3552,48 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
 
   const updateAnswer = (index, value) => setAnswers((current) => current.map((answer, answerIndex) => answerIndex === index ? value : answer));
   const addAnswer = () => setAnswers((current) => current.length >= 4 ? current : [...current, ""]);
-  const useRandomPreset = () => {
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestionNote, setSuggestionNote] = useState("");
+  const [templateId, setTemplateId] = useState("");
+  const useRandomPreset = async () => {
+    setSuggesting(true);
+    setSuggestionNote("");
+    // One shared source for suggestions. The client used to hold its own copy
+    // of the banks and pick from them by mode, which ignored the host's chosen
+    // style and let the two drift apart.
+    const result = await api("/api/question/suggest", {}, { refresh: false });
+    setSuggesting(false);
+    if (!result?.ok) {
+      setSuggestionNote(result?.error || "Could not fetch a suggestion just now.");
+      return;
+    }
+    const suggestion = result.suggestion;
+    setTemplateId(suggestion.templateId);
+    setText(suggestion.text);
     if (isHerd) {
-      const preset = PARTY_QUESTION_PRESETS[Math.floor(Math.random() * PARTY_QUESTION_PRESETS.length)];
-      setText(preset.text);
+      // Herd uses the prompt as a writing seed. The suggested options are not
+      // submitted as if players had written them.
+      setSuggestionNote("Players will write their own answers to this.");
       return;
     }
+    const options = suggestion.options.map((option) => option.text).slice(0, 4);
+    setAnswers(options);
     if (isMajority) {
-      const preset = MAJORITY_QUESTION_PRESETS[Math.floor(Math.random() * MAJORITY_QUESTION_PRESETS.length)];
-      setText(preset.text);
-      setAnswers(preset.answers.slice(0, 4));
-      setCorrectIndex(0);
+      // A prediction is optional and is the author's guess, not a correct
+      // answer. It starts unset so nothing is predicted on their behalf.
+      setCorrectIndex(-1);
+      setSuggestionNote("Optional: predict which answer the room will choose.");
       return;
     }
-    if (promptStyle === "education") {
-      const preset = EDUCATION_QUESTION_PRESETS[Math.floor(Math.random() * EDUCATION_QUESTION_PRESETS.length)];
-      const shuffledAnswers = [preset.correct, ...preset.wrong].map(value => ({ value, order: Math.random() })).sort((left, right) => left.order - right.order).map(item => item.value);
-      setText(preset.text);
-      setAnswers(shuffledAnswers);
-      setCorrectIndex(shuffledAnswers.indexOf(preset.correct));
-      return;
-    }
-    const preset = PARTY_QUESTION_PRESETS[Math.floor(Math.random() * PARTY_QUESTION_PRESETS.length)];
-    const nextCorrectIndex = Math.floor(Math.random() * Math.min(2, preset.answers.length));
-    setText(preset.text);
-    setAnswers(preset.answers.slice(0, 4));
-    setCorrectIndex(nextCorrectIndex);
+    const keyed = suggestion.intendedAnswerId ?
+      suggestion.options.findIndex((option) => option.id === suggestion.intendedAnswerId) :
+      -1;
+    setCorrectIndex(keyed);
+    // An opinion prompt has no correct answer, so one is never invented here.
+    // Picking at random is exactly how a funny question used to acquire a key.
+    setSuggestionNote(keyed >= 0 ?
+    "Verified answer selected. You can change it." :
+    "Choose an intended answer for Classic.");
   };
   const removeAnswer = (index) => {
     setAnswers((current) => current.filter((_answer, answerIndex) => answerIndex !== index));
@@ -3730,7 +3613,11 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
 
   const submitQuestion = async (event) => {
     event.preventDefault();
-    const draft = { text, answers, correctIndex, imageDataUrl };
+    if (!isMajority && !isHerd && correctIndex < 0) {
+      setSuggestionNote("Choose an intended answer before adding this question.");
+      return;
+    }
+    const draft = { text, answers, correctIndex, imageDataUrl, templateId };
     if (!isEditing && !requiresApproval) {
       dispatch({ type: "OPTIMISTIC_QUESTION_SUBMITTED" });
     }
@@ -3740,6 +3627,9 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
       playerKey,
       text,
       imageDataUrl,
+      // Lets the server attach the verified fact for a reveal fact check. It
+      // is not a scoring key and does not decide any points.
+      ...(templateId ? { templateId } : {}),
       answers: isHerd ? [] : answers.map((answer, index) => ({
         text: answer,
         correct: !isMajority && index === correctIndex,
@@ -3783,7 +3673,8 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
         <h2>{isEditing ? "Edit " + itemLabel.toLowerCase() + " " : itemLabel + " "}{questionNumber} of {totalQuestions}</h2>
         {isEditing ? <button className="cancel-edit-button" type="button" onClick={onCancelEdit}>Cancel edit</button> : null}
       </div>
-      <button className="preset-question-button" type="button" onClick={useRandomPreset}>{isHerd ? "Give me a Herd question" : isMajority ? "Give me an opinion question" : promptStyle === "education" ? "Give me a learning question" : "Give me a funny prompt"}</button>
+      <button className="preset-question-button" type="button" disabled={suggesting} onClick={useRandomPreset}>{suggesting ? "Finding one..." : isHerd ? "Give me a Herd question" : isMajority ? "Give me an opinion question" : promptStyle === "education" ? "Give me a learning question" : "Give me a funny prompt"}</button>
+      {suggestionNote ? <p className="builder-suggestion-note">{suggestionNote}</p> : null}
       <label className="question-input-label"><textarea value={text} onChange={(event) => setText(event.target.value)} maxLength="180" placeholder={isHerd ? "Ask something your friends can answer badly" : isMajority ? "Ask a funny question with no factual right answer" : "Question text"} rows="3" /></label>
       <ImageUploadDrawPicker value={imageDataUrl} onChange={setImageDataUrl} label="Optional question image" previewAlt="Question image preview" />
       {!isHerd ? <>
@@ -4356,7 +4247,7 @@ function HerdRevealBreakdown({ question, lobby }) {
   return (
     <section className="majority-reveal-breakdown herd-reveal-breakdown">
       <header>
-        <span>{tieBreakLabel(results, "The Herd has spoken")}</span>
+        <span>{tieBreakLabel(results, "The Herd has spoken")}</span><FactCheckPanel results={results} />
         <strong>{results.topCount} vote{results.topCount === 1 ? "" : "s"} for the favourite</strong>
         <p>Up to 500 points for picking the favourite, plus up to 500 for every vote your authored answer attracted.</p>
       </header>
@@ -4376,7 +4267,7 @@ function MajorityRevealBreakdown({ question, lobby }) {
   return (
     <section className="majority-reveal-breakdown">
       <header>
-        <span>{tieBreakLabel(results, "The room has spoken")}</span>
+        <span>{tieBreakLabel(results, "The room has spoken")}</span><FactCheckPanel results={results} />
         <strong>{results.topCount} vote{results.topCount === 1 ? "" : "s"} for the winner</strong>
         <p>{results.authorBonusAwarded ? "Perfect prediction — the author earns +100 bonus points." : results.unanimous ? "Everyone agreed, but the author predicted another answer." : "The most popular answer is correct for this round."}</p>
       </header>

@@ -180,7 +180,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
 | [x] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
 | [x] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
-| [ ] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
+| [x] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
 | [ ] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
 | [ ] | P07 | Durable, retry-safe career-result delivery | P01 |
 | [ ] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
@@ -431,6 +431,21 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-11 — P05 complete
+
+- **P05 steps 1-7 complete and checked off.** P06 is next.
+- Step 1: all 148 legacy inline entries are migrated out of `app.jsx` and `server.js` into `packages/content/src/legacy.ts` with stable ids, deduplicated across banks — 175 distinct prompts from 194 raw entries. `app.jsx` lost 20KB of inline banks. **Deduplication prefers the richer entry**: five prompts existed both as two-option party questions and as four-option Majority ones, and keeping whichever came first silently discarded the extra options. All 40 Majority prompts now survive with four options each.
+- Step 4: both `QuestionBuilder` suggestion branches are replaced by one call to `/api/question/suggest`. The client no longer holds a copy of any bank, which is what let it and the server pick content by different rules and shipped every educational answer into every player's bundle.
+- Step 5: **the invented key is gone.** The funny-Classic branch used `Math.floor(Math.random() * ...)` to pick a "correct" answer for an opinion prompt. A suggestion now arrives with the intended answer **unset** for opinion content, the builder says "Choose an intended answer for Classic", and submission is refused until the author picks one. Majority starts with no prediction and labels it optional.
+- Step 6: an educational template's verified answer travels with the question via `templateId` and is shown at reveal as a separate **Fact check** panel, never merged with the winning vote. Under Majority and Herd the room's votes still decide the points, and a popular wrong answer stays the winner rather than being relabelled correct.
+- **A near miss worth recording.** Removing the inline banks also deleted `GAME_MODES`, `GAME_FAMILIES` and `ROUND_PRESETS`, and `npm run check` stayed green: esbuild transforms each file without resolving globals, and `tsconfig.web.json` does not type-check `.jsx` at all. The lobby would have thrown on first render. Caught by `smoke-herd-flow` and restored.
+- **A guard I wrote for that, and then deleted.** A regex check for referenced-but-undeclared browser constants reported success on a file with the constant removed. Stripping string literals from JSX by regular expression cannot work: prose containing an apostrophe, such as "the room's answers", opens a single-quoted string that swallows everything to the next apostrophe, including the reference being checked. It ate 59KB of the file. A test that passes while the bug is present is worse than no test, so it was removed and the gap is documented in `smoke-regressions.mjs` instead. The real fix is type-checking the browser source in P09/P10.
+- Verified: `npm run check` (118 unit tests), full `npm test` across 24 smoke scripts, `npm run test:rooms` on a separate fresh lifetime — twelve games.
+- Note: the 32-room cap bit twice during this stage. Reusing one disposable server across batches fails through capacity, not defect, exactly as this plan warns.
+- **Not verified:** the 40 new prompts have not been read aloud with real player names, checked on a small phone, or playtested. That is the content acceptance gate named at the end of Appendix B and it needs a person.
+- Next exact task: **P06 steps 1-7**, a genuinely short and balanced Herd. `npm run test:rooms` still shows 20 players producing 20 rounds.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-11 — P05 partial (catalogue, substitution, endpoint)
 

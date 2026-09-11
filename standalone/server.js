@@ -26,7 +26,7 @@ import { customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "
 import { buildMajorityResults } from "./server/majority.mjs";
 import { buildHerdAssignmentPlan, buildHerdRoundResults } from "../packages/game-engine/src/index.ts";
 import { DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
-import { TemplateBag, instantiateTemplate } from "../packages/content/src/index.ts";
+import { TemplateBag, findTemplate, instantiateTemplate } from "../packages/content/src/index.ts";
 import { initialiseRoomMedia, pruneRoomMedia, roomAssetDataUrl, serveRoomMedia, storeRoomImage } from "./server/media.mjs";
 import { presentPlayer } from "./server/presentation.mjs";
 import { MAX_ACTIVE_ROOMS, MAX_PLAYERS_PER_ROOM } from "./server/room.mjs";
@@ -667,6 +667,10 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
   }
   if (pathname === "/api/question/suggest") {
     return suggestQuestion(room, payload);
+  }
+  if (pathname === "/api/question" && payload && typeof payload === "object") {
+    const factCheck = factCheckForTemplate(payload.templateId);
+    if (factCheck) payload.__factCheck = factCheck;
   }
   if (pathname === "/api/question") {
     return submitQuestion(room, payload);
@@ -1931,6 +1935,7 @@ function submitQuestion(room, payload) {
 
   try {
     const question = normaliseQuestion(room, payload, player);
+    if (payload?.__factCheck) question.factCheck = payload.__factCheck;
     if (room.approveQuestions) {
       room.pendingQuestions.push(question);
     } else {
@@ -3097,8 +3102,11 @@ function suggestQuestion(room, payload) {
     map((seat) => ({ id: seat.id, name: cleanText(seat.name, 24) || "Player" }));
 
   const template = roomTemplateBag(room, style).next();
-  // includeAnswerKey is deliberately omitted: this reply reaches a browser.
-  const instance = instantiateTemplate(template, { eligible });
+  // The requester is the prospective author of this draft, and an author is
+  // always shown the key to their own question. What must never happen is a
+  // key reaching somebody who is about to answer it, which is a different
+  // payload entirely. An opinion prompt has no key to give.
+  const instance = instantiateTemplate(template, { eligible, includeAnswerKey: true });
 
   return {
     ok: true,
@@ -3107,7 +3115,11 @@ function suggestQuestion(room, payload) {
       templateVersion: instance.templateVersion,
       kind: instance.kind,
       text: instance.text,
-      options: instance.options.map((option) => ({ id: option.id, text: option.text }))
+      options: instance.options.map((option) => ({ id: option.id, text: option.text })),
+      // Null for every funny prompt. The author must choose one themselves
+      // before the question can be played under Classic rules.
+      intendedAnswerId: instance.factualAnswerId,
+      explanation: instance.explanation
     }
   };
 }
@@ -3316,6 +3328,18 @@ function plannedQuestionCount(room) {
 function estimatedGameDurationMs(room) {
   const perRound = READING_MS + ANSWERING_MS + REVEAL_MS;
   return plannedQuestionCount(room) * perRound;
+}
+
+// A question written from an educational template keeps its verified answer so
+// the reveal can show a fact check. This is not a scoring key: under Majority
+// and Herd the room's votes still decide the points, and a popular wrong
+// answer stays the winner. The two are shown separately and never conflated.
+function factCheckForTemplate(templateId) {
+  const template = findTemplate(cleanText(templateId, 40));
+  if (!template || template.kind !== "educational") return null;
+  const answer = template.options.find((option) => option.id === template.factualAnswerId);
+  if (!answer) return null;
+  return { answerText: answer.text, explanation: template.explanation };
 }
 
 function normaliseQuestion(room, payload, player) {
@@ -4500,6 +4524,10 @@ function publicHerdResults(room, question) {
     tiedByVotes: Boolean(results.tiedByVotes),
     tieBrokenBySpeed: Boolean(results.tieBrokenBySpeed),
     tieBreakReason: results.tieBreakReason || "none",
+    // Shown as a separate "Fact check" at the reveal. The room's vote still
+    // decides the points; a popular wrong answer stays the winner and is never
+    // relabelled as factually correct.
+    factCheck: question?.factCheck || null,
     groups: (results.groups || []).map((group) => ({
       answerId: group.id,
       text: group.text,
@@ -4538,6 +4566,10 @@ function publicMajorityResults(room, question) {
     tiedByVotes: Boolean(results.tiedByVotes),
     tieBrokenBySpeed: Boolean(results.tieBrokenBySpeed),
     tieBreakReason: results.tieBreakReason || "none",
+    // Shown as a separate "Fact check" at the reveal. The room's vote still
+    // decides the points; a popular wrong answer stays the winner and is never
+    // relabelled as factually correct.
+    factCheck: question?.factCheck || null,
     predictedAnswerId: results.predictedAnswerId || null,
     predictionMatched: Boolean(results.predictionMatched),
     unanimous: Boolean(results.unanimous),

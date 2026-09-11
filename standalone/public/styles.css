@@ -10261,3 +10261,33 @@ button.answer-tile {
 @media (max-width: 360px) {
   .rules-modal-footer { flex-direction: column; }
 }
+
+/* Reveal fact check.
+   Deliberately visually separate from the winning answer: the room's vote
+   decides the points, and a popular wrong answer is still the winner. */
+.fact-check {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(36, 107, 254, 0.12);
+  border: 1px solid rgba(36, 107, 254, 0.32);
+  text-align: left;
+}
+
+.fact-check strong {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.fact-check-answer { margin: 0; font-weight: 700; }
+.fact-check-explanation { margin: 0; font-size: 0.85rem; color: rgba(255, 255, 255, 0.76); }
+
+.builder-suggestion-note {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.72);
+}
