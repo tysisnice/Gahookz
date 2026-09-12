@@ -102,6 +102,61 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Public beta. Same build as production, deliberately small and open.
+  #
+  # No access list in front of it: anybody with the link can play, which is the
+  # whole point of a beta. The room cap is two, so it cannot be turned into free
+  # hosting and so a problem is small when it happens. Accounts and Google login
+  # are left unconfigured, so play here is entirely guest play.
+  gahookz-beta:
+    image: gahookz:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+      args:
+        GAHOOKZ_REVISION: "${GAHOOKZ_REVISION:-unknown}"
+        GAHOOKZ_BUILT_AT: "${GAHOOKZ_BUILT_AT:-}"
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 45s
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      HOST: "0.0.0.0"
+      GAHOOKZ_TRUST_PROXY: "${GAHOOKZ_TRUST_PROXY:-1}"
+      GAHOOKZ_HTTPS: "${GAHOOKZ_HTTPS:-1}"
+      GAHOOKZ_PUBLIC_ORIGIN: "${GAHOOKZ_BETA_PUBLIC_ORIGIN:-https://beta.gahookz.com}"
+      # Two rooms at a time, on purpose.
+      GAHOOKZ_MAX_ACTIVE_ROOMS: "${GAHOOKZ_BETA_MAX_ROOMS:-2}"
+      # No database, so no accounts and nothing durable to lose.
+      DATABASE_URL: ""
+      GAHOOKZ_REQUIRE_POSTGRES: "0"
+      GAHOOKZ_INSTANCE_ID: "${GAHOOKZ_BETA_INSTANCE_ID:-beta-1}"
+      GAHOOKZ_DRAIN_TIMEOUT_MS: "${GAHOOKZ_DRAIN_TIMEOUT_MS:-30000}"
+      GAHOOKZ_METRICS_TOKEN: "${GAHOOKZ_METRICS_TOKEN:-}"
+      NODE_OPTIONS: "--max-old-space-size=${GAHOOKZ_BETA_NODE_MEMORY_MB:-512}"
+    ports:
+      - "${GAHOOKZ_BIND_ADDRESS:-127.0.0.1}:${GAHOOKZ_BETA_PORT:-3103}:3001"
+    networks:
+      - default
+      - proxy
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: "${GAHOOKZ_BETA_MEMORY_LIMIT:-512m}"
+    cpus: "${GAHOOKZ_BETA_CPU_LIMIT:-1.0}"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   proxy:
     name: gahookz-proxy
