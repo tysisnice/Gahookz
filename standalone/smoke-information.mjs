@@ -76,10 +76,38 @@ assert(workerSource.includes(`const CACHE_NAME = "gahookz-shell-${assetVersion}"
 assert(workerSource.includes(`"/client/information.js?v=${assetVersion}"`));
 assert(workerSource.includes('caches.match("/index.html")'));
 
-// The hub should expose all planned reports and document both social-mode rules.
+// The public hub carries the game guides only. A product roadmap, release
+// gates, a monetisation model and server operating detail were written for
+// whoever runs Gahookz, not for somebody who joined a room to play, and now
+// live in docs/product/internal-reports.md.
 const reportDeclaration = informationSource.slice(0, informationSource.indexOf("const REPORT_IDS"));
 const reportIds = [...reportDeclaration.matchAll(/\{ id: "([^"]+)"/g)].map((match) => match[1]);
-assert.deepEqual(reportIds, ["majority", "herd", "overview", "roadmap", "launch", "business", "operations", "about"]);
+assert.deepEqual(reportIds, ["majority", "herd", "overview"], "the public hub should list player guides only");
+
+// Those links still answer rather than 404, because breaking a bookmark is its
+// own small rudeness.
+for (const moved of ["roadmap", "launch", "business", "operations", "about"]) {
+  assert(
+    informationSource.includes(moved + ":"),
+    `the moved report ${moved} should still resolve and explain where it went`
+  );
+}
+assert(
+  informationSource.includes("has moved."),
+  "a moved report should say so rather than render nothing"
+);
+
+// The internal content must not still be sitting in the shipped bundle.
+// Titles remain, because the moved notice names what moved. It is the *content*
+// that must be gone.
+// Specific phrases only. "P0" was in this list and is wrong: the mode guides
+// use priority levels for their own design guardrails, which is player-facing.
+for (const internalContent of ["loot boxes", "32 active rooms per process", "Required before broad promotion", "Steam host edition", "host subscription"]) {
+  assert(
+    !informationSource.includes(internalContent),
+    `internal content is still in the public page: ${internalContent}`
+  );
+}
 
 for (const expectedContent of [
   "Current game flow",
@@ -93,12 +121,7 @@ for (const expectedContent of [
   "Share the writing load",
   "Up to 500",
   "Author points",
-  "Gahookz overview",
-  "Product roadmap",
-  "Public launch checklist",
-  "Fair monetisation",
-  "Hosting and operations",
-  "About these reports"
+  "Gahookz overview"
 ]) {
   assert(informationSource.includes(expectedContent), `missing report content: ${expectedContent}`);
 }

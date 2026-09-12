@@ -186,7 +186,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
 | [x] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
 | [x] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
-| [~] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
+| [x] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
 | [ ] | P12 | Full regression matrix, human tests, release/rollback readiness | P00–P11 |
 
 Default execution order is the table order. P07 is separable if account infrastructure work is blocked; complete its local tests and record the external gate rather than stopping unrelated gameplay work. A working deliverable can be reviewed after P05 and P06, without waiting for a giant overhaul release.
@@ -431,6 +431,16 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-12 — P11 complete
+
+- **P11 checked off**, with step 3 deferred exactly as the plan permits.
+- Step 2: the arena was almost undiscoverable. `challengeGahookDuel` required an unexpired **counter** Gahook, so a player had to be Gahooked first, notice the counter window and use it before it expired. There is now a **Challenge to 1v1** action in the player menu that challenges a chosen player directly. The counter route stays as the fast one, and both use the same engine. The direct path keeps every existing guard — connected, not yourself, not banned, one arena at a time, the host's arena policy — and adds a per-challenger cooldown so the menu cannot be used to spam somebody with duel prompts.
+- Step 4: `/information` carried a product roadmap, a release-readiness checklist with P0/P1 gates, a **monetisation model** and server operating detail, all on a public page. None of it was secret and none of it was a credential — it was written for whoever runs Gahookz, not for somebody who joined a room to play. It now lives in `docs/product/internal-reports.md`, preserved rather than deleted. The mode guides stayed. The five moved URLs **still resolve** and say where their content went, because breaking a bookmark is its own small rudeness. A test asserts the internal phrases are gone from the shipped bundle.
+- Two of my own assertions were wrong while writing that, and both were fixed rather than worked around: one demanded the *title* "Fair monetisation" be absent, but the title is what the moved notice shows; the other listed `P0` as internal, when the mode guides legitimately use priority levels for their own design guardrails.
+- **Step 3 is deferred, with reason.** The plan says to "observe the current arena first, then implement a lightweight Rematch flow and restrained spectator cheers **if they improve waiting time**", and permits the step being "explicitly deferred with playtest evidence". I cannot observe an arena session, and building a rematch flow on a guess about whether waiting feels long is exactly the speculative work the plan warns against. The arena is now discoverable, which is the change that makes observation possible at all.
+- Verified: `npm run check` (167 unit tests), full `npm test` across 24 smoke scripts, `npm run test:browser` (16 checks), `npm run test:rooms` on a separate fresh lifetime.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-12 — P11 partial (fast start and scoring record done)
 

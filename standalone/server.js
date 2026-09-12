@@ -1283,14 +1283,40 @@ function challengeGahookDuel(room, payload) {
   if (room.phase !== "lobby" && room.phase !== "building") {
     return { ok: false, error: "Gahook Arena is a lobby side-game." };
   }
-  const counterPoke = challenger.latestPoke;
   const now = Date.now();
-  if (counterPoke?.kind !== "counter" || (counterPoke.duelChallengeUntil || 0) <= now) {
-    return { ok: false, error: "That Gahook Arena challenge chance has expired." };
-  }
-  const challenged = room.players[counterPoke.senderPlayerId];
-  if (!challenged?.connected || challenged.id === challenger.id) {
-    return { ok: false, error: "That player is no longer available for Gahook Arena." };
+
+  // Two ways in, one engine.
+  //
+  // Countering a Gahook was the only route, which made the arena almost
+  // undiscoverable: a player had to be Gahooked first, notice the counter
+  // window, and use it before it expired. A direct challenge from the player
+  // menu is the obvious action, and the counter path stays as the fast one.
+  const requestedTargetId = cleanText(payload?.playerId, 80);
+  let challenged = null;
+
+  if (requestedTargetId) {
+    // One challenge per challenger per cooldown, so the menu cannot be used to
+    // spam somebody with duel prompts.
+    if ((challenger.lastDuelChallengeAt || 0) + GAHOOK_DUEL_CHALLENGE_MS > now) {
+      return { ok: false, error: "Wait a moment before challenging again." };
+    }
+    challenged = resolvePlayer(room, requestedTargetId);
+    if (!challenged?.connected || challenged.id === challenger.id) {
+      return { ok: false, error: "That player is not available for Gahook Arena." };
+    }
+    if (isCredentialBanned(room, challenged.credential)) {
+      return { ok: false, error: "That player is not available for Gahook Arena." };
+    }
+    challenger.lastDuelChallengeAt = now;
+  } else {
+    const counterPoke = challenger.latestPoke;
+    if (counterPoke?.kind !== "counter" || (counterPoke.duelChallengeUntil || 0) <= now) {
+      return { ok: false, error: "That Gahook Arena challenge chance has expired." };
+    }
+    challenged = room.players[counterPoke.senderPlayerId];
+    if (!challenged?.connected || challenged.id === challenger.id) {
+      return { ok: false, error: "That player is no longer available for Gahook Arena." };
+    }
   }
   if (room.gahookDuel) {
     return { ok: false, error: "This room already has a Gahook Arena match." };

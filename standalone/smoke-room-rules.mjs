@@ -332,6 +332,33 @@ for (const secret of ["password", "hostKey", "playerKey", "credential"]) {
   await post("/api/host/reset");
 }
 
+// --- P11 step 2: the arena is reachable without being Gahooked first --------
+
+{
+  await post("/api/host/reset", { playerKey: host });
+  await post("/api/host/settings", { playerKey: host, lobbyArenaEnabled: true });
+  const roster = await state();
+  const targetId = roster.players.find((player) => player.name === "P2")?.id;
+  assert(targetId, "expected a second player to challenge");
+
+  // Previously the only route in was countering a Gahook inside a short
+  // window, which made the arena close to undiscoverable.
+  const direct = await post("/api/player/duel-challenge", { playerKey: players[0], playerId: targetId });
+  assert(direct.ok, "A player should be able to challenge directly from the menu: " + direct.error);
+
+  // One at a time, and not twice in a row.
+  const second = await post("/api/player/duel-challenge", { playerKey: players[0], playerId: targetId });
+  assert(second.ok === false, "A second challenge while one is active must be refused");
+
+  const selfChallenge = await post("/api/player/duel-challenge", { playerKey: players[0], playerId: roster.players.find((p) => p.name === "P1")?.id });
+  assert(selfChallenge.ok === false, "Challenging yourself must be refused");
+
+  await post("/api/host/settings", { playerKey: host, lobbyArenaEnabled: false });
+  const whileDisabled = await post("/api/player/duel-challenge", { playerKey: players[1], playerId: targetId });
+  assert(whileDisabled.ok === false, "A direct challenge must still respect the host's arena policy");
+  await post("/api/host/settings", { playerKey: host, lobbyArenaEnabled: true });
+}
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -352,6 +379,8 @@ console.log(JSON.stringify({
     "a fast start promotes pending questions instead of binning them",
     "Classic autofill uses verified answers only",
     "Majority autofill predicts nothing on an absent author's behalf",
-    "a Majority prediction is optional, but two predictions is still a mistake"
+    "a Majority prediction is optional, but two predictions is still a mistake",
+    "a player can challenge to 1v1 directly, without being Gahooked first",
+    "a direct challenge still respects one-at-a-time and the host's policy"
   ]
 }, null, 2));

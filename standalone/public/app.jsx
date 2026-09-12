@@ -2035,7 +2035,7 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
         }
       });
     };
-    return <HostLobby lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onLockSetup={() => hostAction("/api/host/lock-setup", { hostWillPlay: false })} onPoke={pokePlayer} onKick={kickPlayer} onMakeHost={makePlayerHost} onRandomizeIdentity={randomizePlayerIdentity} onUnban={(player) => hostAction("/api/host/unban", { playerId: player.id })} onPlayAsPlayer={onPlayAsPlayer} onExitAsPlayer={onExitAsPlayer} rejoiningAsPlayer={rejoiningAsPlayer} onQuestionLimit={(value) => hostAction("/api/host/settings", { maxQuestionsPerPlayer: value })} onRoundPreset={(value) => hostAction("/api/host/settings", { roundPreset: value })} onSettings={(value) => hostAction("/api/host/settings", value)} onFamilyChange={(value) => hostAction("/api/host/settings", { gameFamily: value })} onScoringChange={(value) => hostAction("/api/host/settings", { quizScoring: value })} />;
+    return <HostLobby lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onLockSetup={() => hostAction("/api/host/lock-setup", { hostWillPlay: false })} onPoke={pokePlayer} onKick={kickPlayer} onMakeHost={makePlayerHost} onRandomizeIdentity={randomizePlayerIdentity} onUnban={(player) => hostAction("/api/host/unban", { playerId: player.id })} onPlayAsPlayer={onPlayAsPlayer} onExitAsPlayer={onExitAsPlayer} rejoiningAsPlayer={rejoiningAsPlayer} onQuestionLimit={(value) => hostAction("/api/host/settings", { maxQuestionsPerPlayer: value })} onRoundPreset={(value) => hostAction("/api/host/settings", { roundPreset: value })} onSettings={(value) => hostAction("/api/host/settings", value)} onChallenge={(target) => hostAction("/api/player/duel-challenge", { playerId: target.id })} onFamilyChange={(value) => hostAction("/api/host/settings", { gameFamily: value })} onScoringChange={(value) => hostAction("/api/host/settings", { quizScoring: value })} />;
   }
   if (lobby.phase === "building") {
     const pokePlayer = (player) => {
@@ -2047,7 +2047,7 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
         }
       });
     };
-    return <HostBuildingLobby lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onStart={() => hostAction("/api/host/start")} onForceStart={() => hostAction("/api/host/force-start")} onPoke={pokePlayer} onKick={kickPlayer} onMakeHost={makePlayerHost} onRandomizeIdentity={randomizePlayerIdentity} onUnban={(player) => hostAction("/api/host/unban", { playerId: player.id })} onApproveQuestion={(question) => hostAction("/api/host/question/approve", { questionId: question.id })} onRejectQuestion={(question) => hostAction("/api/host/question/reject", { questionId: question.id })} onPlayAsPlayer={onPlayAsPlayer} />;
+    return <HostBuildingLobby lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onStart={() => hostAction("/api/host/start")} onForceStart={() => hostAction("/api/host/force-start")} onPoke={pokePlayer} onKick={kickPlayer} onMakeHost={makePlayerHost} onRandomizeIdentity={randomizePlayerIdentity} onUnban={(player) => hostAction("/api/host/unban", { playerId: player.id })} onApproveQuestion={(question) => hostAction("/api/host/question/approve", { questionId: question.id })} onRejectQuestion={(question) => hostAction("/api/host/question/reject", { questionId: question.id })} onChallenge={(target) => hostAction("/api/player/duel-challenge", { playerId: target.id })} onPlayAsPlayer={onPlayAsPlayer} />;
   }
   if (lobby.phase === "herd-writing") {
     return <HostHerdPreparation lobby={lobby} playerKey={playerKey} connected={connected} hostMenu={hostMenu} onStart={() => hostAction("/api/host/start")} onForceStart={() => hostAction("/api/host/force-start")} />;
@@ -2218,7 +2218,7 @@ function LockedRulesSummary({ lobby }) {
 
 }
 
-function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke, onKick, onMakeHost, onRandomizeIdentity, onUnban, onPlayAsPlayer, onExitAsPlayer, rejoiningAsPlayer = false, onQuestionLimit, onRoundPreset, onSettings, onFamilyChange, onScoringChange }) {
+function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke, onKick, onMakeHost, onRandomizeIdentity, onUnban, onPlayAsPlayer, onExitAsPlayer, rejoiningAsPlayer = false, onQuestionLimit, onRoundPreset, onSettings, onFamilyChange, onScoringChange, onChallenge }) {
   const connectedPlayers = lobby.players.filter((player) => player.connected);
   const playerLink = buildRoomLink(lobby.code);
   const [shareNotice, setShareNotice] = useState("");
@@ -2313,7 +2313,7 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
             <span>{connectedPlayers.length}</span>
           </div>
           <div className="player-grid">
-            {lobby.players.map((player) => <PlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} showQuestionStatus={false} onPoke={onPoke} onKick={onKick} onMakeHost={onMakeHost} onRandomizeIdentity={onRandomizeIdentity} onRemoveSelf={player.id === lobby.ownPlayer?.id ? onExitAsPlayer : null} />)}
+            {lobby.players.map((player) => <PlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} showQuestionStatus={false} onPoke={onPoke} onKick={onKick} onMakeHost={onMakeHost} onRandomizeIdentity={onRandomizeIdentity} onRemoveSelf={player.id === lobby.ownPlayer?.id ? onExitAsPlayer : null} canChallenge={Boolean(lobby.ownPlayer) && lobby.lobbyArenaEnabled !== false && !lobby.gahookDuel} onChallenge={(target) => onChallenge?.(target)} />)}
             {!lobby.ownPlayer ? <button className="host-join-player-card" type="button" disabled={rejoiningAsPlayer} onClick={onPlayAsPlayer}><span className="host-join-player-icon">+</span><span><strong>{rejoiningAsPlayer ? "Rejoining..." : "Join game as player"}</strong><small>{rejoiningAsPlayer ? "Restoring your profile" : "Pick a name and profile picture"}</small></span></button> : null}
             {!lobby.players.length && lobby.ownPlayer ? <div className="empty-state">Waiting for players</div> : null}
           </div>
@@ -2431,7 +2431,7 @@ function HostLobbyPokeEffects({ lobby, ownPlayer, ownPoke, playerKey }) {
     </>);
 }
 
-function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onForceStart, onPoke, onKick, onMakeHost, onRandomizeIdentity, onUnban, onApproveQuestion, onRejectQuestion, onPlayAsPlayer }) {
+function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onForceStart, onPoke, onKick, onMakeHost, onRandomizeIdentity, onUnban, onApproveQuestion, onRejectQuestion, onPlayAsPlayer, onChallenge }) {
   const connectedPlayers = lobby.players.filter((player) => player.connected);
   const readyPlayers = connectedPlayers.filter((player) => player.ready);
   const creationLabel = "question";
@@ -2461,7 +2461,7 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
             <span>{connectedPlayers.length}</span>
           </div>
           <div className="player-grid">
-            {lobby.players.length ? lobby.players.map((player) => <PlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} onPoke={onPoke} onKick={onKick} onMakeHost={onMakeHost} onRandomizeIdentity={onRandomizeIdentity} />) : <div className="empty-state">Waiting for players</div>}
+            {lobby.players.length ? lobby.players.map((player) => <PlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} onPoke={onPoke} onKick={onKick} onMakeHost={onMakeHost} onRandomizeIdentity={onRandomizeIdentity} canChallenge={Boolean(lobby.ownPlayer) && lobby.lobbyArenaEnabled !== false && !lobby.gahookDuel && player.id !== lobby.ownPlayer?.id} onChallenge={(target) => onChallenge?.(target)} />) : <div className="empty-state">Waiting for players</div>}
           </div>
           {lobby.bannedPlayers?.length ? <BannedPlayersPanel players={lobby.bannedPlayers} onUnban={onUnban} /> : null}
         </div>
@@ -3903,7 +3903,7 @@ function Metric({ label, value }) {
   return <div className="metric-row"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, onKick, onMakeHost, onRandomizeIdentity, onRemoveSelf }) {
+function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, onKick, onMakeHost, onRandomizeIdentity, onRemoveSelf, onChallenge = null, canChallenge = false }) {
   const [menuRef, closeMenu] = useDetailsMenu();
   const [activeAction, setActiveAction] = useState("");
   const dispatch = useDispatch();
@@ -3937,6 +3937,12 @@ function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, o
         <details className="player-action-menu" ref={menuRef} aria-busy={activeAction ? "true" : "false"}>
           <summary className="player-action-trigger" aria-label="Player actions"><span className="burger-lines" aria-hidden="true"><i /><i /><i /></span></summary>
           <div>
+            {/* Countering a Gahook was the only way into the arena, which meant
+                a player had to be Gahooked first and notice a short window.
+                This is the obvious way to find it; the counter route stays. */}
+            {canChallenge && onChallenge && player.connected && !onRemoveSelf ?
+            <button type="button" disabled={actionBusy} onClick={() => runPlayerAction("challenge", onChallenge)}>{activeAction === "challenge" ? "Sending challenge..." : "Challenge to 1v1"}</button> :
+            null}
             {onRemoveSelf ? <button type="button" disabled={actionBusy} onClick={() => runPlayerAction("remove", onRemoveSelf)}>{activeAction === "remove" ? "Leaving player slot..." : "Leave as player"}</button> : null}
             <button type="button" disabled={actionBusy || !player.connected || player.isHost} onClick={() => runPlayerAction("host", onMakeHost)}>{activeAction === "host" ? "Making host..." : "Make host"}</button>
             <button type="button" disabled={actionBusy} onClick={() => runPlayerAction("randomize", onRandomizeIdentity)}>{activeAction === "randomize" ? "Randomizing name & pfp..." : "Randomize name & pfp"}</button>
