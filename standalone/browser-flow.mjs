@@ -170,6 +170,125 @@ async function main() {
     assert.ok(overflow <= 2, "the player view overflows a 320px screen by " + overflow + "px");
     note("the player view fits a 320px phone without sideways scrolling");
 
+    // --- a whole game, watched through the browser ------------------------
+    //
+    // The game is advanced over HTTP because clicking through phase timers in
+    // a browser is slow and flaky, and the HTTP flows are already covered by
+    // test:rooms. What is being tested here is that the *client* renders each
+    // phase and reacts to live state -- which nothing else checks.
+    await player.setViewport(VIEWPORTS.phone);
+
+    const keyOf = (page) => page.evaluate(() => localStorage.getItem("gahookz-client-key"));
+    const hostKey = await keyOf(host);
+    const playerKey = await keyOf(player);
+    assert.ok(hostKey && playerKey, "each device should hold its own client key");
+    assert.notEqual(hostKey, playerKey, "two devices must not share a credential");
+    note("each device holds its own credential");
+
+    const api = async (path, body) => {
+      const response = await fetch(BASE_URL + path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code, ...body })
+      });
+      return response.json();
+    };
+
+    // A second player, so a vote has something to be counted against.
+    const secondContext = await browser.createBrowserContext();
+    const second = await secondContext.newPage();
+    await second.setViewport(VIEWPORTS.phone);
+    second.on("pageerror", (error) => failures.push("second player page error: " + error.message));
+    await second.goto(BASE_URL + "/" + code, { waitUntil: "domcontentloaded" });
+    await until(second, "the second join form", () => document.body.innerText.length > 40);
+    await typeInto(second, '(input) => input.type === "text" && input.maxLength !== 4', "Second Tester");
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await second.evaluate(() => {
+      const button = [...document.querySelectorAll("button")].find((item) =>
+        /^(join|join game|join room|play|continue)/i.test((item.textContent || "").trim())
+      );
+      if (button) button.click();
+    });
+    await until(host, "both players in the lobby", () => /Second Tester/.test(document.body.innerText), 20_000);
+    const secondKey = await keyOf(second);
+    note("a third device joins and both players appear live");
+
+    await api("/api/host/settings", { playerKey: hostKey, gameFamily: "quiz", roundPreset: "custom", maxQuestionsPerPlayer: 1 });
+    await api("/api/host/lock-setup", { playerKey: hostKey });
+    await until(player, "the question builder", () => /question/i.test(document.body.innerText), 20_000);
+    note("locking setup moves players to question writing");
+
+    for (const [key, label] of [[playerKey, "one"], [secondKey, "two"]]) {
+      await api("/api/question", {
+        playerKey: key,
+        text: "Browser question " + label + "?",
+        answers: [{ text: "Yes", correct: true }, { text: "No", correct: false }]
+      });
+    }
+    await api("/api/host/force-start", { playerKey: hostKey });
+
+    await until(
+      player,
+      "the question to be on screen",
+      () => /Browser question/.test(document.body.innerText),
+      20_000
+    );
+    note("a started game puts the question on every screen");
+
+    // The player answers by clicking, which is the one interaction that must
+    // work through the UI rather than over HTTP.
+    await until(
+      player,
+      "answer buttons to be clickable",
+      () => [...document.querySelectorAll("button")].some((b) => /^(Yes|No)$/.test((b.textContent || "").trim())),
+      20_000
+    );
+    await player.evaluate(() => {
+      const button = [...document.querySelectorAll("button")].find((item) =>
+        /^(Yes|No)$/.test((item.textContent || "").trim())
+      );
+      if (button) button.click();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    note("a player can answer by tapping an answer");
+
+    // Advance to the reveal and check the client shows a score breakdown.
+    for (let step = 0; step < 6; step += 1) {
+      const state = await api("/api/state", { playerKey: hostKey, role: "host" });
+      if (state.phase === "reveal" || state.phase === "finished") break;
+      await api("/api/host/skip", { playerKey: hostKey });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+    await until(
+      host,
+      "the reveal to render",
+      () => /round|point|vote|answer/i.test(document.body.innerText),
+      20_000
+    );
+    note("the reveal renders for the host");
+
+    // Run the game out and check the finale.
+    for (let step = 0; step < 20; step += 1) {
+      const state = await api("/api/state", { playerKey: hostKey, role: "host" });
+      if (state.phase === "finished") break;
+      await api("/api/host/skip", { playerKey: hostKey });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    await until(
+      host,
+      "the finale to render",
+      () => /Browser Tester|Second Tester/.test(document.body.innerText),
+      20_000
+    );
+    note("the game reaches a finale showing the players");
+
+    for (const [name, page] of [["host", host], ["player", player], ["second", second]]) {
+      const text = await textOf(page);
+      assert.ok(!/\{Player1\}/.test(text), name + " shows an unresolved prompt token");
+      assert.ok(!/undefined|NaN|\[object Object\]/.test(text), name + " shows a rendering fault");
+    }
+    note("no screen shows an unresolved token or a rendering fault after a full game");
+
     const hostText = await textOf(host);
     assert.ok(!/\{Player1\}/.test(hostText), "an unresolved prompt token reached the screen");
     assert.ok(!/undefined|NaN|\[object Object\]/.test(hostText), "a rendering fault reached the screen");
