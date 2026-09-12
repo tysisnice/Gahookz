@@ -186,7 +186,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
 | [x] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
 | [x] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
-| [ ] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
+| [~] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
 | [ ] | P12 | Full regression matrix, human tests, release/rollback readiness | P00–P11 |
 
 Default execution order is the table order. P07 is separable if account infrastructure work is blocked; complete its local tests and record the external gate rather than stopping unrelated gameplay work. A working deliverable can be reviewed after P05 and P06, without waiting for a giant overhaul release.
@@ -431,6 +431,18 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-12 — P11 partial (fast start and scoring record done)
+
+- **P11 is NOT checked off.** Steps 1, 5 and 6 are done. Steps 2, 3 and 4 remain.
+- Step 1 rewrote the fast start, and found two defects doing it. `forceStartGame` ran `room.pendingQuestions = []`, **discarding questions players had written** but the host had not yet approved; pending submissions are now promoted up to the quota and the remainder parked in the saved bank. And generation drew from the legacy inline banks rather than the shared catalogue.
+- The **Classic autofill rule** the plan asks for is now real: Classic scores against one intended answer and nobody is present to choose one, so an automatic fill uses **verified factual content only**, and the host is told — "Classic autofill uses questions with verified answers." Majority fills with opinions and **predicts nothing on an absent author's behalf**.
+- That last point exposed a third defect, in the submission path rather than the fill: `normaliseMajorityQuestion` **required** a prediction. P05 had already made the builder start with none, so a player submitting a Majority question without predicting would have hit a server error. The plan is explicit that a prediction is "separate, optional, and required only to qualify for the existing bonus", so it is optional now; two predictions is still refused.
+- A regression test pinned the old deterministic answer rotation, which my shuffle replaced. The property it protects is real — the correct answer must not always be the same colour, or players learn "it's always red" — and shuffling alone leaves that to chance, with about a 1.6% flake over a short game. The keyed option is now moved to a rotating slot while the other three stay shuffled, so neither the colour nor the order is predictable, and coverage is guaranteed rather than likely.
+- Steps 5 and 6: `packages/game-engine/test/scoring-alternatives.test.ts` holds developer-only fixtures for both proposed scoring changes, and `docs/architecture/0003-scoring-alternatives.md` records the evaluation. **Neither is adopted**, and the fixtures include a guard that fails if shipped scoring changes at all, so neither can arrive by accident. The recommendation, if only one is taken: the **authored-point denominator**, because an answer chosen by every player who was allowed to vote for it still cannot reach the maximum — in a four-player room that costs 25% of the available points. The shared-winner question is a matter of how the game feels and needs a session watched, not more analysis.
+- Outstanding: **step 2** the discoverable "Challenge to 1v1" in the player menu; **step 3** the arena rematch and cheers, which the plan itself gates on observing the current arena first and permits deferring with playtest evidence; **step 4** splitting `/information` into player-facing guides and internal operations content.
+- Verified: `npm run check` (167 unit tests), full `npm test` across 24 smoke scripts, `npm run test:browser` (16 checks), `npm run test:rooms` on a separate fresh lifetime.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-12 — P10 complete
 

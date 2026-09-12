@@ -235,6 +235,103 @@ for (const secret of ["password", "hostKey", "playerKey", "credential"]) {
   assert(seen.size >= 10, "A room should work through its library, saw " + seen.size + " distinct prompts in 12 draws");
 }
 
+// --- P11: a fast start that does not invent answers or bin player work ------
+
+{
+  await post("/api/host/reset");
+  await post("/api/host/settings", {
+    playerKey: host,
+    gameFamily: "quiz",
+    quizScoring: "classic",
+    roundPreset: "custom",
+    maxQuestionsPerPlayer: 2,
+    approveQuestions: true
+  });
+  await post("/api/host/lock-setup", { playerKey: host });
+
+  // One player writes a question that is still awaiting approval when the host
+  // decides to start. That is player work and must survive.
+  const written = await post("/api/question", {
+    playerKey: players[0],
+    text: "A question waiting for approval?",
+    answers: [{ text: "Yes", correct: true }, { text: "No", correct: false }]
+  });
+  assert(written.ok, "A player should be able to submit while approval is on");
+
+  const started = await post("/api/host/force-start", { playerKey: host });
+  assert(started.ok, "The host should be able to fast-start: " + started.error);
+  assert(
+    started.promotedCount >= 1,
+    "A pending question must be promoted, not discarded, got " + started.promotedCount
+  );
+  assert(
+    /verified answers/i.test(started.autofillExplanation || ""),
+    "Classic autofill must explain that it uses verified answers, got " + started.autofillExplanation
+  );
+
+  const live = await state();
+  const generated = (live.questions || []).filter((question) => question.generated);
+  // Classic scores against one intended answer and nobody chose one, so the
+  // fill must use verified factual content rather than inventing a key for an
+  // opinion prompt.
+  for (const question of generated) {
+    const keyed = (question.answers || []).filter((answer) => answer.correct);
+    assert(
+      keyed.length === 1,
+      "Every Classic autofill question needs exactly one verified answer, got " + keyed.length
+    );
+  }
+  assert(
+    !JSON.stringify(live).includes("{Player1}"),
+    "An autofilled question must never contain an unresolved token"
+  );
+
+  await post("/api/host/reset");
+
+  // Majority fills with opinions and predicts nothing on anyone's behalf.
+  await post("/api/host/settings", { playerKey: host, gameFamily: "quiz", quizScoring: "majority", roundPreset: "custom", maxQuestionsPerPlayer: 1 });
+  await post("/api/host/lock-setup", { playerKey: host });
+  const majorityStart = await post("/api/host/force-start", { playerKey: host });
+  assert(majorityStart.ok, "Majority should fast-start: " + majorityStart.error);
+  assert(
+    /votes decide/i.test(majorityStart.autofillExplanation || ""),
+    "Majority autofill should say the room's votes decide, got " + majorityStart.autofillExplanation
+  );
+  const majorityLive = await state();
+  for (const question of (majorityLive.questions || []).filter((q) => q.generated)) {
+    const predicted = (question.answers || []).filter((answer) => answer.predicted);
+    assert(
+      predicted.length === 0,
+      "Autofill must not predict on an absent author's behalf, got " + predicted.length
+    );
+  }
+  // The previous block left a game running, so the room has to go back to a
+  // lobby before settings or submissions are accepted.
+  await post("/api/host/reset", { playerKey: host });
+
+  // A Majority prediction is optional: it is the author's guess at what the
+  // room will choose, not a correct answer, and its only effect is qualifying
+  // for the author bonus. Requiring one forced authors to invent a guess and
+  // made an automatic fill impossible without predicting for an absent person.
+  await post("/api/host/settings", { playerKey: host, gameFamily: "quiz", quizScoring: "majority", roundPreset: "custom", maxQuestionsPerPlayer: 2 });
+  await post("/api/host/lock-setup", { playerKey: host });
+  const unpredicted = await post("/api/question", {
+    playerKey: players[0],
+    text: "Which snack goes first, with no guess?",
+    answers: [{ text: "Pizza", predicted: false }, { text: "Chips", predicted: false }]
+  });
+  assert(unpredicted.ok, "A Majority question without a prediction must be accepted: " + unpredicted.error);
+
+  const doublePredicted = await post("/api/question", {
+    playerKey: players[1],
+    text: "Which snack goes first, guessed twice?",
+    answers: [{ text: "Pizza", predicted: true }, { text: "Chips", predicted: true }]
+  });
+  assert(doublePredicted.ok === false, "Predicting two answers is still a mistake");
+
+  await post("/api/host/reset");
+}
+
 console.log(JSON.stringify({
   ok: true,
   checked: [
@@ -251,6 +348,10 @@ console.log(JSON.stringify({
     "an opinion suggestion never arrives with a correct answer chosen",
     "a factual suggestion keys an option for its author",
     "a stranger is not served suggestions",
-    "a room works through its prompt library"
+    "a room works through its prompt library",
+    "a fast start promotes pending questions instead of binning them",
+    "Classic autofill uses verified answers only",
+    "Majority autofill predicts nothing on an absent author's behalf",
+    "a Majority prediction is optional, but two predictions is still a mistake"
   ]
 }, null, 2));

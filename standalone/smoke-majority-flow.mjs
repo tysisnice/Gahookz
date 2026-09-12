@@ -64,15 +64,11 @@ for (const player of players) {
 }
 await post("/api/host/lock-setup", { code: roomCode, playerKey: hostKey });
 
-await expectError("/api/question", {
-  code: roomCode,
-  playerKey: players[0].key,
-  text: "Which snack disappears first?",
-  answers: [
-    { text: "Pizza", predicted: false },
-    { text: "Hot chips", predicted: false }
-  ]
-}, /predict the one answer/i);
+// A prediction is optional now; that acceptance case lives in
+// smoke-room-rules.mjs, where it does not spend a player's quota and change
+// what the rest of this file is testing.
+
+// Two predictions is still a mistake: there is only one guess to make.
 await expectError("/api/question", {
   code: roomCode,
   playerKey: players[0].key,
@@ -81,7 +77,7 @@ await expectError("/api/question", {
     { text: "Pizza", predicted: true },
     { text: "Hot chips", predicted: true }
   ]
-}, /predict the one answer/i);
+}, /predict only one answer/i);
 await expectError("/api/question", {
   code: roomCode,
   playerKey: players[0].key,

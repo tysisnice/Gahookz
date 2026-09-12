@@ -33,7 +33,13 @@ import {
   remainingMs
 } from "../packages/game-engine/src/index.ts";
 import { DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
-import { TemplateBag, findTemplate, instantiateTemplate } from "../packages/content/src/index.ts";
+import {
+  TemplateBag,
+  findTemplate,
+  instantiateTemplate,
+  isPersonalised,
+  poolForStyle
+} from "../packages/content/src/index.ts";
 import { initialiseRoomMedia, pruneRoomMedia, roomAssetDataUrl, serveRoomMedia, storeRoomImage } from "./server/media.mjs";
 import { presentPlayer } from "./server/presentation.mjs";
 import { MAX_ACTIVE_ROOMS, MAX_PLAYERS_PER_ROOM } from "./server/room.mjs";
@@ -3500,8 +3506,14 @@ function normaliseMajorityQuestion(room, payload, player) {
   if (usableAnswers.length < 2) {
     throw new Error("Add at least two possible answers.");
   }
-  if (usableAnswers.filter((answer) => answer.predicted).length !== 1) {
-    throw new Error("Predict the one answer you think everyone will choose.");
+  // A prediction is optional. It is the author's guess at what the room will
+  // choose, not a correct answer, and its only effect is qualifying for the
+  // author bonus -- so an unset prediction simply earns nothing. Requiring one
+  // forced an author to invent a guess, and made an automatic fill impossible
+  // without predicting on an absent person's behalf.
+  const predictedCount = usableAnswers.filter((answer) => answer.predicted).length;
+  if (predictedCount > 1) {
+    throw new Error("Predict only one answer.");
   }
 
   const answers = usableAnswers.map((answer, index) => ({
@@ -3827,27 +3839,84 @@ function getStartCheck(room) {
   return { ok: true };
 }
 
-function makeGeneratedQuestion(room, player, generatedIndex) {
-  const mode = room.gameMode || DEFAULT_GAME_MODE;
-  let payload;
-  if (mode === "herd") {
-    payload = { text: GENERATED_HERD_PRESETS[generatedIndex % GENERATED_HERD_PRESETS.length] };
-  } else if (mode === "majority") {
-    const preset = GENERATED_MAJORITY_PRESETS[generatedIndex % GENERATED_MAJORITY_PRESETS.length];
-    const predictedIndex = generatedIndex % preset.answers.length;
-    payload = {
-      text: preset.text,
-      answers: preset.answers.map((text, index) => ({ text, predicted: index === predictedIndex }))
-    };
-  } else {
-    const preset = GENERATED_QUIZ_PRESETS[generatedIndex % GENERATED_QUIZ_PRESETS.length];
-    const correctIndex = generatedIndex % preset.answers.length;
-    const rotatedAnswers = preset.answers.map(
-      (_text, index) => preset.answers[(index - correctIndex + preset.answers.length) % preset.answers.length]
-    );
-    payload = { text: preset.text, answers: rotatedAnswers.map((text, index) => ({ text, correct: index === correctIndex })) };
+// Filling a game automatically, from the shared catalogue.
+//
+// The rule that matters is the Classic fallback. Classic scores against a
+// single intended answer, and nobody is present to choose one, so an automatic
+// fill uses **verified factual content only**. Handing Classic a funny opinion
+// prompt would mean inventing a correct answer for a question that has none,
+// which is the defect this plan exists to remove. The host is told this rather
+// than silently given a different kind of question.
+function generationPoolFor(room) {
+  const settings = roomGameSettings(room);
+  if (settings.gameFamily === "herd") {
+    // Herd wants a writing seed; any prompt text serves, and nothing is keyed.
+    return poolForStyle(room.promptStyle === "education" ? "educational" : "funny");
   }
-  return { ...normaliseQuestion(room, payload, player), generated: true };
+  if (settings.quizScoring === "majority") {
+    // Votes decide, so an opinion is exactly right and needs no key.
+    return poolForStyle("funny").filter((template) => template.options.length >= 2);
+  }
+  // Classic: verified answers only.
+  return poolForStyle("educational").filter(
+    (template) => template.factualAnswerId && template.options.length >= 2
+  );
+}
+
+/** Why an automatic fill chose the content it did, for the host to see. */
+function autofillExplanation(room) {
+  const settings = roomGameSettings(room);
+  if (settings.gameFamily === "herd") return "Filled with writing prompts for the room to answer.";
+  if (settings.quizScoring === "majority") return "Filled with opinion questions; the room's votes decide each round.";
+  return "Classic autofill uses questions with verified answers.";
+}
+
+function makeGeneratedQuestion(room, player, generatedIndex) {
+  const settings = roomGameSettings(room);
+  const pool = generationPoolFor(room);
+  const template = pool[generatedIndex % pool.length];
+  const eligible = Object.values(room.players).
+    filter((seat) => seat.connected && seat.id).
+    map((seat) => ({ id: seat.id, name: cleanText(seat.name, 24) || "Player" }));
+  const instance = instantiateTemplate(template, { eligible, includeAnswerKey: true });
+
+  let payload;
+  if (settings.gameFamily === "herd") {
+    payload = { text: instance.text };
+  } else if (settings.quizScoring === "majority") {
+    // No prediction is made on anybody's behalf: an unset prediction simply
+    // earns no author bonus, which is the documented behaviour.
+    payload = { text: instance.text, answers: instance.options.map((option) => ({ text: option.text, predicted: false })) };
+  } else {
+    // Options arrive shuffled, then the keyed one is moved to a rotating slot.
+    //
+    // Shuffling alone leaves the correct answer's colour to chance, and across
+    // a short game it can land on the same colour every time -- which teaches
+    // players "the answer is always red". Rotating the slot guarantees it moves
+    // while the other three stay shuffled, so neither the colour nor the order
+    // is predictable from the last round.
+    const options = [...instance.options];
+    const keyedIndex = options.findIndex((option) => option.id === instance.factualAnswerId);
+    if (keyedIndex >= 0) {
+      const target = generatedIndex % options.length;
+      const [keyed] = options.splice(keyedIndex, 1);
+      options.splice(target, 0, keyed);
+    }
+    payload = {
+      text: instance.text,
+      answers: options.map((option) => ({
+        text: option.text,
+        correct: option.id === instance.factualAnswerId
+      }))
+    };
+  }
+
+  const question = { ...normaliseQuestion(room, payload, player), generated: true };
+  if (instance.namedPlayerNames?.length) question.namedPlayerNames = [...instance.namedPlayerNames];
+  if (instance.kind === "educational" && instance.explanation) {
+    question.factCheck = { answerText: instance.options.find((option) => option.id === instance.factualAnswerId)?.text || "", explanation: instance.explanation };
+  }
+  return question;
 }
 
 function forceStartGame(room) {
@@ -3877,6 +3946,17 @@ function forceStartGame(room) {
     return { ok: false, error: "At least one connected player is needed to force start." };
   }
 
+  // Pending submissions are player work. Discarding them here threw away
+  // questions people had written but the host had not yet approved.
+  const promoted = [];
+  for (const question of room.pendingQuestions) {
+    if (countQuestionsForPlayer(room, question.authorId) < room.maxQuestionsPerPlayer) {
+      room.questions.push(question);
+      promoted.push(question);
+    } else {
+      savedBankSlot(room, roomGameSettings(room).gameFamily).questions.push(question);
+    }
+  }
   room.pendingQuestions = [];
   let generatedCount = 0;
   activePlayers.forEach((player) => {
@@ -3892,12 +3972,20 @@ function forceStartGame(room) {
   if (room.questions.length === 0) {
     return { ok: false, error: "Could not generate questions for this game." };
   }
+  const fillResult = {
+    ok: true,
+    generatedCount,
+    promotedCount: promoted.length,
+    autofillExplanation: autofillExplanation(room),
+    totalQuestions: room.quizQuestions.length,
+    phase: room.phase
+  };
   if (room.gameMode === "herd") {
     beginHerdAnswerWriting(room);
-    return { ok: true, generatedCount, totalQuestions: room.quizQuestions.length, phase: room.phase };
+    return { ...fillResult, totalQuestions: room.quizQuestions.length, phase: room.phase };
   }
   startGame(room);
-  return { ok: true, generatedCount, totalQuestions: room.quizQuestions.length, phase: room.phase };
+  return { ...fillResult, totalQuestions: room.quizQuestions.length, phase: room.phase };
 }
 
 function cleanQuestionRoundState(question, options = {}) {
