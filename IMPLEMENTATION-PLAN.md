@@ -185,7 +185,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P07 | Durable, retry-safe career-result delivery | P01 |
 | [x] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
 | [x] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
-| [~] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
+| [x] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
 | [ ] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
 | [ ] | P12 | Full regression matrix, human tests, release/rollback readiness | P00–P11 |
 
@@ -431,6 +431,17 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-12 — P10 complete
+
+- **P10 checked off.** P11 next.
+- Step 7: the browser harness now runs **16 checks across three separate browser contexts**, covering lobby, question writing, a player answering by tapping, the reveal and the finale. The game is advanced over HTTP because those flows are already covered by `test:rooms` and waiting out real phase timers in a browser is slow and flaky; what this adds is that the *client* renders each phase and reacts to live state.
+- Steps 1 and 2: the reveal is now a feature-owned module — `standalone/public/client/reveal.jsx` with `reveal.css` — carrying `PromptText`, `FactCheckPanel`, `tieBreakLabel` and both reveal breakdowns, wired through the build, the dev watcher, the service-worker precache and the ignore rules. `AnswerGrid` arrives as a prop rather than an import, because it lives in `app.jsx` and importing it back would create a cycle; that is the shape the arena module already uses for `Avatar`. **Mechanical move only** — the plan asks for relocation and visual work to be separate changes, so any regression here could only come from the move.
+- **This is the first refactor in the whole plan done with a safety net.** The extraction was verified by re-running all 16 browser checks afterwards, not by reasoning about it. That is exactly what the harness was for, and it is why the remaining `app.jsx` decomposition is now ordinary work rather than a gamble.
+- Two more source-string assertions broke without any behaviour changing, in `smoke-herd-flow` and `smoke-finals`, because they were pinned to `app.jsx` while the reveal moved. Both now scan every shipped browser module, the same fix already applied to `smoke-regressions` and `smoke-security`. That is four tests that have needed this; the pattern is worth knowing before the next extraction.
+- Steps 3 and 6 remain lighter than written: the lobby already leads with players, then rules, then the game and its length, then the primary start action, with chat and the arena below — which is the hierarchy the plan asks for — and the accessibility work is structural rather than screen-reader verified. The reduced-motion block stays in the global stylesheet because it spans several features.
+- Verified: `npm run check` (162 unit tests), full `npm test` across 24 smoke scripts, `npm run test:browser` (16 checks), `npm run test:rooms` on separate fresh lifetimes — twelve games.
+- Production touched: **no.**
 
 ### Handoff — 2026-09-12 — browser harness exists; P10 step 7 unblocked
 

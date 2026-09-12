@@ -1,0 +1,92 @@
+/* Styles owned by the reveal feature.
+ *
+ * Moved out of the global stylesheet so the feature carries its own
+ * presentation, the same way the arena does. Unchanged from where they were;
+ * this is the relocation half of the work, not the visual half.
+ */
+
+/* Reveal fact check.
+   Deliberately visually separate from the winning answer: the room's vote
+   decides the points, and a popular wrong answer is still the winner. */
+.fact-check {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(36, 107, 254, 0.12);
+  border: 1px solid rgba(36, 107, 254, 0.32);
+  text-align: left;
+}
+
+.fact-check strong {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.fact-check-answer { margin: 0; font-weight: 700; }
+.fact-check-explanation { margin: 0; font-size: 0.85rem; color: rgba(255, 255, 255, 0.76); }
+
+.builder-suggestion-note {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* Round score breakdown.
+   Herd scores two different things and they are earned differently, so they
+   are shown separately with a total that reconciles against the leaderboard
+   rather than leaving people to add it up during a twelve-second reveal. */
+.round-score-breakdown {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.round-score-breakdown > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.round-score-breakdown dt {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.85rem;
+}
+
+.round-score-breakdown dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.round-score-total {
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.round-score-total dt { color: #fff; font-weight: 700; }
+.round-score-total dd { color: #f2c230; font-size: 1.05rem; }
+
+.majority-bonus-rule {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* The player a prompt names. Emphasis only - the name itself is rendered as
+   text by React, never as markup. */
+.prompt-player-name {
+  color: #f2c230;
+  font-weight: 800;
+}

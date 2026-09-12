@@ -32,6 +32,7 @@ standalone/public/client/qr.js
 standalone/public/client/social.js
 standalone/public/client/tutorial.js
 standalone/public/client/net.js
+standalone/public/client/reveal.js
 
 # Local conflict-copy archive; never part of an image.
 archive/

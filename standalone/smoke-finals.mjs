@@ -2,7 +2,14 @@ import fs from "node:fs";
 
 const BASE_URL = process.env.GAHOOKZ_BASE_URL || "http://127.0.0.1:3199";
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-const app = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");
+// The whole browser client, not one file: the reveal now lives in its own
+// feature module, and these are claims about what the client says.
+const app = ["./public/app.jsx", ...fs.
+  readdirSync(new URL("./public/client/", import.meta.url)).
+  filter((name) => /\.(jsx|ts)$/.test(name) && !name.endsWith(".test.ts")).
+  map((name) => "./public/client/" + name)].
+  map((relative) => fs.readFileSync(new URL(relative, import.meta.url), "utf8")).
+  join("\n");
 const presentation = fs.readFileSync(new URL("./public/client/presentation.jsx", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("./public/styles.css", import.meta.url), "utf8");
 const server = fs.readFileSync(new URL("./server.js", import.meta.url), "utf8");

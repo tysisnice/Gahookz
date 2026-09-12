@@ -12,6 +12,7 @@ const generatedFiles = new Set([
   "app.js",
   "client/arena.js",
   "client/net.js",
+  "client/reveal.js",
   "release.json",
   "client/audio.runtime.js",
   "client/custom-gahook.js",
@@ -110,6 +111,7 @@ await Promise.all([
   transformFile("app.jsx", "app.js", "jsx", [
     ["./client/arena.jsx", versioned("./client/arena.js")],
     ["./client/net.ts", versioned("./client/net.js")],
+    ["./client/reveal.jsx", versioned("./client/reveal.js")],
     ["./client/preferences.jsx", versioned("./client/preferences.js")],
     ["./client/offline.jsx", versioned("./client/offline.js")],
     ["./client/audio.js", versioned("./client/audio.runtime.js")],
@@ -130,6 +132,7 @@ await Promise.all([
     ["./gahook-forms.js", versioned("./gahook-forms.js")]
   ]),
   transformFile("client/net.ts", "client/net.js", "ts"),
+  transformFile("client/reveal.jsx", "client/reveal.js", "jsx"),
   transformFile("client/preferences.jsx", "client/preferences.js", "jsx"),
   transformFile("client/offline.jsx", "client/offline.js", "jsx", [
     ["./audio.js", versioned("./audio.runtime.js")],

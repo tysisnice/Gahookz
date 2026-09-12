@@ -19,6 +19,7 @@ const buildSources = new Set([
   "app.jsx",
   "client/arena.jsx",
   "client/net.ts",
+  "client/reveal.jsx",
   "client/audio.js",
   "client/offline.jsx",
   "client/preferences.jsx",

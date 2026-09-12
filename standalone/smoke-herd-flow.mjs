@@ -31,7 +31,15 @@ async function state(role = "host", playerKey = hostKey) {
   return result.data;
 }
 
-const appSource = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");
+// Read the browser client as a whole. These assert properties of the client,
+// so pinning them to app.jsx made them fail when the reveal moved into its own
+// feature module without a single behavioural change.
+const appSource = ["./public/app.jsx", ...fs.
+  readdirSync(new URL("./public/client/", import.meta.url)).
+  filter((name) => /\.(jsx|ts)$/.test(name) && !name.endsWith(".test.ts")).
+  map((name) => "./public/client/" + name)].
+  map((relative) => fs.readFileSync(new URL(relative, import.meta.url), "utf8")).
+  join("\n");
 const tutorialSource = fs.readFileSync(new URL("./public/client/tutorial.jsx", import.meta.url), "utf8");
 assert(appSource.includes('available: true }];') && appSource.includes('id: "herd"'), "Herd should be selectable");
 assert(appSource.includes("function PlayerHerdPreparation") && appSource.includes("/api/herd/answer"), "Herd needs a private answer-writing workspace");
