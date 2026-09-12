@@ -165,11 +165,24 @@ export class TemplateBag {
   private readonly personalisedIds: string[];
   private readonly generalIds: string[];
 
+  private readonly style: "educational" | "funny";
+  private readonly random: () => number;
+  private readonly personalisedShare: number;
+
+  // Fields are declared and assigned explicitly rather than using TypeScript's
+  // constructor parameter properties. The production image runs plain `node`,
+  // which strips types by erasure only; parameter properties need code
+  // generation, so they fail at startup with ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX.
+  // Everything under packages/ is loaded directly by the server, so it has to
+  // stay within erasable syntax.
   constructor(
-    private readonly style: "educational" | "funny",
-    private readonly random: () => number = Math.random,
-    private readonly personalisedShare: number = DEFAULT_PERSONALISED_SHARE
+    style: "educational" | "funny",
+    random: () => number = Math.random,
+    personalisedShare: number = DEFAULT_PERSONALISED_SHARE
   ) {
+    this.style = style;
+    this.random = random;
+    this.personalisedShare = personalisedShare;
     const pool = poolForStyle(style);
     for (const template of pool) this.byId.set(template.id, template);
     this.personalisedIds = pool.filter(isPersonalised).map((template) => template.id);

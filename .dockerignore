@@ -45,3 +45,10 @@ standalone/.data/
 
 # Chromium for browser tests; never part of an image.
 .cache/puppeteer
+
+# Tests are not runtime. They were shipping in the production image through
+# COPY packages and COPY standalone/server -- harmless but dead weight, and a
+# needless description of internals in a public artefact.
+packages/*/test
+standalone/server/*.test.mjs
+standalone/*.test.mjs

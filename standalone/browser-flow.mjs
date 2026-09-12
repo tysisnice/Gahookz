@@ -47,10 +47,23 @@ async function until(page, description, predicate, timeout = 15_000) {
 const textOf = (page) => page.evaluate(() => document.body.innerText);
 
 async function main() {
-  const browser = await puppeteer.launch({
+  // Launching can time out waiting for the debugger socket when the machine is
+  // busy -- a stray browser from an earlier run is enough. That is the harness
+  // being flaky, not the product, so it gets one retry rather than failing a
+  // release check for it.
+  const launch = () => puppeteer.launch({
     headless: true,
-    args: ["--no-sandbox", "--disable-dev-shm-usage"]
+    args: ["--no-sandbox", "--disable-dev-shm-usage"],
+    timeout: 60_000
   });
+  let browser;
+  try {
+    browser = await launch();
+  } catch (error) {
+    console.log("  ..  browser launch failed once (" + String(error?.message || error).slice(0, 60) + "), retrying");
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    browser = await launch();
+  }
 
   const failures = [];
   try {

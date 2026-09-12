@@ -71,6 +71,10 @@ CMD ["npm", "run", "dev"]
 FROM dependencies AS browser-build
 
 COPY standalone/build-client.mjs ./standalone/build-client.mjs
+# Shared with the server and the smoke suite: one definition of which files are
+# Syncthing artifacts rather than source. The build imports it, so the image
+# cannot be built without it.
+COPY standalone/sync-artifacts.mjs ./standalone/sync-artifacts.mjs
 COPY standalone/public ./standalone/public
 RUN node standalone/build-client.mjs
 
@@ -90,6 +94,7 @@ WORKDIR /app
 COPY --chown=node:node package.json package-lock.json ./
 COPY --from=production-dependencies --chown=node:node /build/node_modules ./node_modules
 COPY --chown=node:node standalone/server.js ./standalone/server.js
+COPY --chown=node:node standalone/sync-artifacts.mjs ./standalone/sync-artifacts.mjs
 COPY --chown=node:node standalone/server ./standalone/server
 COPY --chown=node:node packages ./packages
 COPY --chown=node:node infra/postgres ./infra/postgres

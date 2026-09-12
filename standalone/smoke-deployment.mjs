@@ -68,7 +68,12 @@ const checks = [
   [!JSON.parse(packageSource).dependencies?.puppeteer, "Puppeteer must not be a runtime dependency."],
   [Boolean(JSON.parse(packageSource).devDependencies?.puppeteer), "Puppeteer should be a development dependency."],
   [dockerfile.includes("PUPPETEER_SKIP_DOWNLOAD=1"), "Container builds must not download a browser engine."],
-  [dockerignore.includes(".cache/puppeteer"), "The downloaded browser must never enter an image."]
+  [dockerignore.includes(".cache/puppeteer"), "The downloaded browser must never enter an image."],
+  [dockerignore.includes("packages/*/test"), "Package tests must not ship in an image."],
+  [dockerignore.includes("standalone/server/*.test.mjs"), "Server tests must not ship in an image."],
+  // The build imports it, and so does the server. Leaving it out of the image
+  // context broke the production build and would have broken start-up.
+  [dockerfile.includes("standalone/sync-artifacts.mjs"), "The image must include the shared Syncthing-artifact rule."]
 ];
 
 for (const [ok, message] of checks) {

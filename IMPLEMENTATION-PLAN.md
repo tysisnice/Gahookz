@@ -187,7 +187,7 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | [x] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
 | [x] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
 | [x] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
-| [ ] | P12 | Full regression matrix, human tests, release/rollback readiness | P00–P11 |
+| [~] | P12 | Full regression matrix, human tests, release/rollback readiness | P00–P11 |
 
 Default execution order is the table order. P07 is separable if account infrastructure work is blocked; complete its local tests and record the external gate rather than stopping unrelated gameplay work. A working deliverable can be reviewed after P05 and P06, without waiting for a giant overhaul release.
 
@@ -431,6 +431,22 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-12 — P12 automated half complete
+
+- **P12 is marked `[~]`, not complete.** Its automated half is done; its human, device and real-database gates are not, and cannot be passed from here. `RELEASE-CANDIDATE.md` states exactly what is and is not verified.
+- **Building a real production image found two defects that every other check had passed.** Both were introduced earlier in this branch and are exactly what P12 exists to catch:
+  1. **The image could not be built.** `build-client.mjs` imports the shared Syncthing-artifact rule added in P00, which the Dockerfile never copied into the browser-build stage.
+  2. **The image could not start.** `packages/content` used TypeScript **parameter properties**, which Node's type stripping rejects with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. Development runs under `tsx` and never sees it. `erasableSyntaxOnly: true` now catches it at `npm run typecheck`, verified by reintroducing the syntax and watching `TS1294` fire.
+- A third, smaller finding: **18 of our own test files were shipping inside the production image**, via `COPY packages` and `COPY standalone/server`. Now zero. `smoke-deployment.mjs` fails if any of the three regress.
+- **A footgun I hit myself and then fixed.** Preparing a clean candidate, I ran `rm standalone/public/client/*.js` — which deleted `audio.js` and `gahook-forms.js`, both **hand-written source**. Git had them. `npm run clean:generated` now removes exactly the files `build-client.mjs` declares as generated, so the list cannot drift from reality.
+- New: `npm run drill:resilience` runs four failure drills locally — a reader that never drains, a dropped stream reconnecting with a fresh single-use ticket, a career result accepted during an outage surviving a restart, and the drain state a deploy waits on.
+- Candidate verified at `d0a7f5b`: `npm run check` (167 unit tests), `npm test` (24 smoke scripts), `npm run test:rooms` (12 games), `npm run test:browser` (16 checks), `npm run drill:resilience` (4 drills), each on its own fresh disposable server; the production image builds, starts, reports healthy, and **passes all 16 browser checks when the client is served from the image itself**.
+- Image hygiene: 0 conflict artifacts, 0 of our test files, no Puppeteer, no TypeScript. `esbuild` is present only as a transitive dependency of `tsx`, which is a runtime dependency. 262MB.
+- `docs/operations/dependency-policy.md` records the runtime surface, why `erasableSyntaxOnly` is load-bearing rather than stylistic, how to review the digest-pinned base image, and a periodic check that does not require a dependency bot.
+- **Not verified, and listed in the release note rather than glossed:** no human has played it; no physical iOS or Android device; no screen reader; no real PostgreSQL, so the career outbox has only run against the in-memory repository; no load test, so "no p95 regression" is unproven; the 40 prompts have not been read aloud with real names; and **rollback was not rehearsed against a running deployment**, because doing that on this host would interrupt the live service.
+- **Production touched: no.** Throughout the whole plan. `gahookz.com` still reports revision `815c7e494bef`.
+- Next: the recommended order in `RELEASE-CANDIDATE.md`. A single game with three or four real people answers more than any automated work left here.
 
 ### Handoff — 2026-09-12 — P11 complete
 

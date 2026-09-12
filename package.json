@@ -51,7 +51,9 @@
     "capture:fixtures": "node standalone/capture-fixtures.mjs",
     "standalone:smoke:mode-settings": "node standalone/smoke-mode-settings.mjs",
     "standalone:smoke:room-rules": "node standalone/smoke-room-rules.mjs",
-    "test:browser": "node standalone/browser-flow.mjs"
+    "test:browser": "node standalone/browser-flow.mjs",
+    "clean:generated": "node standalone/clean-generated.mjs",
+    "drill:resilience": "node standalone/drill-resilience.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
