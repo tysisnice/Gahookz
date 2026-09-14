@@ -119,11 +119,18 @@ The full list with reasoning is in `RELEASE-CANDIDATE.md`. The short version:
 
 ## Beta site
 
-`beta.gahookz.com` exists for that testing: same build as production, open to
-anyone, no login, **two rooms at a time**, no database so nothing durable to
-lose. Container `gahookz-beta` on `127.0.0.1:3103`.
+**Live at https://beta.gahookz.com.** Same build as production, open to anyone,
+no login, **two rooms at a time**, no database so nothing durable to lose.
+Container `gahookz-beta` on `127.0.0.1:3103`.
 
-One manual step remains — see `Gahookz-Beta-Testing.md` in your Vault.
+Its TLS certificate was issued with certbot's Cloudflare DNS plugin, which the
+Nginx Proxy Manager container already carries, using the same token that runs
+the DDNS updater. The proxy host is a hand-written config
+(`/data/nginx/proxy_host/beta-gahookz.conf`, copy in
+`deploy/nginx/beta.gahookz.com.conf.example`) because creating one through the
+NPM UI needs admin credentials. **It therefore does not appear in the NPM UI and
+NPM will not renew its certificate**, which expires 2026-12-13. Recreating the
+host in the UI before then hands both back to NPM; delete the file if you do.
 
 ---
 
