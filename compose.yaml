@@ -52,7 +52,7 @@ services:
         max-file: "3"
 
   gahookz:
-    image: gahookz:local
+    image: "${GAHOOKZ_PROD_IMAGE:-gahookz:prod-local}"
     build:
       context: .
       dockerfile: Dockerfile
@@ -65,6 +65,7 @@ services:
     # Must exceed GAHOOKZ_DRAIN_TIMEOUT_MS, or SIGKILL arrives mid-drain.
     stop_grace_period: 45s
     environment:
+      GAHOOKZ_CAREER_JOURNAL: /app/data/career.journal
       NODE_ENV: production
       PORT: "3001"
       HOST: "0.0.0.0"
@@ -86,6 +87,8 @@ services:
     networks:
       - default
       - proxy
+    volumes:
+      - career-data:/app/data
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
@@ -109,7 +112,7 @@ services:
   # hosting and so a problem is small when it happens. Accounts and Google login
   # are left unconfigured, so play here is entirely guest play.
   gahookz-beta:
-    image: gahookz:local
+    image: "${GAHOOKZ_BETA_IMAGE:-gahookz:beta-local}"
     build:
       context: .
       dockerfile: Dockerfile
@@ -161,3 +164,6 @@ networks:
   proxy:
     name: gahookz-proxy
     external: true
+
+volumes:
+  career-data:

@@ -167,6 +167,8 @@ function connectionHarness(ticket: ApiResult) {
     reconnectMs: 1500,
     room: { code: "ABCD", role: "player", playerKey: "key" },
     onSnapshot: () => events.push("snapshot"),
+    onActivity: () => events.push("activity"),
+    random: () => 1,
     onConnected: (c) => events.push("connected:" + c),
     onFailure: () => events.push("failure"),
     onRoomMissing: () => events.push("missing"),
@@ -354,4 +356,35 @@ test("a schema mismatch explains itself instead of breaking the lobby", () => {
   assert.equal(older.supported, false);
   assert.equal(older.supported === false && older.action, "wait");
   assert.match(older.supported === false ? older.message : "", /still finishing an update/);
+});
+
+test("coalescing retains the newest pending version when an older poll arrives", () => {
+  const clock = fakeTimers();
+  const applied: unknown[] = [];
+  const gate = createSnapshotGate({ catchUpMs: 10, timers: clock.timers, apply: (snapshot) => applied.push(snapshot["stateVersion"]) });
+  gate.offer({ stateVersion: 10 }); gate.offer({ stateVersion: 9 });
+  clock.advance(10);
+  assert.deepEqual(applied, [10]);
+  gate.dispose();
+});
+
+test("API rejects malformed JSON shapes instead of trusting a cast", async () => {
+  const clock = fakeTimers();
+  for (const payload of [null, [], 42, { ok: "true" }]) {
+    const api = createApiClient({ timers: clock.timers, context: () => ({ code: "TEST", playerKey: "synthetic" }), fetch: async () => ({ ok: true, status: 200, json: async () => payload }) });
+    assert.equal((await api('/api/host/settings')).ok, false);
+  }
+});
+
+
+test("heartbeats refresh activity and retired streams cannot dispatch", async () => {
+  const h = connectionHarness({ ok: true, ticket: "synthetic" });
+  await h.connection.connect();
+  const first = h.sources.created[0]!.source as EventSourceLike & { emit: (type: string, data: string) => void };
+  first.emit("heartbeat", "{}");
+  assert.ok(h.events.includes("activity"));
+  h.connection.close();
+  const count = h.events.length;
+  first.emit("state", "{}"); first.emit("heartbeat", "{}");
+  assert.equal(h.events.length, count);
 });

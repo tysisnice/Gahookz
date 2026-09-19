@@ -1,0 +1,30 @@
+
+> gahookz@0.1.0 test:disposable
+> node standalone/test-disposable.mjs npm run standalone:smoke:review-repairs
+
+
+> gahookz@0.1.0 standalone:smoke:review-repairs
+> node --import tsx standalone/smoke-review-repairs.mjs
+
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+false !== true
+
+    at <anonymous> (/mnt/storage/syncthing/codex/2026-07-01/Gahookz/standalone/smoke-review-repairs.mjs:55:8)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.13.1
+Gahookz release-4a97d7b7c3b5edca running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 1 active room(s).
+Disposable server stopped (owned PID 2230154).

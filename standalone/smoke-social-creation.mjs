@@ -149,8 +149,14 @@ function runStaticUiSmoke() {
   assert(drawingSource.includes("baseCanvasRef") && drawingSource.includes("outputContext.drawImage(baseCanvas") && drawingSource.includes("paintLine(context, stroke.point, nextPoint, activeBrushSize.size, color, erasing, true)"), "The eraser should affect only the transparent drawing layer above an uploaded image");
 
   assert(socialSource.includes("export function WaitingRoomSocial"), "The waiting-room social component should be exported");
-  assert(socialSource.includes("Room chat") && socialSource.includes("Room messages and drawings"), "The social UI should retain lobby chat with its drawing layer");
-  assert(socialSource.includes("social-chat__drawing") && socialSource.includes('>Erase</button>') && socialSource.includes("hasOwnDrawings"), "The chat should expose its shared drawing surface and an owner-only clear action");
+  // Desktop stage E moved painting off the chat and onto the lobby player
+  // wall, so the drawing surface is asserted where it actually lives now. The
+  // chat keeps messages only, and must not quietly grow a canvas back.
+  assert(socialSource.includes("Room chat") && socialSource.includes("Room messages"), "The social UI should retain lobby chat");
+  assert(!socialSource.includes("social-chat__drawing"), "Chat should no longer carry a drawing surface");
+  assert(socialSource.includes("export function LobbyPaintLayer") && socialSource.includes("lobby-paint__canvas"), "The lobby player wall should expose the paint surface");
+  assert(socialSource.includes('>Erase mine</button>') && socialSource.includes("hasOwnStrokes"), "Painting should offer an owner-only clear action");
+  assert(socialSource.includes("export function profilePaintColor"), "The brush colour should be derived from the player's profile picture");
   assert(socialSource.includes("SOCIAL_CHAT_LIMIT = 60") && socialSource.includes("SOCIAL_CHAT_CHARACTER_LIMIT = 240"), "Client chat caps should match the server contract");
   assert(socialSource.includes("onSendMessage") && socialSource.includes("onDrawStroke") && socialSource.includes("onClearDrawings"), "Lobby social controls should expose chat and bounded drawing actions");
   assert(socialSource.includes('data:image/') && socialSource.includes('/media/'), "Chat avatars should render the server's safe room-media URLs as well as local data URLs");

@@ -82,8 +82,52 @@
   transition: none;
 }
 .arena-target > span { display: grid; place-items: center; width: 58px; height: 58px; pointer-events: none; overflow: hidden; }
-.arena-target .poke-animal, .arena-target .custom-gahook-visual { width: 56px; height: 56px; min-width: 0; min-height: 0; max-width: 56px; max-height: 56px; animation: none; }
+/* Every character has to be constrained here, not just most of them. The five
+   animals share .poke-animal and a custom Gahook is .custom-gahook-visual, but
+   the Classic Monkey renders as .poke-monkey -- and it is the default form, so
+   the character most players see was the one character this rule missed. Left
+   out, it keeps its full-size min(72vw, 320px) and the 58px overflow:hidden
+   window above crops it to a meaningless fragment. */
+.arena-target .poke-animal, .arena-target .poke-monkey, .arena-target .custom-gahook-visual { width: 56px; height: 56px; min-width: 0; min-height: 0; max-width: 56px; max-height: 56px; animation: none; }
 .arena-target > b { font-size: .7rem; line-height: 1; font-weight: 1000; pointer-events: none; }
+
+/* The Gahooked button, left where it was pressed.
+   It is inert and out of the accessibility tree: the live button is already
+   somewhere else by the time this renders, and this must never intercept the
+   next tap. 200ms, then gone. */
+.arena-target-ghost {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 92px;
+  height: 92px;
+  display: grid;
+  place-items: center;
+  border: 4px solid var(--arena-ink);
+  border-radius: 25px;
+  background: var(--arena-yellow);
+  pointer-events: none;
+  animation: arena-gahooked .2s ease-out forwards;
+}
+.arena-target-ghost > span { display: grid; place-items: center; width: 58px; height: 58px; overflow: hidden; }
+.arena-target-ghost .poke-animal, .arena-target-ghost .poke-monkey, .arena-target-ghost .custom-gahook-visual { width: 56px; height: 56px; min-width: 0; min-height: 0; max-width: 56px; max-height: 56px; animation: none; }
+
+@keyframes arena-gahooked {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  40% { transform: translate(-50%, -50%) scale(1.22) rotate(-7deg); opacity: .9; }
+  100% { transform: translate(-50%, -50%) scale(.55) rotate(5deg); opacity: 0; }
+}
+
+/* How many presses this point still costs. Without it a tap that does not move
+   the rope looks like a dropped input rather than the rubber band working. */
+.arena-charge { display: flex; gap: 6px; align-items: center; justify-content: center; }
+.arena-charge > i {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--arena-ink);
+  border-radius: 50%;
+  background: #ffffff4d;
+}
+.arena-charge > i.is-paid { background: var(--arena-yellow); }
 .arena-target:focus-visible, .arena-centre button:focus-visible { outline: 4px solid #fff; outline-offset: 5px; }
 .arena-centre { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; }
 .arena-centre > b { font-size: clamp(3rem, 10dvh, 6rem); line-height: 1; }
@@ -118,13 +162,23 @@
   .arena-target-bounds { inset: 48px 52px max(48px, env(safe-area-inset-bottom)); }
   .arena-target { width: 72px; height: 72px; border-radius: 20px; }
   .arena-target > span { width: 42px; height: 42px; }
-  .arena-target .poke-animal, .arena-target .custom-gahook-visual { width: 40px; height: 40px; }
+  .arena-target .poke-animal, .arena-target .poke-monkey, .arena-target .custom-gahook-visual { width: 40px; height: 40px; }
 }
+/* Reduced effects still get the hit confirmed, just without the motion: the
+   ghost holds still and fades. Removing it outright would take away the only
+   signal that the press registered, which is the opposite of an accessibility
+   improvement. */
 .gahookz-reduced-effects .arena-player__portrait, .gahookz-reduced-effects .arena-countdown > b { animation: none; }
 .gahookz-reduced-effects .arena-rope__knot { transition: none; }
+.gahookz-reduced-effects .arena-target-ghost { animation: arena-gahooked-still .2s linear forwards; }
 @media (prefers-reduced-motion: reduce) {
   .arena-player__portrait, .arena-countdown > b { animation: none; }
   .arena-rope__knot { transition: none; }
+  .arena-target-ghost { animation: arena-gahooked-still .2s linear forwards; }
+}
+@keyframes arena-gahooked-still {
+  0% { transform: translate(-50%, -50%); opacity: 1; }
+  100% { transform: translate(-50%, -50%); opacity: 0; }
 }
 .gahook-arena-crowd-controls {
   position: fixed;
@@ -190,4 +244,47 @@
 }
 @media (max-width: 620px) {
   .gahook-arena-crowd-controls { grid-template-columns: 1fr; }
+}
+
+/* Mini Gahooks from the opponent's taps.
+   Inert, capped at three on screen and short-lived: this fires on the
+   opponent's presses, so it has to stay cheap and must never sit over the tap
+   zone long enough to make a target hard to read. */
+.arena-mini-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  overflow: hidden;
+}
+.arena-mini-gahook {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 3px solid #ffdf45;
+  border-radius: 14px;
+  background: rgba(8, 10, 16, .82);
+  transform: translate(-50%, -50%) rotate(var(--mini-rotate));
+  animation: arena-mini-pop .9s cubic-bezier(.2, 1.3, .3, 1) both;
+}
+.arena-mini-gahook .poke-animal,
+.arena-mini-gahook .poke-monkey,
+.arena-mini-gahook .custom-gahook-visual { width: 46px; height: 46px; min-width: 0; min-height: 0; max-width: 46px; max-height: 46px; animation: none; }
+
+@keyframes arena-mini-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(.4); }
+  18% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(1.1); }
+  72% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -64%) rotate(var(--mini-rotate)) scale(.85); }
+}
+
+.gahookz-reduced-effects .arena-mini-gahook { animation: arena-mini-still .9s linear both; }
+@media (prefers-reduced-motion: reduce) {
+  .arena-mini-gahook { animation: arena-mini-still .9s linear both; }
+}
+@keyframes arena-mini-still {
+  0%, 72% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -50%); }
 }

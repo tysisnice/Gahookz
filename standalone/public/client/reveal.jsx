@@ -83,8 +83,8 @@ export function HerdRevealBreakdown({ question, lobby, AnswerGrid }) {
     <section className="majority-reveal-breakdown herd-reveal-breakdown">
       <header>
         <span>{tieBreakLabel(results, "The Herd has spoken")}</span><FactCheckPanel results={results} />
-        <strong>{results.topCount} vote{results.topCount === 1 ? "" : "s"} for the favourite</strong>
-        <p>Up to 500 points for picking the favourite, plus up to 500 for every vote your authored answer attracted.</p>
+        <strong>{results.winningAnswerId ? "Round results" : "No votes this round"}</strong>
+        <p>Pick the favourite to earn up to 500 points. Writing an answer earns a share of 500 points based on how many players picked it.</p>
       </header>
       <AnswerGrid answers={question.answers || []} reveal answerSelections={lobby.answerSelections} players={lobby.players} questionId={question.id} />
       {/* Two separate ways to score a Herd round, kept visually separate
@@ -92,7 +92,7 @@ export function HerdRevealBreakdown({ question, lobby, AnswerGrid }) {
           favourite, one for writing an answer other people picked. The total
           is shown so it reconciles with the leaderboard rather than leaving
           people to add it up. */}
-      <div className="round-score-breakdown">
+      {lobby.ownPlayer ? <div className="round-score-breakdown">
         <div>
           <dt>Points for your vote</dt>
           <dd>{ownVote ? "+" + ownVote.points : "no pick"}</dd>
@@ -105,7 +105,7 @@ export function HerdRevealBreakdown({ question, lobby, AnswerGrid }) {
           <dt>This round</dt>
           <dd>+{(ownVote?.points || 0) + (ownAuthor?.points || 0)}</dd>
         </div>
-      </div>
+      </div> : null}
     </section>);
 }
 

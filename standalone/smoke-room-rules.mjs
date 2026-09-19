@@ -179,6 +179,8 @@ for (const secret of ["password", "hostKey", "playerKey", "credential"]) {
 
 // --- P05: server-rendered suggestions ---------------------------------------
 
+assert((await post("/api/host/lock-setup")).ok, "Open question writing before requesting suggestions");
+
 {
   const suggestion = await post("/api/question/suggest", { playerKey: players[0] });
   assert(suggestion.ok, "A joined player must be able to ask for a suggestion: " + suggestion.error);
@@ -315,6 +317,13 @@ for (const secret of ["password", "hostKey", "playerKey", "credential"]) {
   // made an automatic fill impossible without predicting for an absent person.
   await post("/api/host/settings", { playerKey: host, gameFamily: "quiz", quizScoring: "majority", roundPreset: "custom", maxQuestionsPerPlayer: 2 });
   await post("/api/host/lock-setup", { playerKey: host });
+  // Reset preserves unplayed work, including questions switched from Classic.
+  // Free explicit slots so these assertions exercise prediction validation.
+  for (const playerKey of players.slice(0, 2)) {
+    for (const question of (await state(playerKey, "player")).ownQuestions) {
+      await post("/api/host/remove-content", { kind: "question", targetId: question.id });
+    }
+  }
   const unpredicted = await post("/api/question", {
     playerKey: players[0],
     text: "Which snack goes first, with no guess?",

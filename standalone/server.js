@@ -18,12 +18,15 @@ import {
   unregisterPlayerCredential } from
 "./server/auth.mjs";
 import { initialiseArena, tapArena, arenaProgress } from "./server/arena.mjs";
+import { markSseClientSaturated } from "./server/sse-backpressure.mjs";
+import { isHostOnlyRoute } from "./server/route-policy.mjs";
+import { pauseDecision, skipDecision } from "./server/phase-controls.mjs";
 import { createCareerOutbox } from "./server/career-outbox.mjs";
 import { isSyncArtifact } from "./sync-artifacts.mjs";
 import { createAdmissionController, requestAddress } from "./server/admission.mjs";
 import { accountResultLocation, createAccountService } from "./server/accounts.mjs";
 import { allActivePlayersAnswered as roomAllActivePlayersAnswered, allActivePlayersProgressReady as roomAllActivePlayersProgressReady, phaseProgressKey as roomPhaseProgressKey } from "./server/gameplay.mjs";
-import { customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "./server/custom-gahook.mjs";
+import { LOCAL_CUSTOM_GAHOOK_SLOTS, customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "./server/custom-gahook.mjs";
 import { MAJORITY_AUTHOR_BONUS, buildMajorityResults } from "./server/majority.mjs";
 import {
   PHASE_DURATIONS_MS,
@@ -32,15 +35,13 @@ import {
   plannedRounds,
   remainingMs
 } from "../packages/game-engine/src/index.ts";
-import { DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
+import { HostSettingsRequestSchema, DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
 import {
   TemplateBag,
-  findTemplate,
-  instantiateTemplate,
-  isPersonalised,
-  poolForStyle
+  instantiateTemplate
 } from "../packages/content/src/index.ts";
 import { initialiseRoomMedia, pruneRoomMedia, roomAssetDataUrl, serveRoomMedia, storeRoomImage } from "./server/media.mjs";
+import { allRoomQuestions, removeStoredQuestions } from "./server/content-inventory.mjs";
 import { presentPlayer } from "./server/presentation.mjs";
 import { MAX_ACTIVE_ROOMS, MAX_PLAYERS_PER_ROOM } from "./server/room.mjs";
 import { gameEligiblePlayers, quizPoints, scorePlacements } from "./server/scoring.mjs";
@@ -59,6 +60,16 @@ const publicDir = path.join(__dirname, "public");
 const careerOutbox = createCareerOutbox({
   journalPath: process.env.GAHOOKZ_CAREER_JOURNAL || path.join(__dirname, ".data", "career.journal"),
   deliver: (event) => accountService.recordMatch(event),
+  onStateChange: (event, status) => {
+    for (const room of lobbies.values()) {
+      for (const player of Object.values(room.players)) {
+        if (player.accountId === event.accountId && player.careerResultMatchId === event.matchId) {
+          player.careerResultStatus = status;
+          broadcastState(room, { immediate: true });
+        }
+      }
+    }
+  },
   log: (message, detail) => console.warn("[career]", message, detail ? JSON.stringify(detail) : "")
 });
 
@@ -109,6 +120,16 @@ const ULTIMATE_CONGRATS_MAX_STACK = 50;
 const GET_GOT_SCORE_PENALTY = 1000;
 const GAHOOK_STEAL_POINTS = 50;
 const STATE_BROADCAST_MS = 30;
+// The shortest gap allowed between two full fan-outs of one room's state.
+//
+// Measured on the host laptop: a fifteen-player Gahook storm produced one full
+// fan-out per Gahook -- around 52 a second, 16 sockets each, roughly 33 MB/s of
+// outbound JSON, which no home upload link can carry. A floor here costs a
+// solitary Gahook nothing (it is still sent on the same tick when the room has
+// been quiet) and bounds a storm to a sane frame rate. Overridable so the
+// load harness can measure the difference, clamped so it can never be set high
+// enough to feel like lag.
+const IMMEDIATE_BROADCAST_FLOOR_MS = clamp(Number(process.env.GAHOOKZ_BROADCAST_FLOOR_MS ?? 50), 0, 250);
 const PROGRESS_SETTLE_MS = 200;
 const PROGRESS_FORCE_ADVANCE_MS = 5000;
 // Overridable so the expiry regression test can observe a full lifecycle
@@ -606,12 +627,17 @@ function handleEvents(req, res, url, address) {
   }
 
   const heartbeat = setInterval(() => {
-    res.write(": keepalive\n\n");
+    if (client.saturated) return;
+    try {
+      if (!res.write("event: heartbeat\ndata: {}\n\n")) markClientSaturated(client);
+    } catch { res.destroy(); }
   }, 15000);
 
   req.on("close", () => {
     releaseAdmission();
     clearInterval(heartbeat);
+    client.clearSaturation?.();
+    client.pendingSnapshot = null;
     clients.delete(id);
 
     setTimeout(() => {
@@ -696,24 +722,15 @@ async function handleAction(pathname, payload, context = {}) {
 }
 
 async function handleRoomAction(room, pathname, payload, context = {}) {
+  if (isHostOnlyRoute(pathname)) {
+    const access = requireHost(room, payload);
+    if (!access.ok) return access;
+  }
   if (pathname === "/api/player/join") {
     return joinPlayer(room, payload, context);
   }
   if (pathname === "/api/question/suggest") {
     return suggestQuestion(room, payload);
-  }
-  if (pathname === "/api/question" && payload && typeof payload === "object") {
-    const factCheck = factCheckForTemplate(payload.templateId);
-    if (factCheck) payload.__factCheck = factCheck;
-    // Recorded so the prompt can emphasise the name wherever it is shown.
-    // Validated against the room's own players rather than trusted, so a
-    // crafted request cannot make arbitrary text bold.
-    const claimed = Array.isArray(payload.namedPlayerNames) ? payload.namedPlayerNames : [];
-    const realNames = new Set(Object.values(room.players).map((seat) => cleanText(seat.name, 24)));
-    payload.__namedPlayerNames = claimed.
-      map((name) => cleanText(name, 24)).
-      filter((name) => name && realNames.has(name)).
-      slice(0, 4);
   }
   if (pathname === "/api/question") {
     return submitQuestion(room, payload);
@@ -841,8 +858,7 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
     if (!hostCheck.ok) {
       return hostCheck;
     }
-    skipPhase(room);
-    return { ok: true };
+    return skipPhase(room);
   }
   if (pathname === "/api/host/pause") {
     const hostCheck = requireHost(room, payload);
@@ -1119,7 +1135,9 @@ async function joinPlayer(room, payload, context = {}) {
     gahookForm,
     customGahook: initialCustomGahook,
     customGahookSlot: 0,
-    customGahookSlots: accountView?.customGahookSlots || 1,
+    // One entry per slot, held on the room player so a guest keeps both.
+    customGahookBySlot: [initialCustomGahook],
+    customGahookSlots: customGahookSlotCount(accountView),
     accountId: account?.id || "",
     careerRoundStats: emptyCareerStats(),
     dashTopScore: 0,
@@ -1169,12 +1187,13 @@ async function joinPlayer(room, payload, context = {}) {
 
   if (account && (!player.accountId || ["lobby", "building", "herd-writing"].includes(room.phase))) {
     player.accountId = account.id;
-    player.customGahookSlots = accountView?.customGahookSlots || 1;
   }
+  player.customGahookSlots = customGahookSlotCount(player.accountId && account?.id === player.accountId ? accountView : null);
   player.careerRoundStats = player.careerRoundStats || emptyCareerStats();
-  player.customGahookSlot = Math.max(0, Math.min((player.customGahookSlots || 1) - 1, Number(player.customGahookSlot) || 0));
+  player.customGahookSlot = Math.max(0, Math.min(player.customGahookSlots - 1, Number(player.customGahookSlot) || 0));
 
   player.customGahook = publicCustomGahook(player);
+  rememberCustomGahookSlot(player, player.customGahookSlot, player.customGahook);
   player.connected = true;
   player.lastSeenAt = Date.now();
   room.players[player.id] = player;
@@ -2004,8 +2023,7 @@ function submitQuestion(room, payload) {
 
   try {
     const question = normaliseQuestion(room, payload, player);
-    if (payload?.__factCheck) question.factCheck = payload.__factCheck;
-    if (payload?.__namedPlayerNames?.length) question.namedPlayerNames = payload.__namedPlayerNames;
+    attachDraftMetadata(room, payload, player, question);
     if (room.approveQuestions) {
       room.pendingQuestions.push(question);
     } else {
@@ -2044,6 +2062,9 @@ function editQuestion(room, payload) {
       createdAt: original.createdAt,
       editedAt: Date.now()
     };
+
+    attachDraftMetadata(room, payload, player, edited, original);
+    preserveQuestionKeys(original, edited, room.gameMode);
 
     if (room.approveQuestions) {
       if (submittedIndex >= 0) room.questions.splice(submittedIndex, 1);
@@ -2177,7 +2198,7 @@ function updatePlayerProfile(room, payload) {
   player.avatarId = avatarId;
   player.avatarImageDataUrl = avatarImageDataUrl;
 
-  [...room.questions, ...room.pendingQuestions, ...room.quizQuestions].forEach((question) => {
+  allRoomQuestions(room).forEach((question) => {
     if (question.authorId !== player.id) return;
     question.authorName = name;
     question.authorAvatarId = avatarId;
@@ -2202,9 +2223,9 @@ async function updatePlayerCustomGahook(room, payload, context = {}) {
   const requestedSlot = payload?.slot === undefined ? player.customGahookSlot || 0 : Math.trunc(Number(payload.slot));
   const account = context.account;
   const accountMatches = Boolean(account && player.accountId && account.id === player.accountId);
-  const slotCount = accountMatches ? accountService.publicStatus(account).account?.customGahookSlots || 1 : 1;
+  const slotCount = customGahookSlotCount(accountMatches ? accountService.publicStatus(account).account : null);
   if (!Number.isInteger(requestedSlot) || requestedSlot < 0 || requestedSlot >= slotCount) {
-    return { ok: false, error: accountMatches ? "That custom Gahook slot is locked." : "Sign in to use saved custom Gahook slots." };
+    return { ok: false, error: "That custom Gahook slot is locked." };
   }
   pruneRoomMedia(room);
   const previous = player.customGahook;
@@ -2218,18 +2239,23 @@ async function updatePlayerCustomGahook(room, payload, context = {}) {
   player.customGahook = customGahook;
   player.customGahookSlot = requestedSlot;
   player.customGahookSlots = slotCount;
-  if (accountMatches) {
+  rememberCustomGahookSlot(player, requestedSlot, customGahook);
+  // An account entitlement above the local slots is only reachable when the
+  // account saved it, so persistence stays account-gated while the two local
+  // slots keep working with no sign-in at all.
+  if (accountMatches && requestedSlot < (accountService.publicStatus(account).account?.customGahookSlots || 0)) {
     try {
       await accountService.saveCustomGahook(account.id, requestedSlot, portableCustomGahook(room, customGahook));
     } catch (error) {
       player.customGahook = previous;
+      rememberCustomGahookSlot(player, requestedSlot, previous);
       pruneRoomMedia(room);
       return { ok: false, error: error?.message || "That custom Gahook could not be saved to your account." };
     }
   }
   pruneRoomMedia(room);
   broadcastState(room, { immediate: true });
-  return { ok: true, customGahook: publicCustomGahook(player), slot: requestedSlot, slotCount, persisted: accountMatches, gahookForm: normaliseGahookForm(player.gahookForm) };
+  return { ok: true, customGahook: publicCustomGahook(player), slot: requestedSlot, slotCount, slots: publicCustomGahookSlots(player), persisted: accountMatches, gahookForm: normaliseGahookForm(player.gahookForm) };
 }
 
 async function selectPlayerCustomGahookSlot(room, payload, context = {}) {
@@ -2237,25 +2263,72 @@ async function selectPlayerCustomGahookSlot(room, payload, context = {}) {
   if (!player) return { ok: false, error: "Join the game before choosing a custom Gahook slot." };
   if (room.phase !== "lobby" && room.phase !== "building") return { ok: false, error: "Custom Gahook slots can be changed while the room is waiting." };
   const account = context.account;
-  if (!account || account.id !== player.accountId) return { ok: false, error: "Sign in to use saved custom Gahook slots." };
-  const accountView = accountService.publicStatus(account).account;
+  const accountMatches = Boolean(account && player.accountId && account.id === player.accountId);
+  const accountView = accountMatches ? accountService.publicStatus(account).account : null;
+  const slotCount = customGahookSlotCount(accountView);
   const slot = Math.trunc(Number(payload?.slot));
-  if (!Number.isInteger(slot) || slot < 0 || slot >= (accountView?.customGahookSlots || 1)) return { ok: false, error: "That custom Gahook slot is locked." };
-  const saved = accountView.savedCustomGahooks.find((item) => item.slot === slot);
-  let selected = publicCustomGahook();
+  if (!Number.isInteger(slot) || slot < 0 || slot >= slotCount) return { ok: false, error: "That custom Gahook slot is locked." };
+
+  // Remember whatever is on screen before switching away from it, or the slot
+  // the player is leaving loses the drawing they just made.
+  rememberCustomGahookSlot(player, player.customGahookSlot || 0, player.customGahook);
+
+  // An account's saved copy is the durable one, so it wins when it exists. A
+  // guest falls back to the room-local copy, which is why this route no longer
+  // requires a sign-in.
+  const saved = accountView?.savedCustomGahooks?.find((item) => item.slot === slot);
+  let selected = customGahookForSlot(player, slot);
   if (saved?.configuration) {
     try {
-      selected = normaliseCustomGahook(room, saved.configuration, selected);
+      selected = normaliseCustomGahook(room, saved.configuration, publicCustomGahook());
     } catch (error) {
       return { ok: false, error: error?.message || "That saved custom Gahook could not be loaded." };
     }
   }
   player.customGahook = selected;
   player.customGahookSlot = slot;
-  player.customGahookSlots = accountView.customGahookSlots;
+  player.customGahookSlots = slotCount;
+  rememberCustomGahookSlot(player, slot, selected);
   pruneRoomMedia(room);
   broadcastState(room, { immediate: true });
-  return { ok: true, customGahook: publicCustomGahook(player), slot, slotCount: player.customGahookSlots };
+  return { ok: true, customGahook: publicCustomGahook(player), slot, slotCount, slots: publicCustomGahookSlots(player) };
+}
+
+// How many custom Gahooks this player may keep.
+//
+// Everyone gets LOCAL_CUSTOM_GAHOOK_SLOTS without signing in, because custom
+// Gahooks are cosmetic and guest play must never need an account. An account
+// entitlement can only widen that, never narrow it.
+function customGahookSlotCount(accountView) {
+  return Math.max(LOCAL_CUSTOM_GAHOOK_SLOTS, Number(accountView?.customGahookSlots) || 1);
+}
+
+/** Keep a slot's configuration on the room player so switching back restores it. */
+function rememberCustomGahookSlot(player, slot, value) {
+  if (!Array.isArray(player.customGahookBySlot)) player.customGahookBySlot = [];
+  player.customGahookBySlot[slot] = publicCustomGahook(value);
+}
+
+function customGahookForSlot(player, slot) {
+  const stored = Array.isArray(player.customGahookBySlot) ? player.customGahookBySlot[slot] : null;
+  return stored ? publicCustomGahook(stored) : publicCustomGahook();
+}
+
+/** What the picker needs to label each slot button: its name and whether it is drawn. */
+function publicCustomGahookSlots(player) {
+  const count = customGahookSlotCount({ customGahookSlots: player?.customGahookSlots });
+  return Array.from({ length: count }, (_value, slot) => {
+    const stored = customGahookForSlot(player || {}, slot);
+    const drawn = stored.frames.length > 0;
+    return {
+      slot,
+      // An undrawn slot has no name worth showing; the client falls back to
+      // "Custom Gahook 1" / "Custom Gahook 2".
+      name: drawn ? stored.name : "",
+      drawn,
+      previewFrame: stored.frames[0] || ""
+    };
+  });
 }
 
 function portableCustomGahook(room, value) {
@@ -2324,6 +2397,18 @@ function updateHostSettings(room, payload) {
     return { ok: false, error: "Settings are locked once the quiz starts." };
   }
 
+  const { code: _code, playerKey: _playerKey, ...requested } = payload || {};
+  const parsed = HostSettingsRequestSchema.safeParse(requested);
+  if (!parsed.success) return { ok: false, error: "Invalid room settings. Reopen the rules and try again." };
+  payload = parsed.data;
+  if (payload.allowCustomProfiles !== undefined && payload.allowCustomProfilePictures !== undefined &&
+      payload.allowCustomProfiles !== payload.allowCustomProfilePictures) {
+    return { ok: false, error: "Conflicting profile picture settings." };
+  }
+  if (payload.allowCustomProfilePictures !== undefined) payload.allowCustomProfiles = payload.allowCustomProfilePictures;
+  if (payload.promptStyle === "educational") payload.promptStyle = "education";
+  if (payload.promptStyle === "funny") payload.promptStyle = "fun";
+
   // Checked before anything is touched, so a rejected Save leaves the whole
   // room unchanged rather than half-applied. A host looking at a stale modal
   // must not silently revert a change somebody else already made.
@@ -2349,10 +2434,17 @@ function updateHostSettings(room, payload) {
   // changes how the same questions are scored, so it must leave the bank and
   // everybody's readiness alone.
   const familyChanged = nextSettings.gameFamily !== currentSettings.gameFamily;
+  room.familyLengths ||= {};
+  room.familyLengths[currentSettings.gameFamily] = { roundPreset: room.roundPreset, maxQuestionsPerPlayer: room.maxQuestionsPerPlayer };
+  if (familyChanged) {
+    const remembered = room.familyLengths[nextSettings.gameFamily];
+    room.roundPreset = remembered?.roundPreset || "quick";
+    room.maxQuestionsPerPlayer = remembered?.maxQuestionsPerPlayer || 1;
+  }
   applyGameSettings(room, nextSettings);
   const presetRequested = Object.prototype.hasOwnProperty.call(payload || {}, "roundPreset") ||
     Object.prototype.hasOwnProperty.call(payload || {}, "questionPreset");
-  if (familyChanged && nextSettings.gameFamily === "herd" && !presetRequested) {
+  if (familyChanged && nextSettings.gameFamily === "herd" && !presetRequested && !room.familyLengths.herd) {
     // Herd starts Quick so a first session is short. The host can still pick
     // Full room, and their choice is remembered from then on.
     room.roundPreset = "quick";
@@ -2372,6 +2464,8 @@ function updateHostSettings(room, payload) {
   room.questions = [...(room.questions || []), ...restored.questions];
   room.pendingQuestions = [...(room.pendingQuestions || []), ...restored.pending];
 
+  room.questions.forEach((question) => applyQuestionScoring(room, question));
+  room.pendingQuestions.forEach((question) => applyQuestionScoring(room, question));
   room.settingsRevision += 1;
     const hasPreset = Object.prototype.hasOwnProperty.call(payload || {}, "roundPreset") ||
     Object.prototype.hasOwnProperty.call(payload || {}, "questionPreset");
@@ -2481,6 +2575,12 @@ function updateHostSettings(room, payload) {
   broadcastState(room, { immediate: true });
   return {
     ok: true,
+    settingsRevision: room.settingsRevision,
+    retainedQuestions: {
+      savedBank: savedQuestionCount(room, "quiz") + savedQuestionCount(room, "herd"),
+      selectedForGame: room.questions.filter((question) => questionReadyForMode(room, question)).length,
+      needingAttention: room.questions.filter((question) => !questionReadyForMode(room, question)).length
+    },
     roundPreset: room.roundPreset,
     maxQuestionsPerPlayer: room.maxQuestionsPerPlayer,
     plannedTotalQuestions: plannedQuestionCount(room),
@@ -2574,9 +2674,7 @@ function kickPlayer(room, payload, options = {}) {
   handleGahookDuelDisconnect(room, playerId);
   unregisterPlayerCredential(room, playerId, { ban: true });
   delete room.players[playerId];
-  room.questions = room.questions.filter((question) => question.authorId !== playerId);
-  room.pendingQuestions = room.pendingQuestions.filter((question) => question.authorId !== playerId);
-  room.quizQuestions = room.quizQuestions.filter((question) => question.authorId !== playerId);
+  removeStoredQuestions(room, (question) => question.authorId === playerId);
   // A kicked player also authored answers on other people's Herd prompts. Those
   // survive the question filter above, so without this the content the host just
   // removed somebody for stays in the game and is still voted on.
@@ -2649,7 +2747,22 @@ function removeContent(room, payload) {
     const player = resolvePlayer(room, targetId);
     if (!player) return { ok: false, error: "Choose a player." };
     player.avatarImageDataUrl = "";
+    player.hiddenAvatarImageDataUrl = "";
+    player.hiddenGahookForm = "";
+    player.gahookForm = "monkey";
+    allRoomQuestions(room).forEach((question) => {
+      if (question.authorId === player.id) {
+        question.authorAvatarImageDataUrl = "";
+        question.imageDataUrl = "";
+      }
+      (question.answers || []).forEach((answer) => {
+        if (answer.authorId === player.id) answer.authorAvatarImageDataUrl = "";
+      });
+    });
     player.customGahook = null;
+    // Moderation removes this player's media, so both slots go, not just the
+    // one they happen to have selected.
+    player.customGahookBySlot = [];
     player.latestPoke = null;
     const chatRemoved = removeChatMessagesForPlayer(room, player.id);
     clearWhiteboardForPlayer(room, player.id);
@@ -2659,12 +2772,8 @@ function removeContent(room, payload) {
   }
 
   if (kind === "question") {
-    const before = room.questions.length + room.pendingQuestions.length;
-    room.questions = room.questions.filter((question) => question.id !== targetId);
-    room.pendingQuestions = room.pendingQuestions.filter((question) => question.id !== targetId);
-    if (room.questions.length + room.pendingQuestions.length === before) {
-      return { ok: false, error: "That question is no longer here." };
-    }
+    const removed = removeStoredQuestions(room, (question) => question.id === targetId, { includeSelected: false });
+    if (!removed) return { ok: false, error: "That question is no longer here." };
     Object.values(room.players).forEach((player) => {
       player.questionsSubmitted = countQuestionsForPlayer(room, player.id);
     });
@@ -2754,9 +2863,7 @@ function exitHostAsPlayer(room) {
   handleGahookDuelDisconnect(room, playerId);
   clearUltimateGahookState(player);
   clearUltimateCongratulationsState(player, true);
-  room.questions = room.questions.filter((question) => question.authorId !== playerId);
-  room.pendingQuestions = room.pendingQuestions.filter((question) => question.authorId !== playerId);
-  room.quizQuestions = room.quizQuestions.filter((question) => question.authorId !== playerId);
+  removeStoredQuestions(room, (question) => question.authorId === playerId);
   delete room.game.answers[playerId];
   delete room.voteKicks[playerId];
   Object.values(room.voteKicks).forEach((votes) => delete votes[playerId]);
@@ -3172,9 +3279,17 @@ function roomTemplateBag(room, style) {
 }
 
 function suggestQuestion(room, payload) {
-  const player = resolvePlayer(room, cleanText(payload?.playerId, 80)) || getPlayerByCredential(room, payload?.playerKey);
+  const credential = cleanText(payload?.playerKey, 80);
+  const player = getPlayerByCredential(room, credential);
+  if (isCredentialBanned(room, credential) || !roomAccessGranted(room, credential)) {
+    return { ok: false, error: "Join the room before asking for a suggestion." };
+  }
   if (!player && !isHostCredential(room, payload?.playerKey)) {
     return { ok: false, error: "Join the room before asking for a suggestion." };
+  }
+
+  if (room.phase !== "building") {
+    return { ok: false, error: "Suggestions are available while writing questions." };
   }
 
   const style = room.promptStyle === "education" ? "educational" : "funny";
@@ -3191,9 +3306,17 @@ function suggestQuestion(room, payload) {
   // payload entirely. An opinion prompt has no key to give.
   const instance = instantiateTemplate(template, { eligible, includeAnswerKey: true });
 
+  const drafts = room.promptDrafts ||= new Map();
+  for (const [id, draft] of drafts) {
+    if (draft.expiresAt <= Date.now()) drafts.delete(id);
+  }
+  while (drafts.size >= 80) drafts.delete(drafts.keys().next().value);
+  const instanceId = crypto.randomUUID();
+  drafts.set(instanceId, { instance, actor: credential, expiresAt: Date.now() + 15 * 60_000 });
   return {
     ok: true,
     suggestion: {
+      instanceId,
       templateId: instance.templateId,
       templateVersion: instance.templateVersion,
       kind: instance.kind,
@@ -3438,12 +3561,49 @@ function estimatedGameDurationMs(room) {
 // the reveal can show a fact check. This is not a scoring key: under Majority
 // and Herd the room's votes still decide the points, and a popular wrong
 // answer stays the winner. The two are shown separately and never conflated.
-function factCheckForTemplate(templateId) {
-  const template = findTemplate(cleanText(templateId, 40));
-  if (!template || template.kind !== "educational") return null;
-  const answer = template.options.find((option) => option.id === template.factualAnswerId);
-  if (!answer) return null;
-  return { answerText: answer.text, explanation: template.explanation };
+function attachDraftMetadata(room, payload, player, question, original = null) {
+  const draft = room.promptDrafts?.get(cleanText(payload?.instanceId, 80));
+  const validDraft = draft && draft.actor === getCredentialForPlayer(room, player.id) && draft.expiresAt > Date.now();
+  const source = validDraft ? draft.instance : original?.promptInstance;
+  if (!source || question.text !== source.text) return;
+  if (room.gameMode !== "herd" && (question.answers.length !== source.options.length ||
+    question.answers.some((answer, index) => answer.text !== source.options[index].text))) return;
+  question.promptInstance = source;
+  question.namedPlayerNames = [...source.namedPlayerNames];
+  if (source.factualAnswerId) {
+    question.factCheck = {
+      answerText: source.options.find((option) => option.id === source.factualAnswerId)?.text || "",
+      explanation: source.explanation || "Verified answer from the educational catalogue."
+    };
+  }
+}
+
+// Retain the other scoring rule's key only while its option identity/text survives.
+function preserveQuestionKeys(original, edited, mode) {
+  const keep = (id) => {
+    const old = original.answers?.find((answer) => answer.id === id);
+    return old && edited.answers.some((answer) => answer.id === id && answer.text === old.text) ? id : "";
+  };
+  if (mode === "majority") edited.intendedAnswerId = keep(original.intendedAnswerId || original.answers?.find((a) => a.correct)?.id);
+  else edited.predictedAnswerId = keep(original.predictedAnswerId);
+  edited.answers.forEach((answer) => { answer.predicted = answer.id === edited.predictedAnswerId; });
+}
+
+function questionReadyForMode(room, question) {
+  if (room.gameMode === "herd") return question.mode === "herd";
+  if (question.mode === "herd") return false;
+  return room.gameMode === "majority" || question.answers.some((answer) => answer.id === (question.intendedAnswerId || question.answers.find((a) => a.correct)?.id));
+}
+
+function applyQuestionScoring(room, question) {
+  if (question.mode === "herd") return;
+  question.intendedAnswerId ??= question.answers.find((answer) => answer.correct)?.id || "";
+  question.predictedAnswerId ??= question.answers.find((answer) => answer.predicted)?.id || "";
+  question.mode = room.lockedRules?.gameMode || room.gameMode;
+  question.answers.forEach((answer) => {
+    answer.correct = question.mode === "quiz" && answer.id === question.intendedAnswerId;
+    answer.predicted = answer.id === question.predictedAnswerId;
+  });
 }
 
 function normaliseQuestion(room, payload, player) {
@@ -3485,6 +3645,8 @@ function normaliseQuestion(room, payload, player) {
   return {
     id: crypto.randomUUID(),
     mode: "quiz",
+    intendedAnswerId: answers.find((answer) => answer.correct)?.id || "",
+    predictedAnswerId: "",
     text,
     answers,
     imageDataUrl: validateImage(room, payload?.imageDataUrl),
@@ -3553,6 +3715,7 @@ function normaliseMajorityQuestion(room, payload, player) {
   return {
     id: crypto.randomUUID(),
     mode: "majority",
+    intendedAnswerId: "",
     text,
     answers,
     predictedAnswerId,
@@ -3587,7 +3750,7 @@ function requireHost(room, payload) {
 }
 
 function countQuestionsForPlayer(room, playerId) {
-  return room.questions.filter((question) => question.authorId === playerId).length;
+  return room.questions.filter((question) => question.authorId === playerId && questionReadyForMode(room, question)).length;
 }
 
 function countPendingQuestionsForPlayer(room, playerId) {
@@ -3595,7 +3758,7 @@ function countPendingQuestionsForPlayer(room, playerId) {
 }
 
 function countQuestionSlotsForPlayer(room, playerId) {
-  return countQuestionsForPlayer(room, playerId) + countPendingQuestionsForPlayer(room, playerId);
+  return room.questions.filter((question) => question.authorId === playerId).length + countPendingQuestionsForPlayer(room, playerId);
 }
 
 function publicPlayers(room) {
@@ -3627,7 +3790,7 @@ function publicQuestionAuthor(room, question) {
     id: question.authorId,
     name: question.authorName,
     avatarId: normaliseAvatarId(livePlayer?.avatarId || question.authorAvatarId),
-    avatarImageDataUrl: livePlayer?.avatarImageDataUrl || question.authorAvatarImageDataUrl || ""
+    avatarImageDataUrl: room.allowCustomProfiles === false ? "" : livePlayer?.avatarImageDataUrl || question.authorAvatarImageDataUrl || ""
   };
 }
 
@@ -3635,6 +3798,7 @@ function publicPendingQuestion(room, question) {
   return {
     id: question.id,
     mode: question.mode || room.gameMode || DEFAULT_GAME_MODE,
+    needsIntendedAnswer: !questionReadyForMode(room, question),
     text: question.text,
     namedPlayerNames: question.namedPlayerNames || [],
     imageDataUrl: question.imageDataUrl,
@@ -3667,6 +3831,7 @@ function publicEditableQuestion(room, question, status = "submitted") {
   return {
     id: question.id,
     mode: question.mode || room.gameMode || DEFAULT_GAME_MODE,
+    needsIntendedAnswer: !questionReadyForMode(room, question),
     text: question.text,
     namedPlayerNames: question.namedPlayerNames || [],
     imageDataUrl: question.imageDataUrl || "",
@@ -3873,34 +4038,23 @@ function getStartCheck(room) {
 // prompt would mean inventing a correct answer for a question that has none,
 // which is the defect this plan exists to remove. The host is told this rather
 // than silently given a different kind of question.
-function generationPoolFor(room) {
+function generationStyleFor(room) {
   const settings = roomGameSettings(room);
-  if (settings.gameFamily === "herd") {
-    // Herd wants a writing seed; any prompt text serves, and nothing is keyed.
-    return poolForStyle(room.promptStyle === "education" ? "educational" : "funny");
-  }
-  if (settings.quizScoring === "majority") {
-    // Votes decide, so an opinion is exactly right and needs no key.
-    return poolForStyle("funny").filter((template) => template.options.length >= 2);
-  }
-  // Classic: verified answers only.
-  return poolForStyle("educational").filter(
-    (template) => template.factualAnswerId && template.options.length >= 2
-  );
+  if (settings.gameFamily === "quiz" && settings.quizScoring === "classic") return "educational";
+  return room.promptStyle === "education" ? "educational" : "funny";
 }
 
 /** Why an automatic fill chose the content it did, for the host to see. */
 function autofillExplanation(room) {
   const settings = roomGameSettings(room);
   if (settings.gameFamily === "herd") return "Filled with writing prompts for the room to answer.";
-  if (settings.quizScoring === "majority") return "Filled with opinion questions; the room's votes decide each round.";
+  if (settings.quizScoring === "majority") return room.promptStyle === "education" ? "Filled with educational questions; votes decide points and Fact check shows the verified answer." : "Filled with opinion questions; the room's votes decide each round.";
   return "Classic autofill uses questions with verified answers.";
 }
 
 function makeGeneratedQuestion(room, player, generatedIndex) {
   const settings = roomGameSettings(room);
-  const pool = generationPoolFor(room);
-  const template = pool[generatedIndex % pool.length];
+  const template = roomTemplateBag(room, generationStyleFor(room)).next();
   const eligible = Object.values(room.players).
     filter((seat) => seat.connected && seat.id).
     map((seat) => ({ id: seat.id, name: cleanText(seat.name, 24) || "Player" }));
@@ -3914,20 +4068,7 @@ function makeGeneratedQuestion(room, player, generatedIndex) {
     // earns no author bonus, which is the documented behaviour.
     payload = { text: instance.text, answers: instance.options.map((option) => ({ text: option.text, predicted: false })) };
   } else {
-    // Options arrive shuffled, then the keyed one is moved to a rotating slot.
-    //
-    // Shuffling alone leaves the correct answer's colour to chance, and across
-    // a short game it can land on the same colour every time -- which teaches
-    // players "the answer is always red". Rotating the slot guarantees it moves
-    // while the other three stay shuffled, so neither the colour nor the order
-    // is predictable from the last round.
-    const options = [...instance.options];
-    const keyedIndex = options.findIndex((option) => option.id === instance.factualAnswerId);
-    if (keyedIndex >= 0) {
-      const target = generatedIndex % options.length;
-      const [keyed] = options.splice(keyedIndex, 1);
-      options.splice(target, 0, keyed);
-    }
+    const options = instance.options;
     payload = {
       text: instance.text,
       answers: options.map((option) => ({
@@ -3939,8 +4080,8 @@ function makeGeneratedQuestion(room, player, generatedIndex) {
 
   const question = { ...normaliseQuestion(room, payload, player), generated: true };
   if (instance.namedPlayerNames?.length) question.namedPlayerNames = [...instance.namedPlayerNames];
-  if (instance.kind === "educational" && instance.explanation) {
-    question.factCheck = { answerText: instance.options.find((option) => option.id === instance.factualAnswerId)?.text || "", explanation: instance.explanation };
+  if (instance.factualAnswerId) {
+    question.factCheck = { answerText: instance.options.find((option) => option.id === instance.factualAnswerId)?.text || "", explanation: instance.explanation || "Verified answer from the educational catalogue." };
   }
   return question;
 }
@@ -3970,6 +4111,10 @@ function forceStartGame(room) {
   const activePlayers = Object.values(room.players).filter((player) => player.connected);
   if (activePlayers.length === 0) {
     return { ok: false, error: "At least one connected player is needed to force start." };
+  }
+
+  if (room.gameMode === "quiz" && [...room.questions, ...room.pendingQuestions].some((question) => !questionReadyForMode(room, question))) {
+    return { ok: false, error: "Choose an intended answer for each saved Classic question before starting." };
   }
 
   // Pending submissions are player work. Discarding them here threw away
@@ -4062,7 +4207,7 @@ function fairRoundRobinQuestions(candidates, limit, alreadySelected = new Set())
 
 function selectQuestionsForGame(room, eligiblePlayerIds) {
   const eligible = new Set(eligiblePlayerIds);
-  const candidates = room.questions.filter((question) => eligible.has(question.authorId));
+  const candidates = room.questions.filter((question) => eligible.has(question.authorId) && questionReadyForMode(room, question));
   const maximumRounds = maximumRoundsForPreset(room);
   const limit = Number.isFinite(maximumRounds) ? Math.min(maximumRounds, candidates.length) : candidates.length;
   const selectedIds = new Set();
@@ -4070,7 +4215,11 @@ function selectQuestionsForGame(room, eligiblePlayerIds) {
   // The round-robin selector still spreads those questions fairly across authors.
   const carried = fairRoundRobinQuestions(candidates.filter((question) => question.carriedOver), limit, selectedIds);
   const remaining = fairRoundRobinQuestions(candidates, limit - carried.length, selectedIds);
-  return shuffle([...carried, ...remaining]).map((question) => cleanQuestionRoundState(question));
+  return shuffle([...carried, ...remaining]).map((question) => {
+    const selected = cleanQuestionRoundState(question);
+    applyQuestionScoring(room, selected);
+    return selected;
+  });
 }
 
 function beginHerdAnswerWriting(room) {
@@ -4190,6 +4339,8 @@ function recordCareerResults(room) {
       playerCount: ranked.length,
       statDelta
     });
+    player.careerResultMatchId = room.game.matchId;
+    player.careerResultStatus = accepted.ok ? careerOutbox.stateFor({ matchId: room.game.matchId, accountId: player.accountId }) : "unavailable";
     if (!accepted.ok) {
       allAccepted = false;
       // The game still finishes. What must not happen is telling this player
@@ -4398,8 +4549,9 @@ function windowedTransitionAfterAnswers(room) {
 }
 
 function setGamePaused(room, payload) {
-  if (!LIVE_GAME_PHASES.includes(room.phase)) {
-    return { ok: false, error: "The game can only be paused during a question." };
+  const allowed = pauseDecision(room.phase);
+  if (!allowed.ok) {
+    return allowed;
   }
   const paused = typeof payload?.paused === "boolean" ? payload.paused : !room.paused;
   if (paused === room.paused) {
@@ -4418,7 +4570,7 @@ function setGamePaused(room, payload) {
     return { ok: true, paused: true };
   }
 
-  const remainingMs = Math.max(0, Number(room.pausedRemainingMs || 0));
+  const resumeRemainingMs = Math.max(0, Number(room.pausedRemainingMs || 0));
   const wasWaiting = Boolean(room.pausedWaitingForProgress);
   room.paused = false;
   room.pausedAt = null;
@@ -4443,20 +4595,36 @@ function setGamePaused(room, payload) {
   }
 
   room.game.waitingForProgress = false;
-  room.phaseEndsAt = Date.now() + remainingMs;
-  room.phaseTimer = setTimeout(() => waitForProgressThen(room, room.phase), remainingMs);
+  room.phaseEndsAt = Date.now() + resumeRemainingMs;
+  room.phaseTimer = setTimeout(() => waitForProgressThen(room, room.phase), resumeRemainingMs);
   broadcastState(room, { immediate: true });
   return { ok: true, paused: false };
 }
 
 function skipPhase(room) {
-  if (room.phase === "reading") {
-    beginAnswering(room);
-  } else if (room.phase === "answering") {
-    transitionAfterAnswers(room);
-  } else if (room.phase === "reveal") {
-    beginQuestion(room, room.game.currentQuestionIndex + 1);
+  // The phase table lives in ./server/phase-controls.mjs so that "which phases
+  // can be skipped" is testable on its own and cannot drift apart from
+  // LIVE_GAME_PHASES, which answers a different question (who may Gahook).
+  const decision = skipDecision(room.phase);
+  if (!decision.ok) {
+    return { ok: false, error: decision.error };
   }
+  if (decision.action === "begin-answering") {
+    beginAnswering(room);
+  } else if (decision.action === "reveal") {
+    transitionAfterAnswers(room);
+  } else if (decision.action === "next-question") {
+    beginQuestion(room, room.game.currentQuestionIndex + 1);
+  } else if (decision.action === "force-start") {
+    // Herd's writing phase and Classic's building phase end when people finish,
+    // not when a clock does. Skipping one means starting now with whatever has
+    // been written, which is exactly force-start — including its generated
+    // filler for unwritten Herd answers.
+    const started = forceStartGame(room);
+    if (!started.ok) return started;
+    return { ok: true, phase: room.phase };
+  }
+  return { ok: true, phase: room.phase };
 }
 
 function resetLobby(room, options = {}) {
@@ -4471,7 +4639,7 @@ function resetLobby(room, options = {}) {
   const playedQuestionIds = new Set(room.game?.playedQuestionIds || []);
   const lastGameSummary = room.lastGameSummary || null;
   const unplayedQuestions = (room.questions || []).
-    filter((question) => !playedQuestionIds.has(question.id) && (question.mode || room.gameMode) === room.gameMode).
+    filter((question) => !playedQuestionIds.has(question.id)).
     map((question) => cleanQuestionRoundState(question, { carriedOver: true }));
   const reusableQuestions = options.reuseUnusedQuestions ? unplayedQuestions : [];
   if (!options.reuseUnusedQuestions) {
@@ -4558,14 +4726,42 @@ function allActivePlayersAnswered(room) {
   return roomAllActivePlayersAnswered(room);
 }
 
-function buildSnapshot(room, role, playerKey) {
+// The parts of a snapshot that do not depend on who is reading it.
+//
+// One broadcast builds the same player list, the same ranked scoreboard and the
+// same chat history once per connected client. In a full room that is sixteen
+// identical computations of the most expensive thing in the snapshot. `shared`
+// is a scratch object owned by a single flush: everything in it is derived from
+// the room alone, nothing mutates the room between the writes of one flush, so
+// computing it once and handing it to every client is exactly equivalent to
+// computing it sixteen times -- just not sixteen times as slow.
+function sharedSnapshotParts(room, shared = {}) {
+  shared.players ??= publicPlayers(room);
+  shared.placements ??= scoreboardPlacements(room);
+  shared.bannedPlayers ??= publicBannedPlayers(room);
+  shared.chatMessages ??= publicChatMessages(room);
+  shared.whiteboardStrokes ??= publicWhiteboardStrokes(room);
+  shared.questionResults ??= questionResults(room);
+  shared.gameSettings ??= roomGameSettings(room);
+  shared.canStart ??= getStartCheck(room).ok;
+  return shared;
+}
+
+function buildSnapshot(room, role, playerKey, sharedParts) {
+  const shared = sharedSnapshotParts(room, sharedParts || {});
   const ownPlayer = getPlayerByCredential(room, playerKey);
   const currentQuestion = getCurrentQuestion(room);
   const isHost = isHostCredential(room, playerKey);
   const canViewRoomSocial = Boolean(isHost || ownPlayer);
   const effectiveRole = isHost ? "host" : role;
   const activePlayerIds = new Set(Object.values(room.players).filter((player) => player.connected).map((player) => player.id));
-  const placements = scoreboardPlacements(room);
+  const placements = shared.placements;
+  // Final placements are a result, not a running commentary. Publishing them in
+  // every phase meant a fifteen-player lobby shipped the whole player list a
+  // third time -- once as `players`, once as `leaderboard`, and once more as a
+  // "winners" list that, at nil-all, simply named everybody. The client already
+  // derives its own winners from the leaderboard when these are empty.
+  const finished = room.phase === "finished";
   const maximumRounds = maximumRoundsForPreset(room);
   const playedQuestionIds = new Set(room.game?.playedQuestionIds || []);
   const unusedQuestionCount = room.questions.filter((question) => {
@@ -4588,12 +4784,12 @@ function buildSnapshot(room, role, playerKey) {
     getGotPenaltyPoints: GET_GOT_SCORE_PENALTY,
     pendingQuestionCount: (room.pendingQuestions || []).length,
     herdRoundTarget: room.herdRoundTarget || 8,
-    gameFamily: roomGameSettings(room).gameFamily,
-    quizScoring: roomGameSettings(room).quizScoring,
+    gameFamily: shared.gameSettings.gameFamily,
+    quizScoring: shared.gameSettings.quizScoring,
     settingsRevision: room.settingsRevision || 0,
     lockedRules: room.lockedRules || null,
-    savedQuestionCount: savedQuestionCount(room, roomGameSettings(room).gameFamily),
-    savedQuestionCountOtherFamily: savedQuestionCount(room, roomGameSettings(room).gameFamily === "quiz" ? "herd" : "quiz"),
+    savedQuestionCount: savedQuestionCount(room, shared.gameSettings.gameFamily),
+    savedQuestionCountOtherFamily: savedQuestionCount(room, shared.gameSettings.gameFamily === "quiz" ? "herd" : "quiz"),
     roundPreset: normaliseRoundPreset(room.roundPreset),
     approveQuestions: room.approveQuestions,
     allowCustomProfiles: room.allowCustomProfiles !== false,
@@ -4606,18 +4802,18 @@ function buildSnapshot(room, role, playerKey) {
     phaseWaitingForProgress: Boolean(room.game.waitingForProgress),
     roomPoke: room.latestRoomPoke || null,
     gahookDuel: publicGahookDuel(room, ownPlayer?.id || ""),
-    chatMessages: canViewRoomSocial ? publicChatMessages(room) : [],
-    whiteboardStrokes: canViewRoomSocial ? publicWhiteboardStrokes(room) : [],
+    chatMessages: canViewRoomSocial ? shared.chatMessages : [],
+    whiteboardStrokes: canViewRoomSocial ? shared.whiteboardStrokes : [],
     whiteboardRevision: canViewRoomSocial ? room.whiteboardRevision || 0 : 0,
-    players: publicPlayers(room),
-    bannedPlayers: publicBannedPlayers(room),
+    players: shared.players,
+    bannedPlayers: shared.bannedPlayers,
     reports: isHost ? publicReports(room) : [],
     pendingQuestions: isHost ? room.pendingQuestions.map((question) => publicPendingQuestion(room, question)) : publicPendingQuestionsForPlayer(room, playerKey),
     leaderboard: placements.ranked,
-    winners: placements.winners,
-    losers: placements.losers,
-    winner: placements.winner,
-    loser: placements.loser,
+    winners: finished ? placements.winners : [],
+    losers: finished ? placements.losers : [],
+    winner: finished ? placements.winner : null,
+    loser: finished ? placements.loser : null,
     questionCount: room.questions.length,
     availableQuestionCount: room.questions.length + room.pendingQuestions.length,
     maxQuestionsPerPlayer: room.maxQuestionsPerPlayer,
@@ -4628,17 +4824,18 @@ function buildSnapshot(room, role, playerKey) {
     estimatedDurationMs: estimatedGameDurationMs(room),
     currentQuestionIndex: room.game.currentQuestionIndex,
     totalQuestions: room.quizQuestions.length || room.questions.length,
-    canStart: getStartCheck(room).ok,
+    canStart: shared.canStart,
     activePlayerCount: activePlayerIds.size,
     answerCount: Object.keys(room.game.answers).filter((playerId) => activePlayerIds.has(playerId)).length,
     answerSelections: publicAnswerSelections(room, ownPlayer?.id),
     currentQuestion: currentQuestion ? publicQuestion(room, currentQuestion, effectiveRole, room.phase, ownPlayer?.id || "") : null,
-    ownPlayer: ownPlayer ? publicPlayer(room, ownPlayer) : null,
+    ownPlayer: ownPlayer ? { ...publicPlayer(room, ownPlayer), careerResultStatus: ownPlayer.careerResultStatus || null } : null,
     ownCustomGahook: ownPlayer ? publicCustomGahook(ownPlayer) : null,
     customGahookOptions: canViewRoomSocial ? {
       ...customGahookOptions(),
-      slotCount: Math.max(1, Number(ownPlayer?.customGahookSlots) || 1),
+      slotCount: customGahookSlotCount({ customGahookSlots: ownPlayer?.customGahookSlots }),
       selectedSlot: Math.max(0, Number(ownPlayer?.customGahookSlot) || 0),
+      slots: publicCustomGahookSlots(ownPlayer || {}),
       accountLinked: Boolean(ownPlayer?.accountId)
     } : null,
     ownQuestions: ownPlayer ? publicOwnQuestions(room, ownPlayer.id) : [],
@@ -4650,7 +4847,7 @@ function buildSnapshot(room, role, playerKey) {
     ownAnswer: ownPlayer ? room.game.answers[ownPlayer.id] ?? null : null,
     ownGahookUses: ownPlayer ? publicOwnGahookUses(room, ownPlayer.id) : { question: [], questionTargetId: "", round: [], reveal: [] },
     ownVote: ownPlayer && currentQuestion?.votes ? currentQuestion.votes[ownPlayer.id] ?? null : null,
-    questionResults: questionResults(room),
+    questionResults: shared.questionResults,
     lastGameSummary: room.lastGameSummary || null,
     phaseDurations: {
       reading: READING_MS,
@@ -4831,6 +5028,7 @@ function publicQuestionResult(room, question) {
   return {
     id: question.id,
     mode: question.mode || room.gameMode || DEFAULT_GAME_MODE,
+    needsIntendedAnswer: !questionReadyForMode(room, question),
     text: question.text,
     namedPlayerNames: question.namedPlayerNames || [],
     authorName: question.authorName,
@@ -4863,13 +5061,13 @@ function questionResults(room) {
 // the socket open costs everyone else.
 const SATURATED_CLIENT_LIMIT_MS = 30_000;
 
-function sendState(client) {
+function sendState(client, sharedParts) {
   const room = getLobbyFromCode(client.code);
   if (!room) {
     return;
   }
   try {
-    const snapshot = buildSnapshot(room, client.role, client.playerKey);
+    const snapshot = buildSnapshot(room, client.role, client.playerKey, sharedParts);
 
     if (client.saturated) {
       // Hold only the newest snapshot. Room state is replaceable, so a stalled
@@ -4877,27 +5075,23 @@ function sendState(client) {
       // as long as they stay connected.
       client.pendingSnapshot = snapshot;
       if (client.saturatedSince && Date.now() - client.saturatedSince > SATURATED_CLIENT_LIMIT_MS) {
-        clients.delete(client.id);
-        client.res.end();
+        client.res.destroy();
       }
       return;
     }
 
-    if (writeSseState(client.res, snapshot) === false) {
-      client.saturated = true;
-      client.saturatedSince = Date.now();
-      client.res.once("drain", () => {
-        client.saturated = false;
-        client.saturatedSince = 0;
-        const queued = client.pendingSnapshot;
-        client.pendingSnapshot = null;
-        // Send the newest state, not the one that was queued first.
-        if (queued && clients.has(client.id)) sendState(client);
-      });
-    }
+    if (writeSseState(client.res, snapshot) === false) markClientSaturated(client);
   } catch (_error) {
-    clients.delete(client.id);
+    client.res.destroy();
   }
+}
+
+function markClientSaturated(client) {
+  markSseClientSaturated(client, {
+    isOpen: () => clients.has(client.id),
+    resume: () => sendState(client),
+    limitMs: SATURATED_CLIENT_LIMIT_MS
+  });
 }
 
 function clearBroadcastTimer(room) {
@@ -4909,9 +5103,12 @@ function clearBroadcastTimer(room) {
 
 function flushBroadcast(room) {
   clearBroadcastTimer(room);
+  room.lastFlushAt = Date.now();
+  // One scratch object for the whole flush. See sharedSnapshotParts.
+  const shared = {};
   for (const client of clients.values()) {
     if (client.code === room.code) {
-      sendState(client);
+      sendState(client, shared);
     }
   }
 }
@@ -4919,7 +5116,21 @@ function flushBroadcast(room) {
 function broadcastState(room, options = {}) {
   room.stateVersion = (room.stateVersion || 0) + 1;
   if (options.immediate) {
-    flushBroadcast(room);
+    // "Immediate" has to mean immediate for the thing a player just did, and it
+    // still does: a Gahook in a quiet room goes out on the same tick. What it
+    // must not mean is one full fan-out per Gahook when fifteen people are
+    // Gahooking at once -- that is fifteen times the work and fifteen times the
+    // bytes for animations nobody can perceive separately anyway. Beyond the
+    // floor the room falls back to a scheduled flush, which carries the same
+    // state a few milliseconds later.
+    const sinceLastFlush = Date.now() - (room.lastFlushAt || 0);
+    if (sinceLastFlush >= IMMEDIATE_BROADCAST_FLOOR_MS) {
+      flushBroadcast(room);
+      return;
+    }
+    if (!room.broadcastTimer) {
+      room.broadcastTimer = setTimeout(() => flushBroadcast(room), IMMEDIATE_BROADCAST_FLOOR_MS - sinceLastFlush);
+    }
     return;
   }
   if (room.broadcastTimer) {

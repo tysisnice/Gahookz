@@ -1,0 +1,635 @@
+
+> gahookz@0.1.0 test
+> npm run standalone:smoke
+
+
+> gahookz@0.1.0 standalone:smoke
+> npm run test:simulation && npm run standalone:smoke:room-expiry && node standalone/test-disposable.mjs npm run standalone:smoke:shared
+
+
+> gahookz@0.1.0 test:simulation
+> node --import tsx standalone/simulate-games.mjs
+
+{
+  "ok": true,
+  "seed": "0x6a09e667",
+  "simulatedGames": 15000,
+  "summary": {
+    "quiz": {
+      "games": 5000,
+      "rounds": 41583,
+      "answers": 511233
+    },
+    "majority": {
+      "games": 5000,
+      "rounds": 41583,
+      "answers": 511233,
+      "ties": 10317
+    },
+    "herd": {
+      "games": 5000,
+      "rounds": 52692,
+      "votes": 718871,
+      "authoredAnswers": 208298,
+      "ties": 12763
+    }
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:room-expiry
+> node standalone/smoke-room-expiry.mjs
+
+{
+  "ok": true,
+  "expireMs": 1500,
+  "checked": [
+    "idle rooms expire",
+    "rooms reset by the host still expire",
+    "rooms started again by the host still expire",
+    "expired rooms release their room-table slot",
+    "a stranger cannot extend a room deadline"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:shared
+> npm run standalone:smoke:security && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment && npm run standalone:smoke:review-repairs
+
+
+> gahookz@0.1.0 standalone:smoke:security
+> node standalone/smoke-security.mjs
+
+{
+  "ok": true,
+  "roomCode": "NLSA",
+  "checked": [
+    "security headers and same-origin enforcement",
+    "bounded JSON parsing errors",
+    "memory-hard protected-room passwords",
+    "credential-free room-state transport",
+    "opaque single-use event tickets",
+    "password-gated room state and event tickets",
+    "bans enforced on reads, not only on joining",
+    "room-affine snapshot recovery and visible connection failure"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:mode-settings
+> node standalone/smoke-mode-settings.mjs
+
+{
+  "ok": true,
+  "checked": [
+    "questions refused in the lobby",
+    "settings refused outside the lobby",
+    "submissions retained in building",
+    "unused questions carried into a new game",
+    "reset returns a clean lobby and parks the writing",
+    "scoring changes do not disturb the roster",
+    "legacy gameMode requests still work",
+    "canonical gameFamily/quizScoring travel beside the derived gameMode",
+    "Herd remembers the Quiz scoring choice",
+    "contradictory old and new spellings are refused",
+    "shrinking the quota parks overflow instead of deleting it",
+    "raising the quota restores parked questions",
+    "each family keeps its own drafts across a switch",
+    "a stale Save is refused and changes nothing",
+    "locking setup freezes the rules, and a reset clears them",
+    "Herd defaults to Quick and Quick is a ceiling, not a quota",
+    "a custom Herd length is honoured and clamped server-side"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:room-rules
+> node standalone/smoke-room-rules.mjs
+
+{
+  "ok": true,
+  "checked": [
+    "rooms default to Chaos with duels on",
+    "the real steal and GET GOT values are published, not guessed",
+    "disabling custom profiles hides pictures without destroying them",
+    "re-enabling restores them",
+    "a duel challenge is refused server-side while duels are off",
+    "Chaos still steals 50 points",
+    "Visual only allows the reaction but moves no score",
+    "Off refuses the Gahook outright",
+    "an ordinary player cannot change the room rules",
+    "a player sees the policy but never a credential",
+    "an opinion suggestion never arrives with a correct answer chosen",
+    "a factual suggestion keys an option for its author",
+    "a stranger is not served suggestions",
+    "a room works through its prompt library",
+    "a fast start promotes pending questions instead of binning them",
+    "Classic autofill uses verified answers only",
+    "Majority autofill predicts nothing on an absent author's behalf",
+    "a Majority prediction is optional, but two predictions is still a mistake",
+    "a player can challenge to 1v1 directly, without being Gahooked first",
+    "a direct challenge still respects one-at-a-time and the host's policy"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:majority-scoring
+> node standalone/smoke-majority-scoring.mjs
+
+Majority Rulz scoring smoke passed.
+
+> gahookz@0.1.0 standalone:smoke:majority-flow
+> node standalone/smoke-majority-flow.mjs
+
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3199",
+  "roomCode": "MWIH",
+  "rounds": 4,
+  "finalScores": {
+    "Alpha Player": 4100,
+    "Bravo Player": 4098,
+    "Charlie Player": 3098,
+    "Delta Player": 2998
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:herd-flow
+> node standalone/smoke-herd-flow.mjs
+
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3199",
+  "code": "DXXJ",
+  "players": 5,
+  "assignments": 20,
+  "rounds": 5,
+  "firstWinningVotes": 3,
+  "finalScores": {
+    "Herd Player 5": 2400,
+    "Herd Player 2": 2196,
+    "Herd Player 3": 1998,
+    "Herd Player 4": 1998,
+    "Herd Player 1": 1400
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:round-presets
+> node standalone/smoke-round-presets.mjs
+
+{
+  "ok": true,
+  "roomIntent": {
+    "roomCode": "IQAQ"
+  },
+  "quick": {
+    "roomCode": "QMPQ",
+    "selected": 10,
+    "reused": 2
+  },
+  "standard": {
+    "roomCode": "SPWU",
+    "generated": 20,
+    "selected": 18
+  },
+  "gahookAndTies": {
+    "roomCode": "GJTL",
+    "winner": "Gahook Player 1",
+    "coLosers": 2
+  },
+  "allTied": {
+    "roomCode": "TKNW",
+    "coWinners": 2
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:onboarding
+> node standalone/smoke-onboarding.mjs
+
+{
+  "ok": true,
+  "funnyAnimalDefaults": 20,
+  "tutorialSentences": [
+    3,
+    3,
+    3,
+    3,
+    3
+  ],
+  "checked": [
+    "Join-left default and shared room field",
+    "welcome tagline and explicit room intent",
+    "20 funny animal name defaults",
+    "Quick, Standard, and Custom round controls",
+    "live total and duration summaries",
+    "chat-only player-banner lobby social UI",
+    "single custom profile-picture editor entry",
+    "five single-artwork tutorials with three headed explanations each",
+    "first-time and persistent tutorial access",
+    "tutorial style isolation and offline cache"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:gahooks
+> node standalone/smoke-gahooks.mjs
+
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3199",
+  "gahooks": {
+    "roomCode": "GVHE",
+    "clientContract": {
+      "checked": [
+        "optimistic sender and receiver Gahook state",
+        "snapshot rollback protection for fresh local Gahooks",
+        "server special events override optimism",
+        "overlay replacement and render-key reset",
+        "sound-channel reset",
+        "stale Gahook ignore without catch-up replay",
+        "Ultimate overlay extension with extra feedback",
+        "smooth Ultimate counter jumps",
+        "six selectable sender-owned Gahook forms",
+        "five dark premium themes with object effects and animated animal poses",
+        "three-second GET GOT sound and banana barrage",
+        "interactive Counter Gahook offers and Gahook Arena challenge",
+        "five-tap lead tug of war and spectator arena",
+        "non-interruptible room-wide GET GOT",
+        "immediate 50-point Gahook theft"
+      ]
+    },
+    "counterGahook": "interactive",
+    "targetScore": -1050,
+    "shamePokes": 1,
+    "latestKind": "boo"
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:arena
+> node standalone/smoke-arena-lifecycle.mjs
+
+{
+  "ok": true,
+  "checked": [
+    "challenge expiry",
+    "45-second draw without a five-tap lead",
+    "automatic result cleanup",
+    "main game cancels arena",
+    "host exits player seat",
+    "kick preserves result"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:roles
+> node standalone/smoke-roles.mjs
+
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3199",
+  "roles": {
+    "roomCode": "RTKJ",
+    "hostPlayer": "Host Hero",
+    "finalPhase": "finished",
+    "leaderboardCount": 5
+  },
+  "moderation": {
+    "roomCode": "MEAA",
+    "chatRemoval": true,
+    "reportingVisibleToHostOnly": true,
+    "mediaWipe": true
+  },
+  "questionEdits": {
+    "roomCode": "ERTZ",
+    "questionId": "7b0d56a8-aeb6-461f-a70d-d80b0d6c78ba",
+    "finalStatus": "pending"
+  },
+  "hostPlayerActions": {
+    "roomCode": "AZTS",
+    "randomizedName": "Cosmic Noodle",
+    "newHost": "Future Host",
+    "kicked": true
+  },
+  "forceStart": {
+    "quiz": {
+      "roomCode": "QCDX",
+      "generated": 3,
+      "total": 4
+    },
+    "majority": {
+      "roomCode": "MLBT",
+      "generated": 3,
+      "total": 4
+    }
+  },
+  "hostPlayerLifecycle": {
+    "roomCode": "XDQU",
+    "phase": "lobby",
+    "gameMode": "majority",
+    "profileEditedWithoutRejoin": true
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:layout
+> node standalone/smoke-layout.mjs
+
+{
+  "ok": true,
+  "layout": {
+    "checked": [
+      "player grid capped at two columns",
+      "medium single-column player banners",
+      "small-medium widened host split layout",
+      "narrow-phone one-column player grid",
+      "mobile player name wrapping",
+      "burger vote-kick menu",
+      "routine Gahook labels hide counters",
+      "mobile player action widths",
+      "always-visible join action footer",
+      "mobile Gahook button width",
+      "mobile answer stacking",
+      "mobile in-game roster button column",
+      "final-card long-name wrapping",
+      "scoreboard names wrap",
+      "scoreboard Gahook button sizing",
+      "full-width large-screen background with capped content",
+      "side-by-side mobile game metrics",
+      "tablet question-stage stacking",
+      "border-box overflow protection",
+      "large right-aligned lobby QR with centered code text",
+      "non-overlapping left/right chat bubbles",
+      "bottom-right floating chat with minimized notifications"
+    ]
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:finals
+> node standalone/smoke-finals.mjs
+
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3199",
+  "ui": {
+    "checked": [
+      "host final layout order",
+      "readonly party final layout order",
+      "player final layout order",
+      "shared read, answer, reveal, and finale leaderboard",
+      "winner-stage and compact party-awards hierarchy",
+      "tie-aware winner presentation and speech",
+      "clearly labelled Congratulate and Boo actions",
+      "no final countdown",
+      "final visible feedback hooks",
+      "celebration and shame overlay assets",
+      "winner congratulations counter and Ultimate Congratulations",
+      "winner/best and party-award styling hooks"
+    ]
+  },
+  "api": {
+    "roomCode": "FZVX",
+    "leaderboardCount": 4,
+    "bestScore": 4,
+    "worstScore": -4,
+    "loserLatestKind": "boo"
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:party-view
+> node standalone/smoke-party-view.mjs
+
+{
+  "ok": true,
+  "partyView": {
+    "checked": [
+      "no legacy phone component/class render path",
+      "host and player room routing",
+      "separate setup and question-making lobbies",
+      "server-backed option lock reflected in host UI",
+      "host-as-player keeps host menu",
+      "ordered Join/Lobby/Live state and room-code pills",
+      "dismissible per-room explainer banners",
+      "host menu is simplified",
+      "player menu is simplified",
+      "reliable host player actions and combined randomization",
+      "menus do not show room code",
+      "join/lobby/game/final use party shells",
+      "private join/question/answer/vote controls live inside party layout",
+      "readonly party view reuses TV-style game/final screens",
+      "reading answer text redaction in party view",
+      "shared read, answer, reveal, and finale leaderboard",
+      "winner-first finale hierarchy with compact party awards",
+      "tie-aware winner presentation and labelled Boo actions"
+    ]
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:regressions
+> node standalone/smoke-regressions.mjs
+
+{
+  "ok": true,
+  "exactRoomLookup": {
+    "roomCode": "RMSR",
+    "missingCode": "XASU"
+  },
+  "generatedAnswers": {
+    "roomCode": "GYTE",
+    "correctAnswerIds": [
+      "blue",
+      "red",
+      "blue",
+      "yellow"
+    ]
+  },
+  "connectedVoteKick": {
+    "roomCode": "VNEG",
+    "remainingPlayers": 5
+  },
+  "finalEligibility": {
+    "roomCode": "EWFJ",
+    "winner": "Eligible Winner",
+    "losers": [
+      "Eligible Loser",
+      "Eligible Other"
+    ]
+  },
+  "questionVoteIntegrity": {
+    "roomCode": "QQRU",
+    "validGoodVotes": 1,
+    "validBadVotes": 1,
+    "abstentionRoomCode": "AZBU"
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:pwa
+> node standalone/smoke-pwa.mjs
+
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3199",
+  "checked": [
+    "installable manifest and app icons",
+    "service worker registration and shell cache",
+    "content-hashed release consistency",
+    "network-only APIs and event stream",
+    "offline navigation fallback",
+    "server/client protocol mismatch recovery",
+    "Gahook Dash and recovery handoff",
+    "health and manifest endpoints"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:information
+> node standalone/smoke-information.mjs
+
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3199",
+  "assetVersion": "release-4a97d7b7c3b5edca",
+  "server": {
+    "checked": true,
+    "status": "passed"
+  },
+  "checked": [
+    "/information server and client routing",
+    "offline API bypass",
+    "source-to-production information module build",
+    "asset and service-worker version consistency",
+    "eight report destinations and Majority Rulz/Herd rules",
+    "/information and /information#majority HTTP navigation"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:dash
+> node standalone/smoke-dash.mjs
+
+{
+  "ok": true,
+  "code": "SLJD",
+  "topScore": 51,
+  "checked": [
+    "room drop-in state",
+    "remote runner position",
+    "room personal best retention",
+    "legacy room-state compatibility",
+    "opening obstacle beats and character behavior",
+    "focus-scoped keyboard controls",
+    "offline-only Dash and social lobby replacement"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:social-media
+> node standalone/smoke-social-media.mjs
+
+{
+  "ok": true,
+  "chatMessages": 60,
+  "whiteboardStrokeCap": 160,
+  "customFrames": 3,
+  "credentialsHidden": true
+}
+
+> gahookz@0.1.0 standalone:smoke:social-creation
+> node standalone/smoke-social-creation.mjs
+
+{
+  "ok": true,
+  "baseUrl": "http://127.0.0.1:3199",
+  "ui": {
+    "paintTools": 5,
+    "brushSizes": 3,
+    "lobbySocialPlacements": 5,
+    "floatingChat": true,
+    "customFrameMaximum": 3
+  },
+  "limits": {
+    "chatHistory": 60,
+    "chatCharacters": 240,
+    "chatBurst": 6,
+    "whiteboardStrokes": 160,
+    "pointsPerStroke": 128,
+    "strokeBurst": 60,
+    "customOptions": {
+      "backgroundIds": [
+        "monkey"
+      ],
+      "backgroundColors": [
+        "#ff3d8b",
+        "#246bfe",
+        "#00bfd8",
+        "#7c3aed",
+        "#20b26b",
+        "#ff8a00",
+        "#ef4444",
+        "#111214"
+      ],
+      "effectIds": [
+        "shake",
+        "spin",
+        "bounce",
+        "zoom"
+      ],
+      "soundIds": [
+        "bonk",
+        "honk",
+        "boing",
+        "airhorn",
+        "none",
+        "custom"
+      ],
+      "limits": {
+        "maxFrames": 3,
+        "maxFrameChars": 180000,
+        "maxAudioChars": 280000
+      }
+    }
+  },
+  "endpoints": {
+    "code": "WHFW",
+    "authenticatedSocialState": true,
+    "publicIdImpersonationBlocked": true,
+    "chatMessagesAccepted": 8,
+    "whiteboardRevision": 2,
+    "customFrames": 3,
+    "customAudio": true,
+    "ownerOnlyConfiguration": true,
+    "customPokeDelivery": true,
+    "livePhaseGuards": true
+  }
+}
+
+> gahookz@0.1.0 standalone:smoke:prompts
+> node --import tsx standalone/smoke-prompt-library.mjs
+
+{
+  "ok": true,
+  "newTemplates": 40,
+  "migratedLegacy": 175,
+  "checked": [
+    "all 40 new ids present and structurally valid",
+    "four distinct options and only supported tokens",
+    "every educational entry keys a real option and explains it",
+    "no funny or opinion prompt carries an answer key",
+    "all 40 Majority prompts kept their four options through deduplication",
+    "58 educational prompts survived migration",
+    "a migrated educational prompt kept its verified answer"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:deployment
+> node standalone/smoke-deployment.mjs
+
+{
+  "ok": true,
+  "checked": [
+    "non-root read-only Node container",
+    "loopback-only development and production ports with resource limits",
+    "SSE-safe Nginx proxy",
+    "health-gated, release-verified deployment",
+    "in-image browser build from current JSX source",
+    "graceful server shutdown"
+  ]
+}
+
+> gahookz@0.1.0 standalone:smoke:review-repairs
+> node --import tsx standalone/smoke-review-repairs.mjs
+
+Review repairs HTTP: authorization, all timed pause/resume phases, both scoring directions, missing Classic key, and edit passed.
+Review repairs HTTP: pause/resume while waiting for player progress passed.
+Review repairs HTTP: live contracts, atomic rejection, aliases, draft ownership, factual metadata, and banned actor passed.
+Gahookz release-4a97d7b7c3b5edca running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 31 active room(s).
+Disposable server stopped (owned PID 2238350).

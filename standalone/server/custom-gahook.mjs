@@ -1,6 +1,14 @@
 import { storeRoomAudio, storeRoomImage } from "./media.mjs";
 
 export const MAX_CUSTOM_GAHOOK_FRAMES = 3;
+// Two custom Gahooks for everybody, account or not.
+//
+// Slots used to be an account entitlement alone, so a guest had one and could
+// not keep a second drawing at all. Custom Gahooks are cosmetic, and guest play
+// must never need an account, so the two local slots live on the room player.
+// An account still adds durability — its saved copy survives the room — and an
+// entitlement above two still widens the picker.
+export const LOCAL_CUSTOM_GAHOOK_SLOTS = 2;
 export const MAX_CUSTOM_GAHOOK_FRAME_CHARS = 180_000;
 export const MAX_CUSTOM_GAHOOK_AUDIO_CHARS = 280_000;
 export const CUSTOM_GAHOOK_BACKGROUND_IDS = ["monkey"];
@@ -30,6 +38,7 @@ const DEFAULT_CUSTOM_GAHOOK = Object.freeze({
 
 export function customGahookOptions() {
   return {
+    localSlots: LOCAL_CUSTOM_GAHOOK_SLOTS,
     backgroundIds: [...CUSTOM_GAHOOK_BACKGROUND_IDS],
     backgroundColors: [...CUSTOM_GAHOOK_BACKGROUND_COLORS],
     effectIds: [...CUSTOM_GAHOOK_EFFECT_IDS],

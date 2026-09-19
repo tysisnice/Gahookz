@@ -100,6 +100,8 @@ COPY --chown=node:node packages ./packages
 COPY --chown=node:node infra/postgres ./infra/postgres
 COPY --from=browser-build --chown=node:node /build/standalone/public ./standalone/public
 
+RUN mkdir -p /app/data && chown node:node /app/data
+
 USER node
 
 EXPOSE 3001

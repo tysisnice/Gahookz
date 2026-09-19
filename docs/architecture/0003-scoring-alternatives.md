@@ -13,7 +13,7 @@ Reproducible fixtures: `packages/game-engine/test/scoring-alternatives.test.ts`.
 ## 1. Shared winners on a tied vote
 
 **Today.** A tie is separated by fastest vote, then fastest average, then the
-stable answer order. Exactly one answer wins and exactly one author is paid.
+stable answer order. Exactly one answer wins the voter bonus. Herd authors are paid for every vote their own answer receives, including votes for non-winning answers.
 Since P02 the reveal says which of those three rules actually decided it, so a
 tie settled by answer order is no longer announced as a speed win.
 
@@ -21,7 +21,7 @@ tie settled by answer order is no longer announced as a speed win.
 cannot separate them, so answer order does. One player is told they lost;
 nothing visible to them distinguishes the two answers.
 
-**The alternative.** Pay both. Two players are right instead of one being
+**The alternative.** Give voters for either tied leading answer the voter bonus. Authored-answer points remain vote-proportional. Two voters are rewarded instead of one being
 beaten by a rule they cannot observe.
 
 **Assessment.** The argument for it is real, and it is strongest exactly where
@@ -72,5 +72,5 @@ matter — is not answerable from the code.
   left to rot.
 
 Until then the fixtures in `scoring-alternatives.test.ts` include a guard that
-fails if the shipped scoring changes at all, so neither of these can arrive by
+pins the selected shipped scoring examples, so neither of these can arrive by
 accident.

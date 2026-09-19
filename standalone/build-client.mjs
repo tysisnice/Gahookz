@@ -15,6 +15,7 @@ const generatedFiles = new Set([
   "client/reveal.js",
   "release.json",
   "client/audio.runtime.js",
+  "client/controls.js",
   "client/custom-gahook.js",
   "client/drawing.js",
   "client/information.js",
@@ -121,6 +122,7 @@ await Promise.all([
     ["./client/drawing.jsx", versioned("./client/drawing.js")],
     ["./client/social.jsx", versioned("./client/social.js")],
     ["./client/qr.jsx", versioned("./client/qr.js")],
+    ["./client/controls.jsx", versioned("./client/controls.js")],
     ["./client/custom-gahook.jsx", versioned("./client/custom-gahook.js")],
     ["./client/information.jsx", versioned("./client/information.js")],
     ["./client/legal.jsx", versioned("./client/legal.js")]
@@ -142,6 +144,7 @@ await Promise.all([
   transformFile("client/presentation.jsx", "client/presentation.js", "jsx", [
     ["./gahook-forms.js", versioned("./gahook-forms.js")]
   ]),
+  transformFile("client/controls.jsx", "client/controls.js", "jsx"),
   transformFile("client/tutorial.jsx", "client/tutorial.js", "jsx"),
   transformFile("client/drawing.jsx", "client/drawing.js", "jsx"),
   transformFile("client/social.jsx", "client/social.js", "jsx"),

@@ -92,28 +92,7 @@ jobs:
       - run: npm ci
       - run: npm run build
 
-      # NODE_ENV is deliberately left unset. Production admission limits cap
-      # room creation at 12 per address, and the suite creates far more than
-      # that, so it must run against a development-mode process.
-      - name: Start a disposable server on port 3199
-        run: |
-          HOST=127.0.0.1 PORT=3199 \
-          GAHOOKZ_INSTANCE_ID=ci-$GITHUB_RUN_ID \
-          GAHOOKZ_METRICS_TOKEN=ci-metrics-token \
-            npm start > /tmp/gahookz-ci-server.log 2>&1 &
-          echo $! > /tmp/gahookz-ci-server.pid
-          for _ in $(seq 1 60); do
-            curl -fsS http://127.0.0.1:3199/api/health >/dev/null 2>&1 && break
-            sleep 1
-          done
-          curl -fsS http://127.0.0.1:3199/api/health || {
-            echo "::error::Server never became healthy"; cat /tmp/gahookz-ci-server.log; exit 1;
-          }
-
-      - name: Smoke suite
-        env:
-          GAHOOKZ_BASE_URL: http://127.0.0.1:3199
-          GAHOOKZ_TEST_BASE_URL: http://127.0.0.1:3199
+      - name: Smoke suite (owns fresh disposable lifetimes)
         run: npm test
 
       # The client is otherwise never executed by anything: the rest of the
@@ -126,16 +105,11 @@ jobs:
       - name: Browser flow
         env:
           GAHOOKZ_BASE_URL: http://127.0.0.1:3199
-        run: npm run test:browser
+        run: npm run test:disposable -- npm run test:browser
 
-      - name: Stop the server
-        if: always()
-        run: |
-          [ -f /tmp/gahookz-ci-server.pid ] && kill "$(cat /tmp/gahookz-ci-server.pid)" 2>/dev/null || true
+      - name: Complete room games (fresh lifetime)
+        run: npm run test:disposable -- npm run test:rooms
 
-      - name: Server log
-        if: failure()
-        run: tail -100 /tmp/gahookz-ci-server.log || true
 
   image:
     name: Container images build and serve

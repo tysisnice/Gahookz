@@ -1,0 +1,324 @@
+{
+  "label": "breaking-20p-4hz",
+  "startedAt": "2026-09-19T11:29:38.739Z",
+  "options": {
+    "players": 20,
+    "rooms": 1,
+    "durationSeconds": 30,
+    "pokesPerPlayerPerSecond": 4,
+    "sharedIp": false,
+    "label": "breaking-20p-4hz",
+    "out": "docs/verification/2026-09-19-hosting/raw/breaking-20p-4hz.json",
+    "warmupSeconds": 3
+  },
+  "baseUrl": "http://127.0.0.1:3199",
+  "serverPid": 2767754,
+  "rooms": [
+    "GBVV"
+  ],
+  "streamFailures": [],
+  "idle": {
+    "cpu": {
+      "count": 11,
+      "min": 0,
+      "mean": 1.45,
+      "p50": 0,
+      "p95": 4,
+      "p99": 4,
+      "max": 4
+    },
+    "rssMbPeak": 97.86,
+    "healthLatencyMs": {
+      "count": 30,
+      "min": 1.52,
+      "mean": 2.6,
+      "p50": 2.4,
+      "p95": 4.61,
+      "p99": 4.74,
+      "max": 4.74
+    }
+  },
+  "storm": {
+    "wallSeconds": 30.24,
+    "pokes": {
+      "sent": 2395,
+      "ok": 2395,
+      "rejected": 0,
+      "rateLimited": 0,
+      "transportErrors": 0
+    },
+    "pokesPerSecondAchieved": 79.19,
+    "rejectionReasons": {},
+    "pokeRequestLatencyMs": {
+      "count": 2395,
+      "min": 1.05,
+      "mean": 11.97,
+      "p50": 2.9,
+      "p95": 41.86,
+      "p99": 145.58,
+      "max": 214.25
+    },
+    "fanoutLatencyMs": {
+      "count": 45759,
+      "min": 7,
+      "mean": 45.67,
+      "p50": 42,
+      "p95": 82,
+      "p99": 159,
+      "max": 242
+    },
+    "fanoutCoveragePercent": 90.98,
+    "stateFramesDelivered": 12853,
+    "stateBytesDelivered": 468640047,
+    "meanFrameBytes": 36462,
+    "broadcastAmplification": 5.37
+  },
+  "server": {
+    "available": true,
+    "pid": 2767754,
+    "samples": 138,
+    "cpuPercentOfOneCore": {
+      "count": 138,
+      "min": 0,
+      "mean": 29.64,
+      "p50": 32,
+      "p95": 43.82,
+      "p99": 47.81,
+      "max": 48
+    },
+    "cpuSecondsUsed": 10.28,
+    "rssBytes": {
+      "start": 102600704,
+      "peak": 121536512,
+      "end": 121536512
+    },
+    "rssMbPeak": 115.91,
+    "threads": 11
+  },
+  "harness": {
+    "available": true,
+    "pid": 2767768,
+    "samples": 138,
+    "cpuPercentOfOneCore": {
+      "count": 138,
+      "min": 0,
+      "mean": 23.75,
+      "p50": 23.81,
+      "p95": 48,
+      "p99": 54.9,
+      "max": 56
+    },
+    "cpuSecondsUsed": 8.26,
+    "rssBytes": {
+      "start": 73101312,
+      "peak": 750092288,
+      "end": 750133248
+    },
+    "rssMbPeak": 715.34,
+    "threads": 7
+  },
+  "healthProbe": {
+    "latencyMs": {
+      "count": 324,
+      "min": 0.9,
+      "mean": 5.94,
+      "p50": 1.77,
+      "p95": 23.39,
+      "p99": 93.81,
+      "max": 208.06
+    },
+    "failures": 0
+  },
+  "survived": true,
+  "clients": [
+    {
+      "name": "Host 1",
+      "frames": 623,
+      "heartbeats": 2,
+      "bytes": 21870916,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-1",
+      "frames": 621,
+      "heartbeats": 2,
+      "bytes": 22653848,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-2",
+      "frames": 620,
+      "heartbeats": 2,
+      "bytes": 22624011,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-3",
+      "frames": 619,
+      "heartbeats": 2,
+      "bytes": 22591892,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-4",
+      "frames": 618,
+      "heartbeats": 2,
+      "bytes": 22561508,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-5",
+      "frames": 617,
+      "heartbeats": 2,
+      "bytes": 22517905,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-6",
+      "frames": 616,
+      "heartbeats": 2,
+      "bytes": 22487648,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-7",
+      "frames": 615,
+      "heartbeats": 2,
+      "bytes": 22450654,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-8",
+      "frames": 614,
+      "heartbeats": 2,
+      "bytes": 22425601,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-9",
+      "frames": 613,
+      "heartbeats": 2,
+      "bytes": 22391995,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-10",
+      "frames": 612,
+      "heartbeats": 2,
+      "bytes": 22354077,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-11",
+      "frames": 611,
+      "heartbeats": 2,
+      "bytes": 22319219,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-12",
+      "frames": 610,
+      "heartbeats": 2,
+      "bytes": 22289452,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-13",
+      "frames": 609,
+      "heartbeats": 2,
+      "bytes": 22255605,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-14",
+      "frames": 608,
+      "heartbeats": 2,
+      "bytes": 22215332,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-15",
+      "frames": 607,
+      "heartbeats": 2,
+      "bytes": 22189061,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-16",
+      "frames": 606,
+      "heartbeats": 2,
+      "bytes": 22156920,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-17",
+      "frames": 605,
+      "heartbeats": 2,
+      "bytes": 22122647,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-18",
+      "frames": 604,
+      "heartbeats": 2,
+      "bytes": 22089524,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-19",
+      "frames": 603,
+      "heartbeats": 2,
+      "bytes": 22054436,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    },
+    {
+      "name": "P1-20",
+      "frames": 602,
+      "heartbeats": 2,
+      "bytes": 22017796,
+      "streamStatus": 200,
+      "streamEnded": false,
+      "errors": []
+    }
+  ]
+}

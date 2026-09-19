@@ -1,0 +1,14 @@
+
+> gahookz@0.1.0 test:disposable
+> node standalone/test-disposable.mjs npm run standalone:smoke:review-repairs
+
+
+> gahookz@0.1.0 standalone:smoke:review-repairs
+> node --import tsx standalone/smoke-review-repairs.mjs
+
+Review repairs HTTP: authorization, all timed pause/resume phases, both scoring directions, missing Classic key, and edit passed.
+Review repairs HTTP: pause/resume while waiting for player progress passed.
+Review repairs HTTP: live contracts, atomic rejection, aliases, draft ownership, factual metadata, and banned actor passed.
+Gahookz release-4a97d7b7c3b5edca running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 1 active room(s).
+Disposable server stopped (owned PID 2230839).

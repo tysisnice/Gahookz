@@ -1,0 +1,145 @@
+
+> gahookz@0.1.0 test:disposable
+> node standalone/test-disposable.mjs npm run test:rooms
+
+
+> gahookz@0.1.0 test:rooms
+> node standalone/simulate-room-flows.mjs
+
+{
+  "ok": true,
+  "games": 12,
+  "summaries": [
+    {
+      "mode": "quiz",
+      "players": 4,
+      "rounds": 4,
+      "votes": 16
+    },
+    {
+      "mode": "quiz",
+      "players": 8,
+      "rounds": 8,
+      "votes": 64
+    },
+    {
+      "mode": "quiz",
+      "players": 12,
+      "rounds": 10,
+      "votes": 120
+    },
+    {
+      "mode": "quiz",
+      "players": 20,
+      "rounds": 10,
+      "votes": 200
+    },
+    {
+      "mode": "majority",
+      "players": 4,
+      "rounds": 4,
+      "votes": 16
+    },
+    {
+      "mode": "majority",
+      "players": 8,
+      "rounds": 8,
+      "votes": 64
+    },
+    {
+      "mode": "majority",
+      "players": 12,
+      "rounds": 10,
+      "votes": 120
+    },
+    {
+      "mode": "majority",
+      "players": 20,
+      "rounds": 10,
+      "votes": 200
+    },
+    {
+      "mode": "herd",
+      "players": 4,
+      "rounds": 4,
+      "votes": 16,
+      "writingLoads": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "workloadSpread": 0
+    },
+    {
+      "mode": "herd",
+      "players": 8,
+      "rounds": 8,
+      "votes": 64,
+      "writingLoads": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "workloadSpread": 0
+    },
+    {
+      "mode": "herd",
+      "players": 12,
+      "rounds": 8,
+      "votes": 96,
+      "writingLoads": [
+        3,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        2,
+        2,
+        3
+      ],
+      "workloadSpread": 1
+    },
+    {
+      "mode": "herd",
+      "players": 20,
+      "rounds": 8,
+      "votes": 160,
+      "writingLoads": [
+        2,
+        2,
+        1,
+        2,
+        1,
+        2,
+        2,
+        1,
+        2,
+        1,
+        2,
+        2,
+        2,
+        2,
+        1,
+        1,
+        2,
+        1,
+        1,
+        2
+      ],
+      "workloadSpread": 1
+    }
+  ]
+}
+Gahookz release-4a97d7b7c3b5edca running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 12 active room(s).
+Disposable server stopped (owned PID 2237299).

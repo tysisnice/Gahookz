@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { allRoomQuestions } from "./content-inventory.mjs";
 import { MAX_ROOM_ASSET_CHARS } from "./room.mjs";
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,([a-z0-9+/=]+)$/i;
@@ -56,11 +57,15 @@ export function pruneRoomMedia(room) {
   };
   Object.values(room.players || {}).forEach((player) => {
     retain(player.avatarImageDataUrl);
+    retain(player.hiddenAvatarImageDataUrl);
     retainCustomGahook(player.customGahook);
+    // Both local slots hold media, not just the active one. Pruning only the
+    // active slot deleted the other slot's frames the moment a player switched.
+    (Array.isArray(player.customGahookBySlot) ? player.customGahookBySlot : []).forEach(retainCustomGahook);
     retainCustomGahook(player.latestPoke?.customGahook);
   });
   Object.values(room.bannedPlayers || {}).forEach((player) => retain(player.avatarImageDataUrl));
-  [...(room.questions || []), ...(room.pendingQuestions || []), ...(room.quizQuestions || [])].forEach((question) => {
+  allRoomQuestions(room).forEach((question) => {
     retain(question.imageDataUrl);
     retain(question.authorAvatarImageDataUrl);
   });

@@ -2031,7 +2031,95 @@ img {
 }
 
 .player-wall {
+  /* The paint layer is positioned against this. */
+  position: relative;
   padding-top: 10px;
+}
+
+/* Painting over the player wall.
+   One brush, one colour, fixed opacity. The canvas covers the whole wall but
+   ignores the pointer until Draw is on, so every banner underneath stays
+   clickable — a Gahook button must never be blocked by a drawing surface. */
+.lobby-paint {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.lobby-paint__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  pointer-events: none;
+}
+
+.lobby-paint.is-drawing .lobby-paint__canvas {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: crosshair;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+.lobby-paint__tools {
+  position: absolute;
+  right: 8px;
+  top: -4px;
+  display: flex;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.lobby-paint__draw,
+.lobby-paint__erase {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(17, 18, 20, 0.7);
+  color: #fff;
+  font-size: 0.76rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.lobby-paint__swatch {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: var(--lobby-paint-color, #fff);
+  opacity: 0.6; /* the opacity strokes are actually painted at */
+}
+
+.lobby-paint__draw.is-on {
+  background: var(--lobby-paint-color, #7c3aed);
+  border-color: #fff;
+  color: #111214;
+}
+
+.lobby-paint__draw:focus-visible,
+.lobby-paint__erase:focus-visible {
+  outline: 3px solid #f2c230;
+  outline-offset: 2px;
+}
+
+.lobby-paint__status {
+  position: absolute;
+  right: 8px;
+  top: 34px;
+  margin: 0;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(17, 18, 20, 0.82);
+  color: #ffd1dc;
+  font-size: 0.72rem;
+  pointer-events: auto;
 }
 
 .player-card,
@@ -2708,15 +2796,17 @@ img {
   gap: 8px;
 }
 
+/* Shorter cards. These carried a third line repeating the totals block below
+   them, and a 116px floor that left a band of empty space inside every card
+   once that line was gone. They are now sized by their own content. */
 .round-preset-options > button {
   min-width: 0;
-  min-height: 116px;
   display: grid;
   align-content: start;
-  gap: 4px;
+  gap: 2px;
   border: 2px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
-  padding: 12px 10px;
+  padding: 9px 10px;
   background: linear-gradient(155deg, rgba(36, 107, 254, 0.28), rgba(0, 191, 216, 0.16));
   color: #ffffff;
   text-align: left;
@@ -2767,6 +2857,26 @@ img {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 5px 12px;
   color: #ffffff;
+}
+
+/* One line: the numbers, and an (i) holding whatever needs explaining. */
+.round-preset-summary.is-one-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.round-preset-summary.is-one-line > span {
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.round-preset-summary.is-one-line > span strong {
+  color: #ffdf45;
+  font-size: 1.22rem;
 }
 
 .round-preset-summary > span:first-child strong {
@@ -6843,9 +6953,14 @@ button.answer-tile {
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5), inset 0 -8px 0 rgba(6, 51, 82, 0.1);
 }
 
+/* Every tutorial is the same dialog. Herd was missing from this list, so it
+   alone fell back to the 820px base width with different padding and a
+   different background — which is why it looked like a different size on
+   desktop beside the others. */
 .tutorial-dialog--overview,
 .tutorial-dialog--quiz,
 .tutorial-dialog--majority,
+.tutorial-dialog--herd,
 .tutorial-dialog--host {
   width: min(960px, 100%);
   border-color: #ffdf45;
@@ -7046,22 +7161,34 @@ button.answer-tile {
   border-top: 6px solid #ff3d8b;
 }
 
+/* The number sits in the middle of its coloured square.
+   Stated explicitly rather than through `place-items`, and with an explicit
+   `line-height: 1`, because the digit was inheriting a line box taller than
+   the 38px square and riding up out of the centre. `tabular-nums` keeps 1, 2
+   and 3 the same width so the three squares read as a set. */
 .tutorial-dialog__step-number {
+  box-sizing: border-box;
   width: 38px;
   height: 38px;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   border-radius: 10px;
   background: linear-gradient(135deg, #ff8a00, #ff3d8b);
   color: #ffffff;
   font-size: 1.15rem;
   font-weight: 1000;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
   box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.17);
 }
 
 .tutorial-dialog__step:nth-child(1) .tutorial-dialog__step-number {
   background: linear-gradient(135deg, #8ff0bc, #20b26b);
-  color: #052f29;
+  /* Near-black rather than dark green: the old value was barely a shade off
+     the square it sat on. */
+  color: #06231f;
 }
 
 .tutorial-dialog__step:nth-child(2) .tutorial-dialog__step-number {
@@ -7174,6 +7301,7 @@ button.answer-tile {
   .tutorial-dialog--overview,
   .tutorial-dialog--quiz,
   .tutorial-dialog--majority,
+  .tutorial-dialog--herd,
   .tutorial-dialog--host {
     padding: 16px 12px 12px;
   }
@@ -7192,6 +7320,30 @@ button.answer-tile {
     min-height: 42px;
     padding-inline: 11px;
     font-size: 0.8rem;
+  }
+
+  /* On a phone the five tabs wrapped into a cramped stack, and the three game
+     modes — the ones a player actually came here for — could not sit on one
+     row. The min-width is what forced it: "Quiz" and "Herd" were being padded
+     out to the width of "Majority Rulz" and then all three no longer fit.
+     Letting each tab be its own width, with tighter tracking, puts them back on
+     one line at 360px while staying above the 40px touch target. */
+  .tutorial-mode-tabs {
+    gap: 5px;
+    /* The header pads 48px on each side to clear the absolutely-positioned
+       close button, which sits up beside the heading. The tabs are a row below
+       it and never needed that clearance -- they were just paying for it, and
+       at 360px those 96px were the difference between three modes on one row
+       and Herd wrapping onto its own. */
+    margin-inline: -40px;
+  }
+
+  .tutorial-mode-tab {
+    min-width: 0;
+    min-height: 40px;
+    padding-inline: 7px;
+    font-size: 0.66rem;
+    letter-spacing: 0.02em;
   }
 
   .tutorial-dialog__steps {
@@ -7329,35 +7481,29 @@ button.answer-tile {
   font-size: 0.85rem;
 }
 
-.custom-gahook-slot-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
-}
 
-.custom-gahook-slot-picker > button {
-  padding: 6px 10px;
-  border: 2px solid #111214;
-  border-radius: 999px;
-  background: #fff;
-  font-size: 0.78rem;
-  font-weight: 900;
-}
-
-.custom-gahook-slot-picker > button.is-selected {
-  background: #ffdf45;
-  box-shadow: 2px 2px 0 #111214;
-}
-
+/* Last game played.
+   This card is light, and it sits inside a screen whose inherited colour is
+   white — so every piece of text in it that did not set its own colour was
+   white on near-white and could not be read at all. The fix is one line
+   (`color`), plus margin so the card is not welded to the banner above it and
+   the player wall below it. */
 .previous-game-summary {
   grid-column: 1 / -1;
   overflow: hidden;
-  padding: 14px;
+  margin: 12px 0 16px;
+  padding: 16px;
   border: 3px solid #111214;
   border-radius: 18px;
   background: linear-gradient(120deg, #fff7ad, #fff 58%, #e9ddff);
   box-shadow: 5px 5px 0 #111214;
+  color: #111214;
+}
+
+.previous-game-summary h2 {
+  color: #111214;
+  font-size: 1.12rem;
+  line-height: 1.25;
 }
 
 .previous-game-summary > header {
@@ -7385,6 +7531,7 @@ button.answer-tile {
   border: 2px solid #111214;
   border-radius: 999px;
   background: #ffdf45;
+  color: #111214;
   white-space: nowrap;
 }
 
@@ -7401,10 +7548,16 @@ button.answer-tile {
   grid-template-columns: auto auto 1fr;
   align-items: center;
   gap: 5px;
-  padding: 7px;
+  padding: 8px;
   border: 2px solid #111214;
   border-radius: 12px;
   background: #fff;
+  color: #111214;
+}
+
+.previous-game-summary > div > span > b {
+  color: #6d28d9;
+  font-size: 0.78rem;
 }
 
 .previous-game-summary > div > span.is-own-player {
@@ -7414,6 +7567,7 @@ button.answer-tile {
 
 .previous-game-summary em {
   overflow: hidden;
+  color: #111214;
   font-size: 0.78rem;
   font-style: normal;
   font-weight: 850;
@@ -7626,13 +7780,19 @@ button.answer-tile {
     padding: 8px;
   }
 
+  /* The profile picture picker was the cramped part of joining on a phone:
+     the form only claimed 100dvh - 220px and gave the picker a 160px floor,
+     which is not quite two rows of 92px choices. Taking back most of that
+     reserved space and raising the floor to three rows plus their gaps
+     (3 * 92 + 2 * 8 = 292px) means a player sees a real spread of characters
+     without scrolling for them. */
   .party-join-form {
-    height: max(430px, calc(100dvh - 220px));
+    height: max(430px, calc(100dvh - 130px));
     min-height: 0;
     max-height: none;
     margin-top: 12px;
     padding: 12px;
-    grid-template-rows: auto auto minmax(160px, 1fr) auto;
+    grid-template-rows: auto auto minmax(292px, 1fr) auto;
   }
 
   .join-explainer-slot {
@@ -7673,6 +7833,25 @@ button.answer-tile {
   .setup-lobby .player-wall,
   .building-lobby .player-wall {
     margin-top: 16px;
+  }
+
+  /* Room to breathe at the bottom of the lobby, and room for the chat bubble.
+     The minimized chat is a 58px circle pinned to the bottom-right of the
+     viewport (.social-chat-fab, .waiting-room-social.is-minimized), so scrolled
+     fully down it used to sit on top of the last player's banner. The space is
+     reserved here instead of moving the bubble on scroll: a control that jumps
+     around while you are reading is worse than one that is simply out of the
+     way. The paint canvas is inset:0 against .player-wall, so it grows over
+     this padding too and the wall gains no dead zone that swallows strokes. */
+  .setup-lobby .player-wall,
+  .building-lobby .player-wall,
+  .player-party-lobby .player-wall {
+    padding-bottom: calc(58px + 18px + env(safe-area-inset-bottom));
+  }
+
+  .host-lobby-layout,
+  .social-lobby-layout {
+    padding-bottom: 12px;
   }
 
   .room-status-banner {
@@ -9286,15 +9465,7 @@ button.answer-tile {
 .host-prompt-style button { min-height: 40px; border-radius: 8px; background: rgba(255, 255, 255, 0.12); color: #ffffff; font-weight: 1000; }
 .host-prompt-style button.is-selected { background: linear-gradient(135deg, #ffdf45, #ff8a00); color: #111214; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.15); }
 
-.social-drawing-tools { min-width: 0; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
-.social-drawing-tools button { min-width: 34px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 0 7px; background: rgba(255, 255, 255, 0.09); color: #ffffff; font-size: 0.68rem; font-weight: 1000; }
-.social-drawing-tools button.is-selected { background: #ffffff; color: #16405a; box-shadow: 0 0 0 2px rgba(143, 240, 188, 0.4); }
-.social-drawing-tools button > span { display: inline-block; flex: 0 0 auto; border-radius: 999px; background: currentColor; }
-.social-drawing-tools button.social-drawing-tools__clear { padding-inline: 9px; color: #ffd1dc; }
 .social-chat__canvas-shell { position: relative; min-width: 0; }
-.social-chat__drawing { position: absolute; inset: 0; z-index: 3; width: 100%; height: 100%; border-radius: 8px; pointer-events: none; }
-.social-chat__drawing.is-active { pointer-events: auto; touch-action: none; cursor: crosshair; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45); }
-.social-chat__stop-drawing { position: absolute; right: 9px; bottom: 9px; z-index: 4; min-height: 34px; border-radius: 999px; padding: 0 12px; background: rgba(17, 18, 20, 0.86); color: #ffffff; font-size: 0.72rem; font-weight: 1000; }
 
 .host-quick-menu summary {
   background: linear-gradient(135deg, #246bfe, #ff3d8b);
@@ -10032,7 +10203,7 @@ button.answer-tile {
    this on a phone where there is no hover. */
 .majority-toggle {
   display: grid;
-  gap: 8px;
+  gap: 0;
   padding: 14px 16px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.06);
@@ -10059,62 +10230,146 @@ button.answer-tile {
   font-size: 0.82rem;
 }
 
-.majority-toggle-switch {
+/* The explainer paragraph that used to sit under this row is now an (i)
+   immediately left of the switch, which is where Tyson asked for it. */
+.majority-toggle-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The shared on/off switch and (i) tip. Both live in client/controls.jsx.
+   The Majority Rulez row is where they were designed, and every menu that
+   used to hand-roll a checkbox or an explainer paragraph now reuses these. */
+
+.toggle-switch {
   flex: 0 0 auto;
-  min-width: 72px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   min-height: 44px; /* stays a comfortable touch target */
-  padding: 0 18px;
+  padding: 0 16px 0 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
   font-weight: 700;
+  font-size: 0.95rem;
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease;
 }
 
-.majority-toggle-switch.is-on {
+.toggle-switch.is-compact {
+  min-height: 36px;
+  padding: 0 13px 0 8px;
+  font-size: 0.85rem;
+}
+
+.toggle-switch-track {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  transition: background 120ms ease;
+}
+
+.toggle-switch.is-compact .toggle-switch-track { width: 28px; height: 17px; }
+
+.toggle-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 140ms ease;
+}
+
+.toggle-switch.is-compact .toggle-switch-knob { width: 13px; height: 13px; }
+
+.toggle-switch-text { min-width: 1.8em; text-align: left; }
+
+.toggle-switch.is-on {
   background: #7c3aed;
   border-color: #7c3aed;
 }
 
-.majority-toggle-switch:focus-visible,
-.majority-toggle-help-button:focus-visible {
+.toggle-switch.is-on .toggle-switch-track { background: rgba(255, 255, 255, 0.45); }
+.toggle-switch.is-on .toggle-switch-knob { transform: translateX(14px); }
+.toggle-switch.is-compact.is-on .toggle-switch-knob { transform: translateX(11px); }
+
+.toggle-switch:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.toggle-switch:focus-visible,
+.info-tip-button:focus-visible {
   outline: 3px solid #f2c230;
   outline-offset: 2px;
 }
 
-.majority-toggle-help-button {
-  justify-self: start;
-  padding: 6px 0;
-  min-height: 32px;
-  background: none;
-  border: 0;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 0.82rem;
-  text-decoration: underline;
+.info-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.info-tip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
   cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 
-.majority-toggle-help {
-  margin: 0;
-  color: rgba(255, 255, 255, 0.76);
-  font-size: 0.85rem;
+.info-tip-button:hover,
+.info-tip.is-open .info-tip-button {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.info-tip-bubble {
+  position: absolute;
+  z-index: 40;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: min(17rem, 68vw);
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: #101f2c;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.82rem;
+  font-weight: 500;
   line-height: 1.45;
+  text-align: left;
+  white-space: normal;
 }
 
-/* Names the rule actually in force, next to the button that commits to it. */
-.start-scoring-summary {
-  margin: 0;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 0.88rem;
-}
+.info-tip-bubble.is-end { right: -6px; }
+.info-tip-bubble.is-start { left: -6px; }
+.info-tip-bubble[hidden] { display: none; }
 
-.start-scoring-summary strong { color: #fff; }
 
 @media (prefers-reduced-motion: reduce) {
-  .majority-toggle-switch { transition: none; }
+  .toggle-switch,
+  .toggle-switch-track,
+  .toggle-switch-knob { transition: none; }
 }
 
 /* Host Lobby rules.
@@ -10153,12 +10408,21 @@ button.answer-tile {
   display: flex;
   flex-direction: column;
   width: min(520px, 100%);
-  /* Fits a 320px-wide phone and a short landscape window; the body scrolls
-     rather than the dialog growing past the viewport. */
-  max-height: min(90vh, 720px);
+  /* Grows to whatever the screen allows, and only then scrolls.
+     This used to be `min(90vh, 720px)`. The 720px ceiling meant that on a
+     desktop window with hundreds of spare pixels the dialog still stopped at
+     720px and its body grew a scrollbar, which is the bug in the note: plenty
+     of room, scrollbar anyway. The viewport limit alone is the real
+     constraint, and `dvh` keeps it honest on a phone whose browser chrome
+     comes and goes. Still fits a 320px phone and a short landscape window,
+     because the body scrolls when — and only when — the content is taller. */
+  max-height: min(92vh, 92dvh);
   border-radius: 20px;
-  background: #16161d;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  /* Matched to the Game options panel rather than near-black. The room
+     gradient shows through, so the dialog reads as part of the same screen. */
+  background: linear-gradient(170deg, rgba(36, 60, 92, 0.96), rgba(18, 32, 50, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.5);
   color: #fff;
 }
 
@@ -10169,7 +10433,9 @@ button.answer-tile {
 .rules-modal-header p { margin: 4px 0 0; color: rgba(255, 255, 255, 0.66); font-size: 0.86rem; }
 
 .rules-modal-body {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  /* `auto`, never `scroll`: a scrollbar appears because the content does not
+     fit, not because this element exists. */
   overflow-y: auto;
   padding: 12px 20px;
   display: grid;
@@ -10178,11 +10444,42 @@ button.answer-tile {
 
 .rules-section {
   border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   margin: 0;
   padding: 14px 0 0;
   display: grid;
   gap: 10px;
+}
+
+/* A rule and its switch, on one line. Same shape as the Majority Rulez row in
+   Game options, which is the point: the two menus should look like one app. */
+.rules-toggle-row,
+.rules-personal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.92rem;
+}
+
+.rules-toggle-row > span,
+.rules-personal-row > span { min-width: 0; }
+
+.rules-toggle-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.rules-personal-row {
+  background: rgba(255, 255, 255, 0.04);
+  border-style: dashed;
 }
 
 .rules-section legend {
@@ -10198,11 +10495,11 @@ button.answer-tile {
 .rules-choice > div { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .rules-choice button {
-  min-height: 44px;
+  min-height: 42px;
   padding: 0 16px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
   color: #fff;
   cursor: pointer;
 }
@@ -10282,9 +10579,120 @@ button.answer-tile {
 @media (prefers-reduced-motion: reduce) {
   .round-score-breakdown,
   .fact-check,
-  .majority-toggle-switch,
+  .toggle-switch,
+  .toggle-switch-knob,
   .rules-modal {
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/* Icons on the creator and paint-editor buttons.
+   Decorative only: every one sits beside its own text label, so they are
+   aria-hidden and nothing depends on recognising the glyph. */
+.custom-gahook-button-icon,
+.simple-paint-editor__icon {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 0.95em;
+  line-height: 1;
+  vertical-align: -0.05em;
+}
+
+/* The player's own settings, wearing the host Lobby rules dialog's clothes.
+   Shorter, because it holds preferences rather than room rules. */
+.player-settings-modal { width: min(440px, 100%); }
+.player-settings-modal .rules-modal-footer button { flex: 0 1 180px; margin-left: auto; }
+
+/* Desktop F–H: shared question/roster proportions and readable results. */
+.question-creation-heading { flex-wrap: wrap; }
+.question-creation-heading > div { min-width: 0; flex: 1 1 220px; }
+.question-builder .preset-question-button { margin-block: 10px; }
+.herd-builder-note { display: none; }
+.prompt-player-name { color: #174eb5; }
+.herd-player-layout { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "status status" "answers players"; }
+.herd-writing-roster { grid-area: players; min-width: 0; }
+.herd-writing-roster .player-grid { grid-template-columns: 1fr; }
+.herd-answer-workspace { align-self: start; }
+.herd-reveal-breakdown { color: #172b46; background: #f5f9ff; }
+.herd-reveal-breakdown > header { background: transparent; color: #172b46; padding: 8px 0 18px; }
+.herd-reveal-breakdown > header p, .herd-reveal-breakdown > header span { color: #344054; }
+.herd-reveal-breakdown .round-score-breakdown { color: #172b46; background: #fff; padding: 16px; border-radius: 12px; }
+.herd-reveal-breakdown .round-score-total dd { color: #174eb5; }
+.herd-reveal-breakdown .answer-tile { opacity: 1; }
+.reveal-round-summary > .reveal-vote-panel { width: min(100%, 950px); margin-inline: auto; }
+.host-game > .game-leaderboard-panel { width: min(100%, 950px); }
+.finale-party-awards { margin-top: 24px; padding-top: 12px; }
+.finale-party-awards > header span { color: #174eb5; font-size: 1.3rem; }
+.finale-party-awards > header h2 { color: #172b46; font-size: 1.6rem; }
+.finale-party-awards > header p { color: #344054; font-size: 1rem; }
+.gahookz-reduced-effects .final-gahook-card::before,
+.gahookz-reduced-effects .final-gahook-card::after,
+.gahookz-muted .final-gahook-card::before,
+.gahookz-muted .final-gahook-card::after { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .final-gahook-card::before, .final-gahook-card::after { display: none; }
+}
+@media (min-width: 921px) {
+  .host-lobby-layout { width: min(1320px, 100%); margin-inline: auto; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+  .host-lobby-layout .player-grid { grid-template-columns: 1fr; }
+  .host-lobby-layout:has(.player-card:nth-child(9)) { width: min(1700px, 100%); grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr); }
+  .host-lobby-layout .player-grid:has(.player-card:nth-child(9)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 920px) {
+  .host-lobby-layout.has-room-status { grid-template-columns: minmax(0, 1fr); grid-template-areas: "status" "controls" "players"; }
+  .herd-player-layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "status" "answers" "players"; padding: 12px; }
+}
+/* Tutorials can be launched inside a dark lobby banner. */
+.tutorial-dialog .tutorial-guide__summary { color: #344054; }
+.herd-reveal-breakdown .round-score-breakdown dt { color: #344054; }
+
+/* Joining on a phone held sideways.
+   A 430px-tall form does not fit in a 360px-tall viewport at all, so rather
+   than let it clip, the form follows the viewport and the character choices
+   shrink until three rows still fit inside it. The picker scrolls for the rest.
+   This sits at the end of the sheet so it lands after the portrait rules it
+   needs to override. */
+@media (max-width: 900px) and (max-height: 560px) {
+  /* Pinning the form to the viewport height backfired here: roughly 190px of
+     page sits above it at this size, so "viewport height" left the picker a
+     32px slot -- not one full row. The form is allowed to size to its content
+     instead and the page scrolls, which is what the plan asks for when three
+     rows genuinely cannot fit. The picker then gets a real floor of two full
+     rows rather than whatever is left over. */
+  .party-join-form {
+    height: auto;
+    max-height: none;
+    grid-template-rows: auto auto auto auto;
+  }
+
+  .party-join-form .avatar-picker > div {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    height: auto;
+    max-height: 118px;
+  }
+
+  .avatar-choice {
+    min-height: 52px;
+    font-size: 0.68rem;
+    gap: 2px;
+  }
+
+  /* Everything that is not the picker gives up height here. In a 360px-tall
+     viewport the preview and the name field were together taking more room
+     than the thing the player is actually trying to use. */
+  .join-player-preview {
+    min-height: 0;
+    padding: 6px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .join-player-preview h2 {
+    font-size: 1rem;
+  }
+
+  .party-join-form .avatar-picker legend {
+    font-size: 0.72rem;
   }
 }

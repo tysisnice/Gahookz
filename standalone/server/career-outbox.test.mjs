@@ -115,6 +115,7 @@ test("a result accepted before a restart is redelivered afterwards", async () =>
   const delivered = [];
   const second = createCareerOutbox({
     journalPath: journal,
+    now: () => Date.now() + 600_000,
     deliver: async (event) => {
       delivered.push(event.accountId);
       return true;
@@ -142,6 +143,7 @@ test("a delivered result is not sent again after a restart", async () => {
 
   const second = createCareerOutbox({
     journalPath: journal,
+    now: () => Date.now() + 600_000,
     deliver: async (event) => {
       attempts.push(event.matchId);
       return true;
@@ -271,6 +273,7 @@ test("a damaged journal line costs only itself", async () => {
   const delivered = [];
   const second = createCareerOutbox({
     journalPath: journal,
+    now: () => Date.now() + 600_000,
     deliver: async (event) => {
       delivered.push(event.matchId);
       return true;
@@ -310,4 +313,66 @@ test("an invalid event is refused rather than queued forever", () => {
   assert.equal(outbox.accept({ matchId: "m" }).ok, false);
   assert.equal(outbox.accept({ accountId: "a" }).ok, false);
   outbox.stop();
+});
+
+test("append after a torn tail survives a second restart", async (t) => {
+  const { dir, journal } = scratch();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(journal, '{"v":1,"t":"que');
+  const first = createCareerOutbox({ journalPath: journal, timers: fakeTimers().timers, deliver: async () => { throw new Error('outage'); } });
+  t.after(() => first.stop());
+  assert.equal(first.start().corruptLines, 1);
+  assert.equal(first.accept(sampleEvent()).ok, true);
+  await first.flush(); first.stop();
+  const seen = [];
+  const second = createCareerOutbox({ journalPath: journal, now: () => Date.now() + 600_000, deliver: async (event) => { seen.push(event.matchId); } });
+  t.after(() => second.stop());
+  second.start(); await second.flush();
+  assert.deepEqual(seen, ['match-1']);
+});
+
+test("exhausted storage stays bounded across restart and replay", async (t) => {
+  const { dir, journal } = scratch();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const config = { journalPath: journal, maxAttempts: 1, maxPendingBytes: 300, timers: fakeTimers().timers, deliver: async () => { throw new Error('outage'); } };
+  const first = createCareerOutbox(config); t.after(() => first.stop());
+  first.accept(sampleEvent()); await first.flush(); first.stop();
+  const bytes = first.status().pendingBytes;
+  const second = createCareerOutbox(config); t.after(() => second.stop());
+  second.start(); await second.flush();
+  assert.equal(second.status().pendingBytes, bytes);
+  assert.equal(second.accept(sampleEvent({ matchId: 'another' })).reason, 'full');
+  for (let index = 0; index < 10; index++) { second.replayExhausted(); await second.flush(); second.compact(); }
+  assert.equal(second.status().pendingBytes, bytes);
+  assert.ok(fs.statSync(journal).size < 1000);
+});
+
+test("acknowledgement and exhaustion I/O failures retain queued events without rejection", async (t) => {
+  const { dir, journal } = scratch();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let failWrites = false;
+  const io = { ...fs, writeFileSync(...args) { if (failWrites) throw new Error('disk full'); return fs.writeFileSync(...args); } };
+  const box = createCareerOutbox({ journalPath: journal, io, maxAttempts: 1, timers: fakeTimers().timers, deliver: async () => { failWrites = true; } });
+  t.after(() => box.stop());
+  box.accept(sampleEvent()); await assert.doesNotReject(box.flush());
+  assert.equal(box.status().queued, 1);
+  assert.equal(box.status().delivered, 0);
+  assert.equal(box.status().journalErrors, 1);
+  failWrites = false;
+  box.compact();
+  const seen = [];
+  const replay = createCareerOutbox({ journalPath: journal, now: () => Date.now() + 600_000, deliver: async (event) => seen.push(event.matchId) });
+  t.after(() => replay.stop()); replay.start(); await replay.flush();
+  assert.deepEqual(seen, ['match-1']);
+});
+
+test("compaction fsyncs replacement before rename and parent afterwards", async (t) => {
+  const { dir, journal } = scratch();
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const calls = [];
+  const io = { ...fs, fsyncSync(fd) { calls.push('sync'); fs.fsyncSync(fd); }, renameSync(...args) { calls.push('rename'); fs.renameSync(...args); } };
+  const box = createCareerOutbox({ journalPath: journal, io, timers: fakeTimers().timers, deliver: async () => { throw new Error('outage'); } });
+  t.after(() => box.stop()); box.accept(sampleEvent()); await box.flush();
+  calls.length = 0; box.compact();
+  assert.deepEqual(calls, ['sync', 'rename', 'sync']);
 });

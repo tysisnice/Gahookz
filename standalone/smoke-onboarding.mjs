@@ -41,7 +41,7 @@ assert(app.includes('{ id: "quick"') && app.includes('{ id: "standard"') && app.
 assert(app.includes('value === "custom" ?') && app.includes("Questions per player"), "Question-count buttons should appear only for Custom");
 assert(app.includes("plannedQuestions") && app.includes("formatDurationEstimate"), "Preset choices should show total rounds and a duration estimate");
 assert(app.includes('value !== "custom" || Number(customLimit) === Number(lobby.maxQuestionsPerPlayer)'), "Custom totals should invalidate immediately when its question count changes");
-assert(app.includes("Everyone makes one; 10 are selected fairly"), "Quick should explain fair selection for more than ten players");
+assert(app.includes("Everyone makes one question; ten are selected fairly"), "Quick should explain fair selection for more than ten players");
 assert(app.includes("questionUseSpent || inGame && player.id === ownPlayer.id"), "The in-game roster should disable every target after one use and never offer self-steals");
 assert(app.includes('usedPokeIds={questionUseIds(lobby)}'), "Reading, answering, and reveal should share one client Gahook budget");
 
@@ -50,8 +50,12 @@ const joinScreen = app.slice(app.indexOf("function JoinScreen"), app.indexOf("fu
 const playerWaitingLobby = app.slice(app.indexOf("function PlayerWaitingLobby"), app.indexOf("function PlayerLobby"));
 const hostLobby = app.slice(app.indexOf("function HostLobby("), app.indexOf("function HostLobbyPokeEffects"));
 const avatarPicker = app.slice(app.indexOf("function AvatarPicker"), app.indexOf("function DrawAvatarIcon"));
-assert(social.includes("Room chat") && social.includes("Room messages and drawings"), "Waiting lobbies should retain room chat and its drawing layer");
-assert(social.includes("social-chat__drawing") && styles.includes(".social-chat__drawing"), "The waiting-room drawing layer should sit over chat");
+// The chat's own heading no longer promises drawings, because stage E moved
+// painting onto the player wall. Announcing a surface that is not in the chat
+// would mislead a screen-reader user, so the next assertion is where the
+// drawing layer is checked for.
+assert(social.includes("Room chat") && social.includes("Room messages"), "Waiting lobbies should retain room chat");
+assert(social.includes("LobbyPaintLayer") && styles.includes(".lobby-paint__canvas") && !social.includes("social-chat__drawing"), "Drawing belongs on the lobby player wall, not on chat");
 assert(socialHub.includes('send("/api/room/chat"') && socialHub.includes("/api/room/whiteboard/stroke"), "Lobby social actions should send chat and shared strokes");
 assert(socialHub.includes("<AvatarBadge") && socialHub.includes("small />"), "Lobby chat should reuse a compact player-banner avatar");
 assert(styles.includes(".social-chat__message.is-own .social-chat__bubble") && styles.includes("word-break: break-word"), "Lobby chat bubbles should fit their messages and safely wrap long text");

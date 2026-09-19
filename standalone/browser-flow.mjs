@@ -25,6 +25,7 @@ if (/:(3102|80|443)(\/|$)/.test(BASE_URL) || /gahookz\.com/.test(BASE_URL)) {
 const VIEWPORTS = {
   phone: { width: 390, height: 844 },
   smallPhone: { width: 320, height: 568 },
+  landscape: { width: 844, height: 390 },
   desktop: { width: 1280, height: 800 }
 };
 
@@ -156,7 +157,13 @@ async function main() {
 
     // The recovery poll was removed in P08, so this must have arrived over the
     // stream rather than by the client re-asking every 1.8 seconds.
-    note("the lobby updated without the old unconditional recovery poll");
+    let recoveryPolls = 0;
+    const countPoll = (request) => { if (new URL(request.url()).pathname === "/api/state") recoveryPolls += 1; };
+    host.on("request", countPoll);
+    await new Promise((resolve) => setTimeout(resolve, 32_000));
+    host.off("request", countPoll);
+    assert.equal(recoveryPolls, 0, "quiet SSE must remain healthy across the 25-second stale threshold");
+    note("quiet host lobby: 0 recovery polls over 32 seconds with heartbeat events");
 
     // --- the room survives a reload, which is the reconnect path ---
     await player.reload({ waitUntil: "domcontentloaded" });
@@ -207,6 +214,37 @@ async function main() {
       return response.json();
     };
 
+    // Two host tabs: the old modal must submit its captured revision.
+    const hostTab = await browser.newPage();
+    await hostTab.goto(host.url(), { waitUntil: "domcontentloaded" });
+    await hostTab.waitForSelector('.rules-modal-trigger');
+    await host.bringToFront();
+    await host.evaluate(() => document.querySelector('.tutorial-dialog__close')?.click());
+    await host.click('.rules-modal-trigger');
+    await host.waitForSelector('.rules-modal');
+    await host.keyboard.down('Shift'); await host.keyboard.press('Tab'); await host.keyboard.up('Shift');
+    assert.ok(await host.evaluate(() => document.querySelector('[role="dialog"]').contains(document.activeElement)), 'initial Shift+Tab must stay inside the dialog');
+    await host.evaluate(() => [...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent === 'Educational').click());
+    const beforeRules = await api('/api/state', { playerKey: hostKey, role: 'host' });
+    await hostTab.evaluate(async ({ code, hostKey }) => {
+      await fetch('/api/host/settings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, playerKey: hostKey, gahookEffects: 'visual' }) });
+    }, { code, hostKey });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await host.evaluate(() => [...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent === 'Save changes').click());
+    await until(host, 'stale modal rejection', () => /changed while you were editing/.test(document.body.innerText));
+    const rejectedRules = await api('/api/state', { playerKey: hostKey, role: 'host' });
+    assert.equal(rejectedRules.promptStyle, beforeRules.promptStyle);
+    assert.equal(rejectedRules.gahookEffects, 'visual');
+    await host.keyboard.press('Escape');
+    assert.ok(await host.evaluate(() => document.activeElement.matches('.rules-modal-trigger')), 'cancel restores trigger focus');
+    await host.click('.rules-modal-trigger');
+    await host.evaluate(() => [...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent === 'Educational').click());
+    await host.evaluate(() => [...document.querySelectorAll('[role="dialog"] button')].find((button) => button.textContent === 'Save changes').click());
+    await until(host, 'saved dialog closes', () => !document.querySelector('[role="dialog"]'));
+    assert.equal((await api('/api/state', { playerKey: hostKey, role: 'host' })).promptStyle, 'education');
+    await hostTab.close();
+    note('two host tabs: stale Save rejected, fresh Save accepted, Shift+Tab contained, Escape restored focus');
+
     // A second player, so a vote has something to be counted against.
     const secondContext = await browser.createBrowserContext();
     const second = await secondContext.newPage();
@@ -228,8 +266,17 @@ async function main() {
 
     await api("/api/host/settings", { playerKey: hostKey, gameFamily: "quiz", roundPreset: "custom", maxQuestionsPerPlayer: 1 });
     await api("/api/host/lock-setup", { playerKey: hostKey });
-    await until(player, "the question builder", () => /question/i.test(document.body.innerText), 20_000);
+    await until(player, "the question builder", () => Boolean(document.querySelector(".question-builder")), 20_000);
     note("locking setup moves players to question writing");
+    await player.bringToFront();
+    await player.evaluate(() => document.querySelector('.tutorial-dialog__close')?.click());
+    await player.click('.preset-question-button');
+    await until(player, 'generated educational draft', () => Boolean(document.querySelector('.question-builder textarea')?.value));
+    assert.ok(await player.evaluate(() => Boolean(document.querySelector('.question-builder input[type="radio"]:checked'))), 'educational draft selects verified key');
+    await player.setViewport(VIEWPORTS.landscape);
+    assert.ok(await player.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 2), 'writing fits short landscape');
+    await player.setViewport(VIEWPORTS.phone);
+    note('real generated suggestion renders with an explicit verified answer at portrait and landscape sizes');
 
     for (const [key, label] of [[playerKey, "one"], [secondKey, "two"]]) {
       await api("/api/question", {
@@ -263,7 +310,10 @@ async function main() {
       if (button) button.click();
     });
     await new Promise((resolve) => setTimeout(resolve, 800));
-    note("a player can answer by tapping an answer");
+    const answered = await api('/api/state', { playerKey, role: 'player' });
+    assert.equal(answered.answerCount, 1);
+    assert.ok(answered.ownPlayer.score > 0, 'tapping Yes awards Classic points');
+    note("a player tap is accepted by the server and awards Classic points");
 
     // Advance to the reveal and check the client shows a score breakdown.
     for (let step = 0; step < 6; step += 1) {
@@ -275,10 +325,11 @@ async function main() {
     await until(
       host,
       "the reveal to render",
-      () => /round|point|vote|answer/i.test(document.body.innerText),
+      () => Boolean(document.querySelector(".correct-answer-spotlight")),
       20_000
     );
-    note("the reveal renders for the host");
+    assert.equal((await api('/api/state', { playerKey: hostKey, role: 'host' })).phase, 'reveal');
+    note("the reveal renders for the host and server phase is reveal");
 
     // Run the game out and check the finale.
     for (let step = 0; step < 20; step += 1) {
@@ -290,10 +341,13 @@ async function main() {
     await until(
       host,
       "the finale to render",
-      () => /Browser Tester|Second Tester/.test(document.body.innerText),
+      () => Boolean(document.querySelector(".finale-leaderboard-panel")),
       20_000
     );
-    note("the game reaches a finale showing the players");
+    const finale = await api('/api/state', { playerKey: hostKey, role: 'host' });
+    assert.equal(finale.phase, 'finished');
+    assert.ok(finale.leaderboard.some((entry) => entry.score > 0));
+    note("the game reaches the finale with a nonzero final leaderboard");
 
     for (const [name, page] of [["host", host], ["player", player], ["second", second]]) {
       const text = await textOf(page);

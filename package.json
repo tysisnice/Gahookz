@@ -46,14 +46,22 @@
     "start:docker": "docker compose up -d gahookz-dev gahookz",
     "start:docker:dev": "docker compose up -d gahookz-dev",
     "start:docker:prod": "docker compose up -d gahookz",
-    "standalone:smoke": "npm run test:simulation && npm run standalone:smoke:security && npm run standalone:smoke:room-expiry && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment",
+    "standalone:smoke": "npm run test:simulation && npm run standalone:smoke:room-expiry && node standalone/test-disposable.mjs npm run standalone:smoke:shared",
     "test": "npm run standalone:smoke",
     "capture:fixtures": "node standalone/capture-fixtures.mjs",
     "standalone:smoke:mode-settings": "node standalone/smoke-mode-settings.mjs",
     "standalone:smoke:room-rules": "node standalone/smoke-room-rules.mjs",
     "test:browser": "node standalone/browser-flow.mjs",
+    "test:browser:desktop-ui": "node standalone/browser-desktop-ui.mjs",
+    "test:browser:mobile": "node standalone/browser-mobile-ui.mjs",
+    "test:browser:arena": "node standalone/browser-arena-1v1.mjs",
     "clean:generated": "node standalone/clean-generated.mjs",
-    "drill:resilience": "node standalone/drill-resilience.mjs"
+    "drill:resilience": "node standalone/drill-resilience.mjs",
+    "standalone:smoke:shared": "npm run standalone:smoke:security && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:host-controls && npm run standalone:smoke:desktop-ui && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment && npm run standalone:smoke:review-repairs",
+    "standalone:smoke:review-repairs": "node --import tsx standalone/smoke-review-repairs.mjs",
+    "test:disposable": "node standalone/test-disposable.mjs",
+    "standalone:smoke:host-controls": "node standalone/smoke-host-controls.mjs",
+    "standalone:smoke:desktop-ui": "node standalone/smoke-desktop-ui.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

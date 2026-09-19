@@ -58,6 +58,9 @@ export function createCareerOutbox(options) {
     maxDelayMs = 5 * 60_000,
     maxPendingBytes = 4 * 1024 * 1024,
     random = Math.random,
+    io = fs,
+    maxJournalBytes = maxPendingBytes * 2 + 128 * 1024,
+    onStateChange = () => {},
     log = () => {}
   } = options;
 
@@ -69,18 +72,50 @@ export function createCareerOutbox(options) {
   let running = null;
   let stopped = false;
   let corruptLines = 0;
+  let journalBytes = 0;
+  let needsBoundary = true;
+  let journalErrors = 0;
+
+  const syncDirectory = () => {
+    const handle = io.openSync(path.dirname(journalPath), "r");
+    try { io.fsyncSync(handle); } finally { io.closeSync(handle); }
+  };
+
+  // A failed/partial append must never swallow a subsequently acknowledged record.
+  const repairBoundary = () => {
+    if (!needsBoundary) return;
+    let raw;
+    try { raw = io.readFileSync(journalPath); }
+    catch (error) { if (error.code === "ENOENT") { needsBoundary = false; return; } throw error; }
+    journalBytes = raw.length;
+    if (raw.length && raw[raw.length - 1] !== 10) {
+      const handle = io.openSync(journalPath, "a");
+      try { io.writeFileSync(handle, "\n"); io.fsyncSync(handle); }
+      finally { io.closeSync(handle); }
+      journalBytes += 1;
+    }
+    needsBoundary = false;
+  };
 
   const append = (record) => {
+    repairBoundary();
     const line = JSON.stringify(record) + "\n";
-    fs.mkdirSync(path.dirname(journalPath), { recursive: true });
+    const size = Buffer.byteLength(line);
+    if (journalBytes + size > maxJournalBytes) compact();
+    if (journalBytes + size > maxJournalBytes) throw new Error("career journal capacity reached");
+    io.mkdirSync(path.dirname(journalPath), { recursive: true });
     // Opened and fsynced per record. This is the whole point: the caller is
     // told a result is safe only once it is actually on the disk.
-    const handle = fs.openSync(journalPath, "a");
+    const handle = io.openSync(journalPath, "a");
     try {
-      fs.writeSync(handle, line);
-      fs.fsyncSync(handle);
+      needsBoundary = true;
+      io.writeFileSync(handle, line);
+      io.fsyncSync(handle);
+      syncDirectory();
+      journalBytes += size;
+      needsBoundary = false;
     } finally {
-      fs.closeSync(handle);
+      io.closeSync(handle);
     }
     return Buffer.byteLength(line);
   };
@@ -90,9 +125,9 @@ export function createCareerOutbox(options) {
     if (record.t === "queued") {
       entries.set(record.key, {
         event: record.event,
-        attempts: 0,
+        attempts: record.attempts || 0,
         state: "queued",
-        nextAttemptAt: 0
+        nextAttemptAt: record.nextAttemptAt || 0
       });
     } else if (record.t === "delivered" || record.t === "exhausted") {
       const existing = entries.get(record.key);
@@ -104,11 +139,13 @@ export function createCareerOutbox(options) {
   const load = () => {
     let raw = "";
     try {
-      raw = fs.readFileSync(journalPath, "utf8");
+      raw = io.readFileSync(journalPath, "utf8");
     } catch (error) {
       if (error?.code !== "ENOENT") throw error;
       return;
     }
+    journalBytes = Buffer.byteLength(raw);
+    repairBoundary();
     for (const line of raw.split("\n")) {
       if (!line.trim()) continue;
       try {
@@ -120,22 +157,27 @@ export function createCareerOutbox(options) {
       }
     }
     for (const entry of entries.values()) {
-      if (entry.state === "queued") pendingBytes += Buffer.byteLength(JSON.stringify(entry.event));
+      if (entry.state !== "delivered") pendingBytes += Buffer.byteLength(JSON.stringify(entry.event));
     }
   };
 
   const compact = () => {
     const survivors = [...entries.entries()].filter(([, entry]) => entry.state !== "delivered");
     const lines = survivors.map(([key, entry]) =>
-      JSON.stringify({ v: JOURNAL_VERSION, t: entry.state === "exhausted" ? "queued" : "queued", key, event: entry.event, at: now() })
+      JSON.stringify({ v: JOURNAL_VERSION, t: "queued", key, event: entry.event, attempts: entry.attempts, nextAttemptAt: entry.nextAttemptAt, at: now() })
     );
     const exhausted = survivors.
       filter(([, entry]) => entry.state === "exhausted").
       map(([key]) => JSON.stringify({ v: JOURNAL_VERSION, t: "exhausted", key, at: now() }));
     const temporary = journalPath + ".compact";
-    fs.mkdirSync(path.dirname(journalPath), { recursive: true });
-    fs.writeFileSync(temporary, [...lines, ...exhausted].join("\n") + (lines.length || exhausted.length ? "\n" : ""));
-    fs.renameSync(temporary, journalPath);
+    io.mkdirSync(path.dirname(journalPath), { recursive: true });
+    const contents = [...lines, ...exhausted].join("\n") + (lines.length || exhausted.length ? "\n" : "");
+    const handle = io.openSync(temporary, "w", 0o600);
+    try { io.writeFileSync(handle, contents); io.fsyncSync(handle); }
+    finally { io.closeSync(handle); }
+    io.renameSync(temporary, journalPath);
+    syncDirectory();
+    journalBytes = Buffer.byteLength(contents);
     for (const [key, entry] of [...entries.entries()]) {
       if (entry.state === "delivered") entries.delete(key);
     }
@@ -146,7 +188,8 @@ export function createCareerOutbox(options) {
     const exponential = Math.min(maxDelayMs, baseDelayMs * 2 ** Math.max(0, attempts - 1));
     // Jitter so a room full of accounts does not retry in lockstep after an
     // outage and knock the database over again.
-    const jitter = Number.isFinite(random()) ? random() : 0.5;
+    const drawn = random();
+    const jitter = Number.isFinite(drawn) ? drawn : 0.5;
     return Math.round(exponential * (0.5 + Math.min(Math.max(jitter, 0), 1) * 0.5));
   };
 
@@ -172,7 +215,13 @@ export function createCareerOutbox(options) {
   function flush() {
     if (stopped) return Promise.resolve();
     if (running) return running;
-    running = runFlush().finally(() => {
+    running = runFlush().catch(() => {
+      journalErrors += 1;
+      log("career journal update failed; retained results will retry");
+      for (const entry of entries.values()) {
+        if (entry.state === "queued") entry.nextAttemptAt = now() + maxDelayMs;
+      }
+    }).finally(() => {
       running = null;
       scheduleRetry();
     });
@@ -195,18 +244,21 @@ export function createCareerOutbox(options) {
           await deliver(entry.event);
           // `deliver` returning false means the row already existed, which is a
           // successful outcome for an idempotent write, not a failure.
+          append({ v: JOURNAL_VERSION, t: "delivered", key, at: now() });
           entry.state = "delivered";
           pendingBytes = Math.max(0, pendingBytes - Buffer.byteLength(JSON.stringify(entry.event)));
-          append({ v: JOURNAL_VERSION, t: "delivered", key, at: now() });
           deliveredSinceCompact += 1;
+          onStateChange(entry.event, "delivered");
         } catch (error) {
           if (entry.attempts >= maxAttempts) {
-            entry.state = "exhausted";
             append({ v: JOURNAL_VERSION, t: "exhausted", key, at: now() });
+            entry.state = "exhausted";
+            onStateChange(entry.event, "exhausted");
             // Kept on disk deliberately: an operator can replay it.
             log("career result delivery exhausted", { key, attempts: entry.attempts });
           } else {
             entry.nextAttemptAt = now() + backoffFor(entry.attempts);
+            append({ v: JOURNAL_VERSION, t: "queued", key, event: entry.event, attempts: entry.attempts, nextAttemptAt: entry.nextAttemptAt, at: now() });
             log("career result delivery failed, will retry", {
               key,
               attempts: entry.attempts,
@@ -236,6 +288,7 @@ export function createCareerOutbox(options) {
      * recorded. That is the entire contract.
      */
     accept(event) {
+      event = structuredClone(event);
       const key = careerResultKey(event);
       if (!event?.matchId || !event?.accountId) return { ok: false, reason: "invalid" };
       const existing = entries.get(key);
@@ -267,10 +320,10 @@ export function createCareerOutbox(options) {
       let replayed = 0;
       for (const [key, entry] of entries) {
         if (entry.state !== "exhausted") continue;
+        append({ v: JOURNAL_VERSION, t: "queued", key, event: entry.event, at: now() });
         entry.state = "queued";
         entry.attempts = 0;
         entry.nextAttemptAt = 0;
-        append({ v: JOURNAL_VERSION, t: "queued", key, event: entry.event, at: now() });
         replayed += 1;
       }
       if (replayed) void flush();
@@ -278,6 +331,8 @@ export function createCareerOutbox(options) {
     },
 
     flush,
+    compact,
+    stateFor(event) { return entries.get(careerResultKey(event))?.state || "unavailable"; },
 
     status() {
       let queued = 0;
@@ -288,7 +343,7 @@ export function createCareerOutbox(options) {
         else if (entry.state === "delivered") delivered += 1;
         else if (entry.state === "exhausted") exhausted += 1;
       }
-      return { queued, delivered, exhausted, corruptLines, pendingBytes };
+      return { queued, delivered, exhausted, corruptLines, pendingBytes, journalBytes, journalErrors };
     },
 
     stop() {

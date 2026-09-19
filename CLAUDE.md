@@ -7,8 +7,9 @@ the shape of the system, and which longer document answers which question.
 For the owner's approved next implementation work, read
 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md). It contains the required
 reading list, ordered tasks, acceptance checks, 40 new prompt drafts and a
-session handoff ledger. The plan is not yet implemented; preserve the existing
-arena changes and update its ledger as work is verified. It does not authorise
+session handoff ledger. The plan is partially implemented; read the latest handoff and
+PLAN-PROGRESS.md, preserve existing changes, and update the ledger only as
+acceptance is verified. It does not authorise
 a production deployment.
 
 Gahookz is a dependency-light, real-time Node.js party game with three live
@@ -95,19 +96,20 @@ npm run test:unit        # node:test unit tests
 npm run build            # browser build; also proves the JSX parses
 ```
 
-Then the stateful suite, against a **disposable** server:
+Then run the stateful batches sequentially. Each owns a **disposable** server:
 
 ```bash
-npm run build
-HOST=127.0.0.1 PORT=3199 npm start &          # never 3102
-export GAHOOKZ_BASE_URL=http://127.0.0.1:3199
-export GAHOOKZ_TEST_BASE_URL=http://127.0.0.1:3199
 npm test
+npm run test:disposable -- npm run test:rooms
+npm run test:disposable -- npm run test:browser
 ```
 
-Both variables default to port 3199 precisely so an unconfigured run fails
-fast instead of reaching production. Stop the server by port, not by pattern
-(rule 5). CI runs the same three jobs on every push.
+Do not start a server before `npm test` or wrap it in `test:disposable`: it
+already manages expiry and shared-suite lifetimes. The wrapper for the other
+commands refuses an occupied 127.0.0.1:3199, sets both test URLs, supplies a
+temporary journal without database/OAuth credentials, and stops its exact
+child on completion or test failure. Leave unfamiliar listeners and the real
+dev/beta/prod containers alone. CI runs the same isolated batches.
 
 ## Deploying, when you have been asked to
 

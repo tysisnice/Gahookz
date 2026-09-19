@@ -556,13 +556,13 @@ export function SimplePaintEditor({
           type="button"
           aria-pressed={tool === "brush"}
           onClick={() => setTool("brush")}
-        >Brush</button>
+        ><span className="simple-paint-editor__icon" aria-hidden="true">🖌</span>Brush</button>
         <button
           className={`simple-paint-editor__tool ${tool === "eraser" ? "is-selected" : ""}`}
           type="button"
           aria-pressed={tool === "eraser"}
           onClick={() => setTool("eraser")}
-        >Eraser</button>
+        ><span className="simple-paint-editor__icon" aria-hidden="true">🧽</span>Eraser</button>
       </div>
 
       <fieldset className="simple-paint-editor__sizes">
@@ -585,9 +585,9 @@ export function SimplePaintEditor({
       </fieldset>
 
       <div className="simple-paint-editor__actions" role="group" aria-label="Canvas actions">
-        <button type="button" onClick={handleUndo} disabled={!canUndo}>Undo</button>
-        <button type="button" onClick={handleClear}>{clearLabel}</button>
-        {allowUpload && <button type="button" onClick={() => uploadRef.current?.click()}>Upload image</button>}
+        <button type="button" onClick={handleUndo} disabled={!canUndo}><span className="simple-paint-editor__icon" aria-hidden="true">↶</span>Undo</button>
+        <button type="button" onClick={handleClear}><span className="simple-paint-editor__icon" aria-hidden="true">🗑</span>{clearLabel}</button>
+        {allowUpload && <button type="button" onClick={() => uploadRef.current?.click()}><span className="simple-paint-editor__icon" aria-hidden="true">⭱</span>Upload image</button>}
       </div>
     </div>}
 

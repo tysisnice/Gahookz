@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Provider, useDispatch, useSelector } from "react-redux";
 import { createStore } from "redux";
-import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
+import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, systemPrefersReducedEffects, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
 import { OfflineExperience, ServerUpdateExperience, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
 import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
@@ -31,8 +31,9 @@ import { GahookFormVisual, GahookOverlayVisual, PokeJumpScare } from "./client/p
 import { ArenaSpectator, ArenaOverlay } from "./client/arena.jsx";
 import { GameTutorial } from "./client/tutorial.jsx";
 import { SimplePaintEditor } from "./client/drawing.jsx";
-import { WaitingRoomSocial } from "./client/social.jsx";
+import { LobbyPaintLayer, WaitingRoomSocial } from "./client/social.jsx";
 import { RoomQrCode } from "./client/qr.jsx";
+import { InfoTip, ToggleSwitch } from "./client/controls.jsx";
 import { CustomGahookCreator } from "./client/custom-gahook.jsx";
 import { InformationHub } from "./client/information.jsx";
 import { LegalHub } from "./client/legal.jsx";
@@ -58,7 +59,7 @@ const browserTimers = {
   clearInterval: (handle) => window.clearInterval(handle)
 };
 const STALE_GAHOOK_MS = 4500;
-const REVEAL_ANSWER_SPOTLIGHT_MS = 4500;
+const REVEAL_ANSWER_SPOTLIGHT_MS = 3500;
 const ANSWER_IDS = ["red", "blue", "yellow", "green"];
 
 function useModalBodyLock(active) {
@@ -1079,6 +1080,7 @@ function useEvents(mode, code, playerKey) {
       reconnectMs: 1500,
       room: { code, role: mode, playerKey },
       onSnapshot: queueSnapshot,
+      onActivity: () => { lastActivityAt = nowMs(); },
       onConnected: (value) => {
         if (value) lastActivityAt = nowMs();
         dispatch({ type: "CONNECTED", value });
@@ -1635,9 +1637,34 @@ function RoomSocialHub({ lobby, ownPlayer = null, playerKey = "" }) {
     disabled={!lobby.code || !["lobby", "building", "herd-writing"].includes(lobby.phase)}
     title="Room chat"
     onSendMessage={(text) => send("/api/room/chat", { text })}
+    renderAvatar={(message) => <AvatarBadge avatarId={message?.senderAvatarId || "crown"} customImage={message?.senderAvatarImageDataUrl || ""} small />}
+  />;
+}
+
+/**
+ * Painting over the lobby's player wall.
+ *
+ * Shares the whiteboard transport the chat used to own — the strokes are the
+ * same per-player records on the room, which is what lets a Gahook erase one
+ * person's drawings without touching anybody else's.
+ */
+function LobbyPaintSurface({ lobby, ownPlayer = null, playerKey = "" }) {
+  const dispatch = useDispatch();
+  const send = async (path, payload = {}) => {
+    const result = await api(path, { playerKey, ...payload }, { refresh: false });
+    if (!result.ok) {
+      dispatch({ type: "ERROR", value: result.error });
+      throw new Error(result.error || "That could not be shared with the room.");
+    }
+    window.gahookzRefreshSnapshot?.();
+    return result;
+  };
+  return <LobbyPaintLayer
+    snapshot={lobby}
+    ownPlayer={ownPlayer}
+    disabled={!lobby.code || !["lobby", "building", "herd-writing"].includes(lobby.phase)}
     onDrawStroke={(stroke) => send("/api/room/whiteboard/stroke", { stroke })}
     onClearDrawings={() => send("/api/room/whiteboard/clear")}
-    renderAvatar={(message) => <AvatarBadge avatarId={message?.senderAvatarId || "crown"} customImage={message?.senderAvatarImageDataUrl || ""} small />}
   />;
 }
 
@@ -1732,11 +1759,17 @@ function HerdLengthSelector({ lobby, playerCount = 0, onChange, onRoundTarget })
           <input type="number" min="1" max="20" value={target} onChange={(event) => onRoundTarget?.(Number(event.target.value))} />
         </label> :
       null}
-      <p className="round-preset-summary">
-        {playerCount ?
-        <>Everyone writes one prompt and up to four answers. This game plays <strong>{plannedRounds}</strong> round{plannedRounds === 1 ? "" : "s"}.</> :
-        "Waiting for players."}
-      </p>
+      {/* Matched to the quiz totals block: one line of numbers, with the
+          explanation behind the (i) instead of a three-line paragraph. */}
+      <div className="round-preset-summary is-one-line" aria-live="polite">
+        <span>{playerCount ?
+        <><strong>{plannedRounds}</strong> round{plannedRounds === 1 ? "" : "s"} · <strong>{playerCount}</strong> player{playerCount === 1 ? "" : "s"}</> :
+        "Waiting for players."}</span>
+        <InfoTip label="How a Herd game is built" align="end">
+          Everyone writes one prompt and up to four answers to other people's prompts.
+          The game then plays one round per prompt.
+        </InfoTip>
+      </div>
     </section>);
 
 }
@@ -1759,7 +1792,6 @@ function GameFamilySelector({ value = "quiz", onChange, actions = null }) {
 }
 
 function MajorityScoringToggle({ scoring = "classic", onChange }) {
-  const [helpOpen, setHelpOpen] = useState(false);
   const on = scoring === "majority";
   return (
     <section className="majority-toggle" aria-label="Majority Rulez">
@@ -1768,18 +1800,17 @@ function MajorityScoringToggle({ scoring = "classic", onChange }) {
           <strong>Majority Rulez</strong>
           <small>Most-voted answer wins.</small>
         </div>
-        <button className={on ? "majority-toggle-switch is-on" : "majority-toggle-switch"} type="button" role="switch" aria-checked={on} onClick={() => onChange?.(on ? "classic" : "majority")}>
-          <span>{on ? "On" : "Off"}</span>
-        </button>
+        {/* The explainer used to be a whole paragraph under this row. It is one
+            line of a menu to say something most hosts read once, so it moved
+            into the (i), immediately left of the switch. */}
+        <div className="majority-toggle-controls">
+          <InfoTip label="What Majority Rulez changes">
+            The room's most-voted answer wins, rather than a preset answer.
+            Ties use the displayed tie-break rules.
+          </InfoTip>
+          <ToggleSwitch on={on} label="Majority Rulez" onChange={(next) => onChange?.(next ? "majority" : "classic")} />
+        </div>
       </div>
-      {/* A real button, not a hover tooltip: this has to work by touch and by
-          keyboard, which is how most people will meet it. */}
-      <button className="majority-toggle-help-button" type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen(!helpOpen)}>
-        {helpOpen ? "Hide details" : "What does this change?"}
-      </button>
-      {helpOpen ?
-      <p className="majority-toggle-help">The room's most-voted answer wins, rather than a preset answer. Ties use the displayed tie-break rules.</p> :
-      null}
     </section>);
 
 }
@@ -1806,7 +1837,6 @@ function RoundPresetSelector({ lobby, value = "standard", playerCount = 0, custo
         <button className={value === preset.id ? "is-selected" : ""} type="button" key={preset.id} aria-pressed={value === preset.id} onClick={() => onChange?.(preset.id)}>
             <strong>{preset.title}</strong>
             <small>{preset.subtitle}</small>
-            <em>{preset.detail}</em>
           </button>
         )}
       </div>
@@ -1816,10 +1846,23 @@ function RoundPresetSelector({ lobby, value = "standard", playerCount = 0, custo
           <div className="question-count-picker party-question-picker">{[1, 2, 3, 4, 5].map((amount) => <button className={customLimit === amount ? "is-selected" : ""} type="button" aria-pressed={customLimit === amount} key={amount} onClick={() => onQuestionLimit?.(amount)}>{amount}</button>)}</div>
         </div> :
       null}
-      <div className="round-preset-summary" aria-live="polite">
-        <span><strong>{plannedQuestions}</strong> total question{plannedQuestions === 1 ? "" : "s"}</span>
-        <span>{durationLabel}</span>
-        <small>{value === "quick" && playerCount > 10 ? "Everyone makes one; 10 are selected fairly and unused questions stay queued." : value === "standard" && unusedQuestions > 0 ? `${unusedQuestions} unused question${unusedQuestions === 1 ? "" : "s"} will be reused before new ones.` : playerCount ? `${perPlayer} question${perPlayer === 1 ? "" : "s"} per player.` : "The total updates as players join."}</small>
+      {/* One line: how many questions, and how many players they come from.
+          The old block also carried a duration estimate and a sentence saying
+          the total updates as players join, which the live number already
+          demonstrates every time somebody arrives. The detail that is not
+          obvious from the number — a capped Quick game, or reused questions —
+          moved into the (i) rather than taking a permanent third line. */}
+      <div className="round-preset-summary is-one-line" aria-live="polite">
+        <span><strong>{plannedQuestions}</strong> question{plannedQuestions === 1 ? "" : "s"} · <strong>{playerCount}</strong> player{playerCount === 1 ? "" : "s"}</span>
+        <InfoTip label="How this total is worked out" align="end">
+          {value === "quick" && playerCount > 10 ?
+          "Everyone makes one question; ten are selected fairly and the rest stay queued for the next game." :
+          value === "standard" && unusedQuestions > 0 ?
+          `${unusedQuestions} unused question${unusedQuestions === 1 ? "" : "s"} from an earlier game will be reused before new ones.` :
+          playerCount ?
+          `${perPlayer} question${perPlayer === 1 ? "" : "s"} per player. About ${durationLabel}.` :
+          "The total is worked out from the game length and the number of players in the room."}
+        </InfoTip>
       </div>
     </section>);
 }
@@ -1892,16 +1935,29 @@ function ModeArt({ art }) {
 
 }
 
-function EffectsPreferenceButtons() {
+// The reduce-effects preference, as a switch rather than a button whose label
+// flips. A button reading "Use full Gahook effects" states the action, not the
+// state, so a player could not tell at a glance whether effects were currently
+// reduced — which is exactly what someone reaching for this setting wants to
+// know.
+function useReducedEffects() {
   const [muted] = useMutePreference();
   const [reducedPreferred] = useReducedEffectsPreference();
   const reduced = muted || reducedPreferred;
-  const toggleEffects = () => {
-    const next = !reduced;
+  return [reduced, (next) => {
     setEffectsReducedPreference(next);
     setEffectsMuted(next);
-  };
-  return <button type="button" aria-pressed={reduced} onClick={toggleEffects}>{reduced ? "Use full Gahook effects" : "Reduce Gahook effects"}</button>;
+  }];
+}
+
+function EffectsPreferenceToggle() {
+  const [reduced, setReduced] = useReducedEffects();
+  return <ToggleSwitch on={reduced} label="Reduce Gahook effects" size="compact" onChange={setReduced} />;
+}
+
+function EffectsPreferenceButtons() {
+  const [reduced, setReduced] = useReducedEffects();
+  return <button type="button" aria-pressed={reduced} onClick={() => setReduced(!reduced)}>{reduced ? "Use full Gahook effects" : "Reduce Gahook effects"}</button>;
 }
 
 function HostQuickMenu({ code, mode = "quiz", isPlayer, ownPlayer, customGahook, customGahookOptions, allowCustomGahooks = true, playerKey, onEditProfile, onExitAsPlayer, onReset }) {
@@ -1924,7 +1980,8 @@ function HostQuickMenu({ code, mode = "quiz", isPlayer, ownPlayer, customGahook,
         <ModeTutorialLauncher mode={mode} includeHost />
         {isPlayer ? <button type="button" onClick={onEditProfile}>Change name &amp; profile</button> : null}
         {isPlayer ? <GahookFormPicker ownPlayer={ownPlayer} customGahook={customGahook} customGahookOptions={customGahookOptions} allowCustom={allowCustomGahooks} playerKey={playerKey} /> : null}
-        <EffectsPreferenceButtons />
+        {/* The host reaches this preference through Lobby rules, beside the
+            room's own Gahook-effects setting, rather than from two places. */}
         {isPlayer ? <button type="button" onClick={onExitAsPlayer}>Exit as Player</button> : null}
         <button type="button" onClick={onReset}>Reset Lobby</button>
         <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
@@ -2099,12 +2156,30 @@ function GahookEffectsHelp({ lobby }) {
 
 }
 
+// One rule, one switch.
+//
+// These were checkboxes, which are the wrong affordance here: every one of
+// them is an immediate on/off state for the room, and the checkbox styling
+// read as a form to be submitted rather than a setting to be flipped. The
+// switch is the one Tyson picked out of the Majority Rulez row.
+function RuleToggleRow({ label, on, onChange, help = "" }) {
+  return (
+    <div className="rules-toggle-row">
+      <span>{label}</span>
+      <div className="rules-toggle-row-controls">
+        {help ? <InfoTip label={"About " + label}>{help}</InfoTip> : null}
+        <ToggleSwitch on={Boolean(on)} label={label} onChange={onChange} size="compact" />
+      </div>
+    </div>);
+
+}
+
 function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
-  const [draft, setDraft] = useState(() => currentRules(lobby));
+  const [draft, setDraft] = useState(() => ({ ...currentRules(lobby), settingsRevision: lobby.settingsRevision }));
   const dialogRef = useRef(null);
 
   useEffect(() => {
-    if (open) setDraft(currentRules(lobby));
+    if (open) setDraft({ ...currentRules(lobby), settingsRevision: lobby.settingsRevision });
   }, [open]);
 
   useEffect(() => {
@@ -2123,10 +2198,10 @@ function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
       if (!focusable?.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) {
         event.preventDefault();
         first.focus();
       }
@@ -2153,7 +2228,7 @@ function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
         <div className="rules-modal-body">
           <fieldset className="rules-section">
             <legend>Questions</legend>
-            <label className="host-checkbox"><input type="checkbox" checked={draft.approveQuestions} onChange={(event) => set({ approveQuestions: event.target.checked })} /><span>Approve questions before they go in</span></label>
+            <RuleToggleRow label="Approve questions before they go in" on={draft.approveQuestions} onChange={(next) => set({ approveQuestions: next })} />
             {turningApprovalOff && pendingCount > 0 ?
             <p className="rules-consequence">Turning this off will let {pendingCount} waiting question{pendingCount === 1 ? "" : "s"} straight in. Anything over a player's limit stays saved for later.</p> :
             null}
@@ -2177,7 +2252,15 @@ function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
               </div>
             </div>
             <GahookEffectsHelp lobby={lobby} />
-            <label className="host-checkbox"><input type="checkbox" checked={draft.lobbyArenaEnabled} onChange={(event) => set({ lobbyArenaEnabled: event.target.checked })} /><span>Allow 1v1 duels in the lobby</span></label>
+            {/* The host's own effects preference used to sit in the game
+                options beside room rules, which confused a personal setting
+                with something that applies to everyone. It is a preference,
+                so it lives here, under the host's own controls. */}
+            <div className="rules-personal-row">
+              <span>Reduce Gahook effects on this device</span>
+              <EffectsPreferenceToggle />
+            </div>
+            <RuleToggleRow label="Allow 1v1 duels in the lobby" on={draft.lobbyArenaEnabled} onChange={(next) => set({ lobbyArenaEnabled: next })} />
             {!draft.lobbyArenaEnabled && lobby.lobbyArenaEnabled !== false ?
             <p className="rules-consequence">Any duel in progress will be cancelled. Nobody loses.</p> :
             null}
@@ -2185,9 +2268,12 @@ function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
 
           <fieldset className="rules-section">
             <legend>What players may bring</legend>
-            <label className="host-checkbox"><input type="checkbox" checked={draft.allowCustomProfiles} onChange={(event) => set({ allowCustomProfiles: event.target.checked })} /><span>Custom profile pictures</span></label>
-            <label className="host-checkbox"><input type="checkbox" checked={draft.allowCustomGahooks} onChange={(event) => set({ allowCustomGahooks: event.target.checked })} /><span>Custom Gahooks</span></label>
-            <small className="rules-note">Turning these off hides what people uploaded for this room. It is never deleted, and comes back if you turn them on again.</small>
+            <RuleToggleRow label="Custom profile pictures" on={draft.allowCustomProfiles} onChange={(next) => set({ allowCustomProfiles: next })} />
+            <RuleToggleRow
+              label="Custom Gahooks"
+              on={draft.allowCustomGahooks}
+              onChange={(next) => set({ allowCustomGahooks: next })}
+              help="Turning these off hides what people uploaded for this room. It is never deleted, and comes back if you turn them on again." />
           </fieldset>
         </div>
 
@@ -2245,7 +2331,7 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
     setRulesError("");
     // One request for the whole dialog, carrying the revision the host was
     // looking at. A stale Save is refused outright rather than half-applied.
-    const result = await onSettings?.({ ...draft, settingsRevision: lobby.settingsRevision });
+    const result = await onSettings?.(draft);
     setRulesSaving(false);
     if (result?.ok === false) {
       setRulesError(result.error || "Those rules could not be saved.");
@@ -2307,6 +2393,8 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
         </RoomStatusBanner>
         <PreviousGameSummary summary={lobby.lastGameSummary} ownPlayerId={lobby.ownPlayer?.id} />
         <div className="player-wall">
+          {/* Painting lives over the player wall now, not over the chat. */}
+          <LobbyPaintSurface lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />
           <GahookDuelArena duel={lobby.gahookDuel} />
           <div className="section-heading">
             <h1>Players</h1>
@@ -2325,13 +2413,19 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
             <span aria-hidden="true">⚙</span>
           </button>
           <GameFamilySelector value={familyOf(lobby)} onChange={onFamilyChange} actions={<ModeTutorialLauncher mode={lobby.gameMode} autoOpen autoOpenMode="host" includeHost />} />
-          {familyOf(lobby) === "quiz" ? <MajorityScoringToggle scoring={scoringOf(lobby)} onChange={onScoringChange} /> : null}
+          {/* Game length sits directly under the mode selector and stays there.
+              It is the decision a host revisits most, so it does not move
+              around depending on which mode is selected, and Majority Rulez —
+              a quiz-only switch — now follows it rather than splitting the two
+              length-related blocks apart. */}
           {familyOf(lobby) === "herd" ? <HerdLengthSelector lobby={lobby} playerCount={connectedPlayers.length} onChange={selectRoundPreset} onRoundTarget={(value) => onSettings?.({ herdRoundTarget: value })} /> : <RoundPresetSelector lobby={lobby} value={visibleRoundPreset} playerCount={connectedPlayers.length} customLimit={visibleQuestionLimit} onChange={selectRoundPreset} onQuestionLimit={selectQuestionLimit} />}
-          <EffectsPreferenceButtons />
+          {familyOf(lobby) === "quiz" ? <MajorityScoringToggle scoring={scoringOf(lobby)} onChange={onScoringChange} /> : null}
+          {/* Reduce Gahook effects is a personal accessibility preference, not a
+              room rule, so it belongs with the player's own settings rather
+              than in the host's game options. It lives in the lobby rules
+              modal and in each player's settings menu now. */}
           <HostRulesModal lobby={lobby} open={rulesOpen} saving={rulesSaving} error={rulesError} onCancel={closeRules} onSave={saveRules} />
           <button className="primary-button start-button lock-setup-button" type="button" disabled={!canLockSetup} onClick={lockSetup}>Begin Game</button>
-          <p className="start-scoring-summary">Playing <strong>{scoringLabelFor(lobby)}</strong>{familyOf(lobby) === "quiz" ? <span>{scoringOf(lobby) === "majority" ? " — pick what you think the room will choose." : " — pick the preset answer."}</span> : null}</p>
-          <p className={canLockSetup ? "start-status is-ready" : "start-status"}>{canLockSetup ? "Options will lock when question making begins" : "Wait for a player, or join as a player yourself"}</p>
         </aside>
         <RoomSocialHub lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />
       </section>
@@ -2452,8 +2546,12 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
         <RoomStatusBanner code={lobby.code} tone="is-building-status" eyebrow="Question time" title={"Players are making their " + creationLabel + "s"}>
           The game options are locked. Start the game when every player is ready.
         </RoomStatusBanner>
-        <PreviousGameSummary summary={lobby.lastGameSummary} ownPlayerId={lobby.ownPlayer?.id} />
+        {/* The last-game box belongs to the main lobby screen only. It was
+            also on the question-building screen, where it competes with the
+            thing people are meant to be doing. */}
         <div className="player-wall">
+          {/* Painting lives over the player wall now, not over the chat. */}
+          <LobbyPaintSurface lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />
           <GahookDuelArena duel={lobby.gahookDuel} />
           <QuestionApprovalPanel questions={lobby.pendingQuestions} onApprove={onApproveQuestion} onReject={onRejectQuestion} />
           <div className="section-heading">
@@ -2508,6 +2606,8 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
           Each player has up to four prompts. When every answer is in and everyone is ready, start the live vote.
         </RoomStatusBanner>
         <div className="player-wall">
+          {/* Painting lives over the player wall now, not over the chat. */}
+          <LobbyPaintSurface lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />
           <HerdPreparationProgress preparation={lobby.herdPreparation} />
           <section className="herd-host-review">
             <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span></div>
@@ -2528,32 +2628,39 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
     </main>);
 }
 
-function HerdAnswerWriter({ assignment, playerKey }) {
-  const dispatch = useDispatch();
-  const [text, setText] = useState(assignment.text || "");
-  const [saving, setSaving] = useState(false);
-  useEffect(() => setText(assignment.text || ""), [assignment.text, assignment.questionId, assignment.answerId]);
-  const save = async (event) => {
-    event.preventDefault();
-    if (!text.trim() || saving) return;
-    setSaving(true);
-    const result = await api("/api/herd/answer", { playerKey, questionId: assignment.questionId, text });
-    setSaving(false);
-    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
-  };
+function HerdAnswerWriter({ assignment, text, onChange, disabled }) {
   return (
-    <form className={assignment.submitted ? "herd-answer-writer is-submitted" : "herd-answer-writer"} onSubmit={save}>
+    <article className={assignment.submitted ? "herd-answer-writer is-submitted" : "herd-answer-writer"}>
       <span>Question by {assignment.question.author.name}</span>
       <h2><PromptText text={assignment.question.text} names={assignment.question.namedPlayerNames} /></h2>
       {assignment.question.imageDataUrl ? <img src={assignment.question.imageDataUrl} alt="Question" /> : null}
-      <label><span>Your answer</span><input value={text} onChange={(event) => setText(event.target.value)} maxLength="80" placeholder="Make it the answer everyone wants to pick" /></label>
-      <button className="primary-button" type="submit" disabled={!text.trim() || saving || text.trim() === assignment.text}>{saving ? "Saving" : assignment.submitted ? "Update answer" : "Lock this answer"}</button>
-    </form>);
+      <label><span>Your answer</span><input value={text} disabled={disabled} onChange={(event) => onChange(event.target.value)} maxLength="80" placeholder="Make it the answer everyone wants to pick" /></label>
+    </article>);
 }
 
 function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
   const dispatch = useDispatch();
   const assignments = lobby.ownHerdAssignments || [];
+  const [drafts, setDrafts] = useState({});
+  const [saving, setSaving] = useState(false);
+  const answerText = (assignment) => drafts[assignment.questionId] ?? assignment.text ?? "";
+  const submitAll = async () => {
+    if (saving || assignments.some((assignment) => !answerText(assignment).trim())) return;
+    setSaving(true);
+    try {
+      // Keep drafts intact if any request fails; a retry safely updates saved answers.
+      for (const assignment of assignments) {
+        const result = await api("/api/herd/answer", { playerKey, questionId: assignment.questionId, text: answerText(assignment) });
+        if (!result.ok) { dispatch({ type: "ERROR", value: result.error }); return; }
+      }
+      const ready = await api("/api/player/ready", { playerKey, ready: true });
+      if (!ready.ok) dispatch({ type: "ERROR", value: ready.error });
+    } finally { setSaving(false); }
+  };
+  const poke = async (player) => {
+    const result = await api("/api/player/poke", { playerKey, playerId: player.id });
+    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+  };
   const allSubmitted = assignments.length > 0 && assignments.every((assignment) => assignment.submitted);
   const toggleReady = async () => {
     const previousReady = Boolean(ownPlayer.ready);
@@ -2577,12 +2684,17 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
         <RoomStatusBanner code={lobby.code} tone="is-herd-status" eyebrow="Herd workshop" title={assignments.length ? "Write " + assignments.length + " possible answers" : "The Herd is writing answers"}>
           Keep them funny, short, and tempting. Nobody sees who wrote an answer until the vote is over.
         </RoomStatusBanner>
-        <HerdPreparationProgress preparation={lobby.herdPreparation} />
         <section className="herd-answer-workspace">
-          {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} playerKey={playerKey} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
+          <HerdPreparationProgress preparation={lobby.herdPreparation} />
+          {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} text={answerText(assignment)} disabled={saving} onChange={(text) => setDrafts((previous) => ({ ...previous, [assignment.questionId]: text }))} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
+          {assignments.length ? <button className="primary-button herd-submit-all" type="button" disabled={saving || assignments.some((assignment) => !answerText(assignment).trim())} onClick={submitAll}>{saving ? "Submitting answers…" : "Submit all answers"}</button> : null}
           {allSubmitted ? <button className={ownPlayer.ready ? "ready-button is-ready" : "ready-button needs-ready"} type="button" onClick={toggleReady}>{ownPlayer.ready ? "Ready for the live vote" : "I’m done — ready up"}</button> : null}
           {lobby.isHost ? <div className="party-start-button"><ForceStartControl canStart={lobby.canStart} canForceStart={(lobby.herdPreparation?.total || 0) > 0} label="Start live Herd" onStart={() => hostStart(false)} onForceStart={() => hostStart(true)} forceTitle="Fill missing answers and start?" forceCopy="Any blank answer slots will get a safe generated answer before the live game begins." /></div> : null}
         </section>
+        <div className="player-wall herd-writing-roster">
+          <div className="section-heading"><h1>Players</h1><span>{lobby.players.length}</span></div>
+          <div className="player-grid">{lobby.players.map((player) => <ReadonlyPlayerCard key={player.id} player={player} ownPlayer={ownPlayer} showQuestionStatus={false} onPoke={poke} onVoteKick={async (target) => { const result = await api("/api/player/vote-kick", { playerKey, playerId: target.id }); if (!result.ok) dispatch({ type: "ERROR", value: result.error }); }} />)}</div>
+        </div>
         <RoomSocialHub lobby={lobby} ownPlayer={ownPlayer} playerKey={playerKey} />
       </section>
     </main>);
@@ -2764,7 +2876,7 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
   const duration = lobby.phaseDurations?.[lobby.phase] || 0;
   const reveal = lobby.phase === "reveal";
   const phaseLabel = reveal && lobby.gameMode === "majority" ? "Majority Reveal" : reveal && lobby.gameMode === "herd" ? "Herd Reveal" : labelForPhase(lobby.phase);
-  const revealIntro = useRevealIntro(lobby.phase, lobby.phaseEndsAt, duration);
+  const revealIntro = useRevealIntro(lobby.phase, lobby.phaseEndsAt, duration, lobby.paused, lobby.pausedRemainingMs);
   const revealVoteDuration = reveal ? Math.max(1000, duration - REVEAL_ANSWER_SPOTLIGHT_MS) : duration;
   const revealIntroEndsAt = reveal ? lobby.phaseEndsAt - revealVoteDuration : lobby.phaseEndsAt;
   const roundActive = lobby.phase === "reading" || lobby.phase === "answering";
@@ -2777,7 +2889,7 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
         <Metric label="Answers" value={lobby.answerCount + "/" + lobby.activePlayerCount} />
       </section>
       <section className="question-stage">
-        {!reveal || revealIntro ? <div className="game-timer-row">
+        {!reveal || revealIntro || onPause ? <div className="game-timer-row">
           <TimerBar key={reveal ? "answer-reveal" : lobby.phase} phaseEndsAt={reveal ? revealIntroEndsAt : lobby.phaseEndsAt} durationMs={reveal ? REVEAL_ANSWER_SPOTLIGHT_MS : duration} waiting={!reveal && lobby.phaseWaitingForProgress} paused={lobby.paused} pausedRemainingMs={lobby.pausedRemainingMs} muted={lobby.phase === "reading"} onComplete={reveal ? undefined : onProgressComplete} />
           {onPause ? <PauseButton paused={lobby.paused} onToggle={() => onPause(!lobby.paused)} /> : null}
         </div> : null}
@@ -2872,6 +2984,8 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
   const playerMenu = hostMenu || (ownPlayer ? <PlayerQuickMenu ownPlayer={ownPlayer} mode={lobby.gameMode} customGahook={lobby.ownCustomGahook} customGahookOptions={lobby.customGahookOptions} allowCustomGahooks={lobby.allowCustomGahooks !== false} playerKey={playerKey} onEditProfile={() => setEditingLocalProfile(true)} onPartyView={() => setShowPartyView(true)} /> : null);
   const [activePoke, setActivePoke] = useState(null);
   const [pokeActionBusy, setPokeActionBusy] = useState(false);
+  const [miniPokes, setMiniPokes] = useState([]);
+  const miniTimersRef = useRef([]);
   const activePokeRef = useRef(null);
   const pokeTimeoutRef = useRef(null);
   const seenPokeIdRef = useRef("");
@@ -2884,6 +2998,36 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
   const showPoke = (poke) => {
     activePokeRef.current = poke;
     setActivePoke(poke);
+  };
+
+  // A Gahook that lands on someone who is mid-1v1 arrives small.
+  //
+  // The full-screen jump scare would black out the arena for its whole
+  // duration, which in a 45-second match is the difference between losing and
+  // not being allowed to play. The mini treatment is the same card the host
+  // already sees (.host-mini-gahook) and it covers both sources the plan names:
+  // the opponent's own taps, and a Gahook thrown in from the lobby by someone
+  // who is not in the duel at all.
+  const inActiveDuelRef = useRef(false);
+  inActiveDuelRef.current = Boolean(lobby.gahookDuel?.status === "active" && lobby.gahookDuel?.isParticipant);
+
+  const showMiniPoke = (poke) => {
+    const mini = {
+      id: (poke.id || "mini") + "-" + Date.now(),
+      form: getGahookForm(poke.gahookForm),
+      customGahook: poke.customGahook || null,
+      from: poke.from || "Someone",
+      left: 6 + Math.random() * 76,
+      top: 10 + Math.random() * 40,
+      rotate: -14 + Math.random() * 28
+    };
+    // Capped hard. At a tap each, these can arrive many times a second, and a
+    // growing pile of cards would cost frame rate in the one place the game
+    // most needs it.
+    setMiniPokes((current) => [...current.slice(-3), mini]);
+    playGahookFormSound(poke.gahookForm, resetPokeSoundChannel(), poke.customGahook, 1450);
+    const timer = setTimeout(() => setMiniPokes((current) => current.filter((item) => item.id !== mini.id)), 1450);
+    miniTimersRef.current.push(timer);
   };
 
   const clearPokeTimeout = () => {
@@ -2906,6 +3050,8 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
 
   useEffect(() => () => {
     clearPokeTimeout();
+    miniTimersRef.current.forEach((timer) => clearTimeout(timer));
+    miniTimersRef.current = [];
     stopCustomGahookAudio();
   }, []);
 
@@ -2940,6 +3086,16 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     const pokeAge = now - (incomingPoke.createdAt || now);
     const ultimateStillActive = (isUltimate || isUltimateCongrats) && (incomingPoke.ultimateUntil || 0) > now;
     if (!isGetGot && !isCongrats && !isUltimateCongrats && !isBoo && !isCounter && !isDuelChallenge && !hasCounterOffer && !ultimateStillActive && pokeAge > STALE_GAHOOK_MS) {
+      return undefined;
+    }
+
+    // Mid-1v1, an ordinary Gahook is shown small rather than taking the screen.
+    // The interactive and ceremonial kinds are deliberately excluded: a counter
+    // offer or an arena challenge carries a button the player has to be able to
+    // press, and Get Got / Ultimate / congratulations are results rather than
+    // interruptions.
+    if (inActiveDuelRef.current && !isGetGot && !isCongrats && !isBoo && !isUltimate && !isUltimateCongrats && !isCounter && !isDuelChallenge && !hasCounterOffer) {
+      showMiniPoke(incomingPoke);
       return undefined;
     }
 
@@ -3080,6 +3236,9 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     };
   }
   const effectsLayer = <>
+    {miniPokes.length ? <div className="host-mini-gahook-layer" aria-hidden="true">
+      {miniPokes.map((poke) => <div className="host-mini-gahook" key={poke.id} style={{ left: poke.left + "%", top: poke.top + "%", "--mini-rotate": poke.rotate + "deg" }}><GahookOverlayVisual form={poke.form} customGahook={poke.customGahook} small /><span>by {poke.from}</span></div>)}
+    </div> : null}
     {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} action={pokeAction} /> : null}
     {!activePoke ? <CounterGahookPrompt
       offer={lobby.ownCounterOffer}
@@ -3147,6 +3306,7 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
 function PlayerQuickMenu({ ownPlayer, mode = "quiz", customGahook, customGahookOptions, allowCustomGahooks = true, playerKey, onEditProfile }) {
   const menuRef = useCloseMenuOnOutside();
   const [notice, setNotice] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const shareLink = async () => {
     await shareRoomLink(buildRoomLink(getRoute().code));
     setNotice("Link copied");
@@ -3162,10 +3322,73 @@ function PlayerQuickMenu({ ownPlayer, mode = "quiz", customGahook, customGahookO
         <ModeTutorialLauncher mode={mode} includeHost={false} />
         <button type="button" onClick={onEditProfile}>Change name &amp; profile</button>
         <GahookFormPicker ownPlayer={ownPlayer} customGahook={customGahook} customGahookOptions={customGahookOptions} allowCustom={allowCustomGahooks} playerKey={playerKey} />
-        <EffectsPreferenceButtons />
+        {/* A player has no Lobby rules dialog, so the accessibility settings a
+            host reaches from there get their own door here. */}
+        <button type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
         <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
       </div>
+      <PlayerSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </details>);
+
+}
+
+// What a player can change about their own experience.
+//
+// Styled as the host's Lobby rules dialog, because it is the same kind of
+// thing seen from the other side: a short list of switches that apply from now
+// on. Everything in here is local to this device — none of it touches the room
+// — so it needs no host permission and no account.
+function PlayerSettingsDialog({ open, onClose }) {
+  const dialogRef = useRef(null);
+  const [muted, toggleMuted] = useMutePreference();
+  const [reducedPreferred] = useReducedEffectsPreference();
+  const systemReduced = systemPrefersReducedEffects();
+  useModalBodyLock(open);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    dialogRef.current?.focus();
+    const onKeyDown = (event) => {
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      onClose?.();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div className="rules-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
+      <section className="rules-modal player-settings-modal" role="dialog" aria-modal="true" aria-labelledby="player-settings-title" tabIndex={-1} ref={dialogRef}>
+        <header className="rules-modal-header">
+          <h2 id="player-settings-title">Settings</h2>
+          <p>These apply on this device only. Nobody else in the room is affected.</p>
+        </header>
+        <div className="rules-modal-body">
+          <fieldset className="rules-section">
+            <legend>Accessibility</legend>
+            <RuleToggleRow
+              label="Reduce Gahook effects"
+              on={reducedPreferred}
+              onChange={(next) => setEffectsReducedPreference(next)}
+              help="Gahooks still happen and still score. They arrive without the full-screen animation, the shaking and the flashing." />
+            <RuleToggleRow
+              label="Mute sound effects"
+              on={muted}
+              onChange={() => toggleMuted()}
+              help="Silences Gahook noises, music and spoken cues. Nothing in the game needs sound to play." />
+            {systemReduced ?
+            <p className="rules-consequence">This device already asks for reduced motion, so effects are toned down whatever these switches say.</p> :
+            null}
+          </fieldset>
+        </div>
+        <footer className="rules-modal-footer">
+          <button className="primary-button" type="button" onClick={onClose}>Done</button>
+        </footer>
+      </section>
+    </div>, document.body);
 
 }
 
@@ -3176,7 +3399,17 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
   const selectedForm = ownPlayer?.gahookForm || getStoredGahookForm();
   const slotCount = Math.max(1, Number(customGahookOptions?.slotCount) || 1);
   const selectedSlot = Math.max(0, Number(customGahookOptions?.selectedSlot) || 0);
-  const accountLinked = Boolean(customGahookOptions?.accountLinked);
+  // One entry per slot, so each button can carry its own name and preview.
+  // The server supplies it; the fallback keeps an older snapshot renderable.
+  const slots = Array.isArray(customGahookOptions?.slots) && customGahookOptions.slots.length ?
+    customGahookOptions.slots :
+    Array.from({ length: slotCount }, (_value, slot) => ({
+      slot,
+      name: slot === selectedSlot ? customGahook?.name || "" : "",
+      drawn: slot === selectedSlot && Boolean(customGahook?.frames?.length),
+      previewFrame: slot === selectedSlot ? customGahook?.frames?.[0] || "" : ""
+    }));
+  const [editingSlot, setEditingSlot] = useState(0);
   const chooseGahookForm = (gahookForm) => {
     const selected = storeGahookForm(gahookForm);
     dispatch({ type: "OPTIMISTIC_GAHOOK_FORM", value: selected });
@@ -3187,8 +3420,23 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
       }
     });
   };
-  const openOrChooseCustom = () => {
-    if (customGahook?.frames?.length && selectedForm !== "custom") {
+  // One tap on a slot does the obvious thing for the state it is in: an empty
+  // slot opens the drawing tool, a drawn slot that is not in use is selected,
+  // and tapping the slot already in use opens it for editing.
+  const openOrChooseCustom = async (slot) => {
+    setEditingSlot(slot);
+    const entry = slots.find((item) => item.slot === slot);
+    if (slot !== selectedSlot) {
+      const switched = await chooseCustomSlot(slot);
+      if (!switched) return;
+      if (entry?.drawn) {
+        chooseGahookForm("custom");
+        return;
+      }
+      setEditingCustom(true);
+      return;
+    }
+    if (entry?.drawn && selectedForm !== "custom") {
       chooseGahookForm("custom");
       return;
     }
@@ -3205,7 +3453,7 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
       customAudioDataUrl: value.soundId === "custom" ? value.customAudioDataUrl : "",
       customAudioName: value.soundId === "custom" ? value.customAudioName : ""
     };
-    const result = await api("/api/player/custom-gahook", { playerKey, slot: selectedSlot, customGahook: customPayload }, { refresh: false });
+    const result = await api("/api/player/custom-gahook", { playerKey, slot: editingSlot, customGahook: customPayload }, { refresh: false });
     if (!result.ok) {
       dispatch({ type: "ERROR", value: result.error });
       throw new Error(result.error || "Your custom Gahook could not be saved.");
@@ -3221,13 +3469,15 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
     window.gahookzRefreshSnapshot?.();
   };
   const chooseCustomSlot = async (slot) => {
-    if (slot === selectedSlot) return;
+    if (slot === selectedSlot) return true;
     const result = await api("/api/player/custom-gahook-slot", { playerKey, slot }, { refresh: false });
     if (!result.ok) {
       dispatch({ type: "ERROR", value: result.error });
-      return;
+      return false;
     }
+    if (result.customGahook) dispatch({ type: "OPTIMISTIC_CUSTOM_GAHOOK", value: result.customGahook });
     window.gahookzRefreshSnapshot?.();
+    return true;
   };
   const limits = customGahookOptions?.limits || {};
   const maxImageBytes = Math.max(100000, Math.floor((Number(limits.maxFrameChars) || 180000) * 0.72));
@@ -3236,18 +3486,28 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
     <>
       <fieldset className="gahook-form-picker">
         <legend>Your Gahook</legend>
-        {accountLinked ? <div className="custom-gahook-slot-picker" role="group" aria-label="Saved custom Gahook slot">
-          {Array.from({ length: slotCount }, (_value, slot) => <button className={slot === selectedSlot ? "is-selected" : ""} type="button" key={slot} aria-pressed={slot === selectedSlot} onClick={() => chooseCustomSlot(slot)}>Cloud {slot + 1}</button>)}
-        </div> : null}
         <div>
           {GAHOOK_FORMS.map((form) => <button className={selectedForm === form.id ? "is-selected" : ""} type="button" key={form.id} aria-pressed={selectedForm === form.id} onClick={() => chooseGahookForm(form.id)}>
             <span className="gahook-form-monkey"><GahookFormVisual form={form} small /></span>
             <span>{form.label}</span>
           </button>)}
-          {allowCustom ? <button className={selectedForm === "custom" ? "is-selected custom-gahook-picker-button" : "custom-gahook-picker-button"} type="button" aria-pressed={selectedForm === "custom"} onClick={openOrChooseCustom}>
-            <span className="gahook-form-monkey custom-gahook-picker-preview">{customGahook?.frames?.[0] ? <img src={customGahook.frames[0]} alt="" /> : <span className="custom-gahook-draw-icon" aria-hidden="true">✎</span>}</span>
-            <span>{customGahook?.frames?.length ? selectedForm === "custom" ? "Edit my custom" : "Use my custom" : "Draw my own"}</span>
-          </button> : null}
+          {/* One button per slot. It is named after the Gahook once the player
+              names one, and falls back to "Custom Gahook 1" / "2" until then.
+              The old cloud-slot strip is gone: every player has these slots,
+              so they are the picker rather than an extra row above it. */}
+          {allowCustom ? slots.map((entry) => {
+            const inUse = selectedForm === "custom" && entry.slot === selectedSlot;
+            const label = entry.name || "Custom Gahook " + (entry.slot + 1);
+            return <button
+              className={inUse ? "is-selected custom-gahook-picker-button" : "custom-gahook-picker-button"}
+              type="button"
+              key={"custom-slot-" + entry.slot}
+              aria-pressed={inUse}
+              onClick={() => openOrChooseCustom(entry.slot)}>
+              <span className="gahook-form-monkey custom-gahook-picker-preview">{entry.previewFrame ? <img src={entry.previewFrame} alt="" /> : <span className="custom-gahook-draw-icon" aria-hidden="true">✎</span>}</span>
+              <span>{label}</span>
+            </button>;
+          }) : null}
         </div>
       </fieldset>
       {editingCustom ? createPortal(<div className="creation-modal-backdrop" role="presentation" onPointerDown={(event) => {
@@ -3255,6 +3515,7 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
       }}>
         <section className="creation-modal custom-gahook-modal" role="dialog" aria-modal="true" aria-label="Make your own Gahook">
           <CustomGahookCreator
+            title={"Custom Gahook " + (editingSlot + 1)}
             initialValue={customGahook}
             onSave={saveCustomGahook}
             onCancel={() => setEditingCustom(false)}
@@ -3436,6 +3697,13 @@ function PlayerWaitingLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }
     const result = await api("/api/player/vote-kick", { playerKey, playerId: player.id });
     if (!result.ok) dispatch({ type: "ERROR", value: result.error });
   };
+  // The arena is a lobby side-game, so a challenge only makes sense while the
+  // room is still waiting. The server refuses it outside those phases anyway.
+  const challengePlayer = async (player) => {
+    const result = await api("/api/player/duel-challenge", { playerKey, playerId: player.id });
+    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+  };
+  const canChallengeInLobby = Boolean(ownPlayer) && lobby.lobbyArenaEnabled !== false && !lobby.gahookDuel;
 
   return (
     <main className="host-screen host-lobby player-waiting-lobby">
@@ -3447,13 +3715,15 @@ function PlayerWaitingLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }
         </RoomStatusBanner>
         <PreviousGameSummary summary={lobby.lastGameSummary} ownPlayerId={ownPlayer?.id} />
         <div className="player-wall">
+          {/* Painting lives over the player wall now, not over the chat. */}
+          <LobbyPaintSurface lobby={lobby} ownPlayer={ownPlayer} playerKey={playerKey} />
           <GahookDuelArena duel={lobby.gahookDuel} />
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
           </div>
           <div className="player-grid">
-            {lobby.players.length ? lobby.players.map((player) => <ReadonlyPlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} showQuestionStatus={false} ownPlayer={ownPlayer} onPoke={pokePlayer} onVoteKick={voteKickPlayer} />) : <div className="empty-state">Waiting for players</div>}
+            {lobby.players.length ? lobby.players.map((player) => <ReadonlyPlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} showQuestionStatus={false} ownPlayer={ownPlayer} onPoke={pokePlayer} onVoteKick={voteKickPlayer} canChallenge={canChallengeInLobby} onChallenge={challengePlayer} />) : <div className="empty-state">Waiting for players</div>}
           </div>
         </div>
         <RoomSocialHub lobby={lobby} ownPlayer={ownPlayer} playerKey={playerKey} />
@@ -3500,6 +3770,13 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
     const result = await api("/api/player/vote-kick", { playerKey, playerId: player.id });
     if (!result.ok) dispatch({ type: "ERROR", value: result.error });
   };
+  // The arena is a lobby side-game, so a challenge only makes sense while the
+  // room is still waiting. The server refuses it outside those phases anyway.
+  const challengePlayer = async (player) => {
+    const result = await api("/api/player/duel-challenge", { playerKey, playerId: player.id });
+    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+  };
+  const canChallengeInLobby = Boolean(ownPlayer) && lobby.lobbyArenaEnabled !== false && !lobby.gahookDuel;
   const startGame = async () => {
     const result = await api("/api/host/start");
     if (!result.ok) {
@@ -3535,8 +3812,12 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
         <RoomStatusBanner code={lobby.code} tone="is-building-status" eyebrow="Question time" title={"Make " + lobby.maxQuestionsPerPlayer + " " + creationLabel + (lobby.maxQuestionsPerPlayer === 1 ? "" : "s")}>
           Submit each one, then ready up while everyone else finishes.
         </RoomStatusBanner>
-        <PreviousGameSummary summary={lobby.lastGameSummary} ownPlayerId={ownPlayer?.id} />
+        {/* The last-game box belongs to the main lobby screen only. It was
+            also on the question-building screen, where it competes with the
+            thing people are meant to be doing. */}
         <div className="player-wall">
+          {/* Painting lives over the player wall now, not over the chat. */}
+          <LobbyPaintSurface lobby={lobby} ownPlayer={ownPlayer} playerKey={playerKey} />
           <GahookDuelArena duel={lobby.gahookDuel} />
           {lobby.isHost ? <QuestionApprovalPanel questions={lobby.pendingQuestions} onApprove={(question) => reviewQuestion(question, "approve")} onReject={(question) => reviewQuestion(question, "reject")} /> : null}
           <div className="section-heading">
@@ -3544,12 +3825,12 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
             <span>{lobby.players.filter((player) => player.connected).length}</span>
           </div>
           <div className="player-grid">
-            {lobby.players.length ? lobby.players.map((player) => <ReadonlyPlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} ownPlayer={ownPlayer} onPoke={pokePlayer} onVoteKick={voteKickPlayer} />) : <div className="empty-state">Waiting for players</div>}
+            {lobby.players.length ? lobby.players.map((player) => <ReadonlyPlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} ownPlayer={ownPlayer} onPoke={pokePlayer} onVoteKick={voteKickPlayer} canChallenge={canChallengeInLobby} onChallenge={challengePlayer} />) : <div className="empty-state">Waiting for players</div>}
           </div>
         </div>
         <aside className="host-control-panel player-lobby-panel">
           <header className="question-creation-heading">
-            <div><span>Question time</span><h2>{lobby.gameMode === "majority" ? "Create opinion questions" : lobby.gameMode === "herd" ? "Ask the Herd" : "Create questions"}</h2></div>
+            <div><span>Question time</span><h2>{lobby.gameMode === "majority" ? "Ask an opinion" : lobby.gameMode === "herd" ? "Ask the Herd" : "Create questions"}</h2></div>
             <ModeTutorialLauncher mode={lobby.gameMode} autoOpen includeHost={false} />
           </header>
           {ownQuestions.length ? <SubmittedQuestionList questions={ownQuestions} editingQuestionId={editingQuestionId} onEdit={beginQuestionEdit} /> : null}
@@ -3570,7 +3851,7 @@ function SubmittedQuestionList({ questions, editingQuestionId, onEdit }) {
       {questions.map((question, index) =>
       <article className={["submitted-question-banner", question.status === "pending" ? "is-pending" : "", question.id === editingQuestionId ? "is-editing" : ""].filter(Boolean).join(" ")} key={question.id} title={question.status === "pending" ? "Pending host approval" : "Submitted"}>
           <strong className="submitted-question-number">{index + 1}</strong>
-          <p><PromptText text={question.text} names={question.namedPlayerNames} /></p>
+          <p><PromptText text={question.text} names={question.namedPlayerNames} />{question.needsIntendedAnswer ? <small>Choose an intended answer for Classic.</small> : null}</p>
           <button className="edit-question-button" type="button" aria-label={"Edit question " + (index + 1)} title={"Edit question " + (index + 1)} onClick={() => onEdit(question)}><EditMiniIcon /></button>
         </article>
       )}
@@ -3592,7 +3873,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
   const initialAnswers = editingQuestion?.answers?.map((answer) => answer.text) || [];
   const [text, setText] = useState(editingQuestion?.text || "");
   const [answers, setAnswers] = useState(initialAnswers.length >= 2 ? initialAnswers : ["", ""]);
-  const [correctIndex, setCorrectIndex] = useState(Math.max(0, editingQuestion?.answers?.findIndex((answer) => answer.correct || answer.predicted) ?? 0));
+  const [correctIndex, setCorrectIndex] = useState(editingQuestion?.answers?.findIndex((answer) => mode === "majority" ? answer.predicted : answer.correct) ?? -1);
   const [imageDataUrl, setImageDataUrl] = useState(editingQuestion?.imageDataUrl || "");
   const [submitting, setSubmitting] = useState(false);
   const isMajority = mode === "majority";
@@ -3603,7 +3884,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
   const addAnswer = () => setAnswers((current) => current.length >= 4 ? current : [...current, ""]);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestionNote, setSuggestionNote] = useState("");
-  const [templateId, setTemplateId] = useState("");
+  const [instanceId, setInstanceId] = useState("");
   const [namedPlayerNames, setNamedPlayerNames] = useState([]);
   const useRandomPreset = async () => {
     setSuggesting(true);
@@ -3618,7 +3899,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
       return;
     }
     const suggestion = result.suggestion;
-    setTemplateId(suggestion.templateId);
+    setInstanceId(suggestion.instanceId);
     setNamedPlayerNames(suggestion.namedPlayerNames || []);
     setText(suggestion.text);
     if (isHerd) {
@@ -3649,7 +3930,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
   const removeAnswer = (index) => {
     setAnswers((current) => current.filter((_answer, answerIndex) => answerIndex !== index));
     setCorrectIndex((current) => {
-      if (current === index) return 0;
+      if (current === index) return -1;
       if (current > index) return current - 1;
       return current;
     });
@@ -3658,8 +3939,11 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
   const resetForm = () => {
     setText("");
     setAnswers(["", ""]);
-    setCorrectIndex(0);
+    setCorrectIndex(-1);
     setImageDataUrl("");
+    setInstanceId("");
+    setNamedPlayerNames([]);
+    setSuggestionNote("");
   };
 
   const submitQuestion = async (event) => {
@@ -3668,7 +3952,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
       setSuggestionNote("Choose an intended answer before adding this question.");
       return;
     }
-    const draft = { text, answers, correctIndex, imageDataUrl, templateId };
+    const draft = { text, answers, correctIndex, imageDataUrl, instanceId, namedPlayerNames };
     if (!isEditing && !requiresApproval) {
       dispatch({ type: "OPTIMISTIC_QUESTION_SUBMITTED" });
     }
@@ -3680,7 +3964,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
       imageDataUrl,
       // Lets the server attach the verified fact for a reveal fact check. It
       // is not a scoring key and does not decide any points.
-      ...(templateId ? { templateId } : {}),
+      ...(instanceId ? { instanceId } : {}),
       // The server re-checks these against its own roster before storing them,
       // so this is a hint, not a grant.
       ...(namedPlayerNames.length ? { namedPlayerNames } : {}),
@@ -3699,6 +3983,8 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
         setAnswers(draft.answers);
         setCorrectIndex(draft.correctIndex);
         setImageDataUrl(draft.imageDataUrl);
+        setInstanceId(draft.instanceId);
+        setNamedPlayerNames(draft.namedPlayerNames);
       }
       if (!isEditing && !requiresApproval) {
         dispatch({ type: "ROLLBACK_OPTIMISTIC_QUESTION" });
@@ -3737,7 +4023,7 @@ function QuestionBuilder({ questionNumber, totalQuestions, playerKey, requiresAp
           </div>
           {answers.length < 4 ? <button className={"secondary-button add-answer-button answer-" + ANSWER_IDS[answers.length]} type="button" onClick={addAnswer}>+ Add answer</button> : null}
         </> : <p className="herd-builder-note">Just write the prompt. Your friends will secretly create the answer choices in the next step.</p>}
-      {isMajority ? <p className="majority-builder-note">There is no factual correct answer. Mark your prediction for the option everyone will choose; a perfect prediction earns you 100 bonus points.</p> : null}
+      {isMajority ? <p className="majority-builder-note">Prediction is optional. Earn 100 bonus points only if every eligible voter chooses your prediction. Votes decide points; educational prompts show a separate Fact check.</p> : null}
       <button className="primary-button" type="submit" disabled={!canSubmit}>{submitLabel}</button>
     </form>);
 
@@ -3751,7 +4037,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
   const questionNumberLabel = "Question " + Math.max(1, lobby.currentQuestionIndex + 1);
   const reveal = lobby.phase === "reveal";
   const phaseLabel = reveal && lobby.gameMode === "majority" ? "Majority Reveal" : reveal && lobby.gameMode === "herd" ? "Herd Reveal" : labelForPhase(lobby.phase);
-  const revealIntro = useRevealIntro(lobby.phase, lobby.phaseEndsAt, duration);
+  const revealIntro = useRevealIntro(lobby.phase, lobby.phaseEndsAt, duration, lobby.paused, lobby.pausedRemainingMs);
   const visibleAnswerSelections = withOptimisticAnswerSelection(lobby.answerSelections, ownPlayer, ownAnswer);
   const acknowledgeProgress = () => api("/api/player/progress", { playerKey, phase: lobby.phase, questionIndex: lobby.currentQuestionIndex }, { refresh: false });
 
@@ -3819,7 +4105,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
       </section>
       {question && lobby.phase !== "finished" ?
       <section className="question-stage">
-          {!reveal || revealIntro ? <div className="game-timer-row">
+          {!reveal || revealIntro || lobby.isHost ? <div className="game-timer-row">
             <TimerBar key={reveal ? "answer-reveal" : lobby.phase} phaseEndsAt={reveal ? revealIntroEndsAt : lobby.phaseEndsAt} durationMs={reveal ? REVEAL_ANSWER_SPOTLIGHT_MS : duration} waiting={!reveal && lobby.phaseWaitingForProgress} paused={lobby.paused} pausedRemainingMs={lobby.pausedRemainingMs} muted={lobby.phase === "reading"} onComplete={reveal ? undefined : acknowledgeProgress} />
             {lobby.isHost ? <PauseButton paused={lobby.paused} onToggle={async () => {
               const result = await api("/api/host/pause", { paused: !lobby.paused });
@@ -3955,12 +4241,29 @@ function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, o
 
 }
 
-function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, ownPlayer, onPoke, onVoteKick }) {
+function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, ownPlayer, onPoke, onVoteKick, onChallenge = null, canChallenge = false }) {
   const [menuRef, closeMenu] = useDetailsMenu();
+  const [challenging, setChallenging] = useState(false);
   const voteKick = () => {
     closeMenu();
     onVoteKick(player);
   };
+  // Challenging somebody was previously only possible from the host's own
+  // lobby, which meant the players who actually play the arena could not start
+  // one from a banner at all. The server's anti-spam guard is the thing that
+  // stops this being abused, so nothing is gated here beyond the obvious: a
+  // connected opponent who is not you, when a duel is not already running.
+  const challenge = async () => {
+    if (challenging) return;
+    setChallenging(true);
+    closeMenu();
+    try {
+      await onChallenge?.(player);
+    } finally {
+      setChallenging(false);
+    }
+  };
+  const canChallengeThisPlayer = canChallenge && onChallenge && player.connected && player.id !== ownPlayer?.id;
 
   return (
     <article className={[player.connected ? "player-card readonly-player-card" : "player-card readonly-player-card is-offline", player.ready ? "is-ready" : "", player.latestPokeId ? "is-gahooked" : "", player.latestPokeKind === "ultimate" ? "is-ultimate-gahooked" : ""].filter(Boolean).join(" ")}>
@@ -3978,6 +4281,7 @@ function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, o
           <summary className="player-action-trigger" aria-label="Player actions"><span className="burger-lines" aria-hidden="true"><i /><i /><i /></span></summary>
           <div>
             <button type="button" disabled={!player.connected || player.id === ownPlayer?.id || player.isHost} onClick={voteKick}>Vote kick {player.kickVotes || 0}</button>
+            {canChallengeThisPlayer ? <button type="button" disabled={challenging} onClick={challenge}>{challenging ? "Sending challenge..." : "Challenge to 1v1"}</button> : null}
           </div>
         </details>
         <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>
@@ -4056,7 +4360,7 @@ function AnswerChoicePlayers({ players, anonymous = false }) {
 }
 
 function GahookLabel({ text = "Gahook" }) {
-  return <span className="gahook-button-label"><span>{text}</span></span>;
+  return <span className="gahook-button-label"><span>{text || "Gahook"}</span></span>;
 }
 
 function getPokeFlashClass(player) {
@@ -4216,9 +4520,10 @@ function FinalReadOnlyCard({ player, role, title = "", stat = "", detail = "" })
 
 }
 
-function useRevealIntro(phase, phaseEndsAt, durationMs) {
-  const remainingMs = useCountdown(phaseEndsAt);
-  if (phase !== "reveal" || !phaseEndsAt || !durationMs) return false;
+function useRevealIntro(phase, phaseEndsAt, durationMs, paused = false, pausedRemainingMs = 0) {
+  const countdownMs = useCountdown(phaseEndsAt);
+  const remainingMs = paused ? pausedRemainingMs : countdownMs;
+  if (phase !== "reveal" || (!phaseEndsAt && !paused) || !durationMs) return false;
   return Math.max(0, durationMs - remainingMs) < REVEAL_ANSWER_SPOTLIGHT_MS;
 }
 
@@ -4363,6 +4668,12 @@ function PartyFinalScoreboard({ lobby, ownPlayer, playerKey, finished }) {
   if (finished) {
     return (
       <section className="party-scoreboard is-final party-final-body">
+        {ownPlayer.careerResultStatus ? <p role="status">{{
+          queued: "Your career result is saved and waiting to sync.",
+          delivered: "Your career result has synced.",
+          exhausted: "Your career result is saved, but syncing needs operator attention.",
+          unavailable: "Your career result could not be saved. This game's scores still stand."
+        }[ownPlayer.careerResultStatus]}</p> : null}
         <FinalSpotlightRow finals={finals} apiPath="/api/player/final-poke" playerKey={playerKey} />
         <GameLeaderboardPanel lobby={lobby} title="Final leaderboard" limit={0} className="finale-leaderboard-panel" onPoke={booPlayer} ownPlayerId={ownPlayer.id} actionLabel="Boo" />
         <FinalShameRow finals={finals} apiPath="/api/player/final-poke" playerKey={playerKey} />

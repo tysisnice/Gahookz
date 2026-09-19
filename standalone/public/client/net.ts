@@ -154,7 +154,7 @@ export function createSnapshotGate(options: SnapshotGateOptions): SnapshotGate {
       if (disposed || snapshot === null || typeof snapshot !== "object") return;
       const record = snapshot as Record<string, Json>;
       const version = versionOf(record);
-      if (version && version < applied) return;
+      if (version && (version < applied || (pending && version < versionOf(pending)))) return;
       if (catchUpMs <= 0) {
         if (flushHandle !== null) {
           timers.clearTimeout(flushHandle);
@@ -233,7 +233,11 @@ export function createApiClient(options: ApiClientOptions) {
         body: JSON.stringify(body),
         ...(controller ? { signal: controller.signal } : {})
       });
-      const result = (await response.json()) as ApiResult;
+      const raw = await response.json();
+      if (!raw || typeof raw !== "object" || Array.isArray(raw) || typeof (raw as Record<string, unknown>)["ok"] !== "boolean") {
+        return { ok: false, error: "The server returned an invalid response. Refresh and retry." };
+      }
+      const result = raw as ApiResult;
       if (result?.ok && path !== "/api/room" && call.refresh !== false) onSettled?.(path);
       return result;
     } catch {
@@ -250,6 +254,8 @@ export interface LiveConnectionOptions {
   readonly createEventSource: (url: string) => EventSourceLike;
   readonly timers: TimerLike;
   readonly reconnectMs: number;
+  readonly random?: () => number;
+  readonly onActivity?: () => void;
   readonly room: { code: string; role: string; playerKey: string };
   readonly onSnapshot: (snapshot: unknown) => void;
   readonly onConnected: (connected: boolean) => void;
@@ -285,6 +291,7 @@ export function createLiveConnection(options: LiveConnectionOptions): LiveConnec
   let retryHandle: number | null = null;
   let closed = false;
   let opening = false;
+  let retryAttempt = 0;
 
   const dropStream = (): void => {
     if (source) {
@@ -298,7 +305,7 @@ export function createLiveConnection(options: LiveConnectionOptions): LiveConnec
     retryHandle = timers.setTimeout(() => {
       retryHandle = null;
       void connect();
-    }, reconnectMs);
+    }, Math.min(30_000, reconnectMs * 2 ** Math.min(retryAttempt++, 5)) * (0.5 + (options.random ?? Math.random)() * 0.5));
   };
 
   async function connect(): Promise<void> {
@@ -337,9 +344,14 @@ export function createLiveConnection(options: LiveConnectionOptions): LiveConnec
         encodeURIComponent(room.code);
       const stream = createEventSource(url);
       source = stream;
-      stream.onopen = () => options.onConnected(true);
+      stream.onopen = () => { if (!closed && source === stream) options.onConnected(true); };
+      stream.addEventListener("heartbeat", () => {
+        if (closed || source !== stream) return;
+        retryAttempt = 0;
+        options.onActivity?.();
+      });
       stream.onerror = () => {
-        if (closed) return;
+        if (closed || source !== stream) return;
         options.onConnected(false);
         // Close before retrying so a flapping connection cannot accumulate
         // streams, each with its own error handler scheduling another retry.
@@ -347,12 +359,22 @@ export function createLiveConnection(options: LiveConnectionOptions): LiveConnec
         scheduleRetry();
       };
       stream.addEventListener("state", (event: { data: string }) => {
+        if (closed || source !== stream) return;
+        retryAttempt = 0;
+        options.onActivity?.();
         try {
           options.onSnapshot(JSON.parse(event.data));
         } catch (error) {
           options.onFailure(error, { immediate: true });
         }
       });
+    } catch (error) {
+      if (!closed) {
+        options.onConnected(false);
+        options.onFailure(error, { immediate: true });
+        dropStream();
+        scheduleRetry();
+      }
     } finally {
       opening = false;
     }

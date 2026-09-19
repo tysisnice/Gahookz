@@ -9,7 +9,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 
 const EXPIRE_MS = 1500;
-const PORT = Number(process.env.GAHOOKZ_EXPIRY_TEST_PORT || 3197);
+const PORT = Number(process.env.GAHOOKZ_EXPIRY_TEST_PORT || 3199);
 const BASE_URL = "http://127.0.0.1:" + PORT;
 const METRICS_TOKEN = "room-expiry-smoke-token";
 
@@ -19,7 +19,13 @@ function assert(value, message) {
 
 const child = spawn(process.execPath, ["--import", "tsx", new URL("./server.js", import.meta.url).pathname], {
   env: {
-    ...process.env,
+    PATH: process.env.PATH,
+    HOME: process.env.HOME,
+    DATABASE_URL: "",
+    GOOGLE_CLIENT_ID: "",
+    GOOGLE_CLIENT_SECRET: "",
+    GAHOOKZ_REQUIRE_POSTGRES: "0",
+    GAHOOKZ_DRAIN_TIMEOUT_MS: "0",
     HOST: "127.0.0.1",
     PORT: String(PORT),
     NODE_ENV: "development",

@@ -68,7 +68,15 @@ function runPartyViewSmoke() {
   assertIncludes(hostLobby, "<GameFamilySelector", "Host lobby should expose game selection");
   assertIncludes(hostLobby, "<MajorityScoringToggle", "Host lobby should offer Majority Rulez as a scoring toggle");
   assertIncludes(hostLobby, 'familyOf(lobby) === "quiz" ? <MajorityScoringToggle', "The Majority toggle belongs to Quiz only");
-  assertIncludes(hostLobby, "scoringLabelFor(lobby)", "The host lobby should name the scoring rule in force");
+  // The scoring rule used to be restated as a sentence under Begin Game. That
+  // line was removed deliberately (desktop stage D: no text under the Begin
+  // Game button), so the rule is now named by the control that sets it. The
+  // requirement is unchanged — the host must still be able to see which rule is
+  // in force — so this asserts the toggle reflects the room's real scoring
+  // rather than merely existing. An unbound toggle would show "off" in a
+  // Majority room, which is the failure this guards against.
+  assertIncludes(hostLobby, "scoring={scoringOf(lobby)}", "The Majority toggle should show the scoring rule actually in force");
+  assertNotIncludes(hostLobby, "start-scoring-summary", "Begin Game should have no explanatory text under it");
   assertIncludes(hostLobby, "Join game as player", "Host setup should offer a participant card for the host");
   assertIncludes(hostLobby, 'className="host-join-player-card"', "Host play entry should look like an extra player banner");
   assertIncludes(hostLobby, "onRemoveSelf", "A participating host should be able to remove themselves from the player list");
@@ -200,13 +208,20 @@ function runPartyViewSmoke() {
   assertNotIncludes(hostQuickMenu, "host-menu-code", "Host menu should not show the lobby code");
 
   const playerQuickMenu = getFunctionSection("PlayerQuickMenu");
-  const effectsPreferenceButtons = getFunctionSection("EffectsPreferenceButtons");
+  // Effect preferences no longer sit loose in the player menu as a pair of
+  // buttons. Desktop stage D moved them behind a Settings door styled like the
+  // host's Lobby rules dialog, because a player has no rules dialog of their
+  // own. The reachability requirement is unchanged, so the chain is asserted
+  // end to end: the menu offers Settings, and the dialog it opens really does
+  // carry both accessibility controls, wired to the preference setters.
+  const playerSettingsDialog = getFunctionSection("PlayerSettingsDialog");
   assertIncludes(playerQuickMenu, "Share Link", "Player menu should keep Share Link");
-  assertIncludes(playerQuickMenu, "EffectsPreferenceButtons", "Player menu should expose effect preferences");
-  assertIncludes(effectsPreferenceButtons, "Reduce Gahook effects", "Effect preferences should expose one combined reduction control");
-  assertIncludes(effectsPreferenceButtons, "Use full Gahook effects", "The combined control should restore full effects");
-  assertIncludes(effectsPreferenceButtons, "setEffectsReducedPreference", "The combined control should reduce motion and flashes");
-  assertIncludes(effectsPreferenceButtons, "setEffectsMuted", "The combined control should also mute Gahook audio");
+  assertIncludes(playerQuickMenu, ">Settings<", "Player menu should offer a Settings door");
+  assertIncludes(playerQuickMenu, "<PlayerSettingsDialog", "Player menu should mount the settings dialog it opens");
+  assertIncludes(playerSettingsDialog, "Reduce Gahook effects", "Player settings should expose the effect reduction control");
+  assertIncludes(playerSettingsDialog, "setEffectsReducedPreference", "The reduction control should reduce motion and flashes");
+  assertIncludes(playerSettingsDialog, "Mute sound effects", "Player settings should expose the audio control");
+  assertIncludes(playerSettingsDialog, "useMutePreference", "The audio control should be bound to the mute preference");
   assertIncludes(playerQuickMenu, "Exit Lobby", "Player menu should keep Exit Lobby");
   assertIncludes(playerQuickMenu, "Change name &amp; profile", "Player menu should expose the profile editor");
   assertNotIncludes(playerQuickMenu, "Save name", "Player menu should not include save name controls");

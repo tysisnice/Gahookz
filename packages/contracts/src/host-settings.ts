@@ -20,7 +20,7 @@
 import * as z from "zod";
 import { AnswerIdSchema, QuestionIdSchema } from "./schemas.ts";
 import { GameFamilySchema, QuizScoringSchema } from "./schemas.ts";
-import { RoundPresetSchema } from "./schemas.ts";
+import { GameModeSchema, RoundPresetSchema } from "./schemas.ts";
 import type { GameSettings } from "./settings.ts";
 
 /** Which prompt library generated content is drawn from. Not a scoring rule. */
@@ -59,13 +59,17 @@ export const HostSettingsRequestSchema = z.object({
   gameFamily: GameFamilySchema.optional(),
   quizScoring: QuizScoringSchema.optional(),
 
+  gameMode: GameModeSchema.optional(),
   roundPreset: RoundPresetSchema.optional(),
+  questionPreset: RoundPresetSchema.optional(),
+  herdRoundTarget: z.number().finite().optional(),
   // The per-player writing quota. Reducing it must not delete submissions.
   maxQuestionsPerPlayer: z.number().int().min(0).max(20).optional(),
 
   approveQuestions: z.boolean().optional(),
-  promptStyle: PromptStyleSchema.optional(),
+  promptStyle: z.enum(["fun", "education", "funny", "educational"]).optional(),
   gahookEffects: GahookEffectPolicySchema.optional(),
+  allowCustomProfiles: z.boolean().optional(),
   allowCustomProfilePictures: z.boolean().optional(),
   allowCustomGahooks: z.boolean().optional(),
   lobbyArenaEnabled: z.boolean().optional()
@@ -81,6 +85,19 @@ export type HostSettingsRequest = z.infer<typeof HostSettingsRequestSchema>;
  * of their questions were kept rather than leaving them to discover a loss.
  */
 export const HostSettingsResponseSchema = z.object({
+  roundPreset: RoundPresetSchema.optional(),
+  maxQuestionsPerPlayer: z.number().optional(),
+  plannedTotalQuestions: z.number().optional(),
+  estimatedDurationMs: z.number().optional(),
+  approveQuestions: z.boolean().optional(),
+  gameMode: GameModeSchema.optional(),
+  allowCustomProfiles: z.boolean().optional(),
+  allowCustomGahooks: z.boolean().optional(),
+  gahookEffects: GahookEffectPolicySchema.optional(),
+  lobbyArenaEnabled: z.boolean().optional(),
+  gahookStealPoints: z.number().optional(),
+  getGotPenaltyPoints: z.number().optional(),
+  promptStyle: z.enum(["fun", "education"]).optional(),
   ok: z.literal(true),
   settingsRevision: z.number().int().nonnegative(),
   retainedQuestions: z.object({

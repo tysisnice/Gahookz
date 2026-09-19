@@ -36,6 +36,35 @@ function chatProfileStyle(message) {
   };
 }
 
+/**
+ * The colour this player paints in.
+ *
+ * Derived from the same hue the chat already gives a player's profile, so the
+ * strokes on the lobby wall read as theirs without a colour picker, a legend
+ * or a name label. A player who changes their profile picture changes their
+ * paint colour with it, which is the point: the colour *is* the identity.
+ */
+export function profilePaintColor(player) {
+  const avatarId = String(player?.avatarId || "").toLowerCase();
+  const imageSeed = String(player?.avatarImageDataUrl || "");
+  const playerSeed = String(player?.id || player?.name || "player");
+  const profileHash = stableProfileHash(imageSeed || avatarId || playerSeed);
+  const playerOffset = (stableProfileHash(playerSeed) % 23) - 11;
+  const baseHue = Number.isFinite(AVATAR_BASE_HUES[avatarId]) ? AVATAR_BASE_HUES[avatarId] : profileHash % 360;
+  const hue = (baseHue + playerOffset + 360) % 360;
+  return hslToHex(hue, 82, 62);
+}
+
+function hslToHex(hue, saturation, lightness) {
+  const a = (saturation / 100) * Math.min(lightness / 100, 1 - lightness / 100);
+  const channel = (n) => {
+    const k = (n + hue / 30) % 12;
+    const value = lightness / 100 - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+    return Math.round(255 * value).toString(16).padStart(2, "0");
+  };
+  return "#" + channel(0) + channel(8) + channel(4);
+}
+
 function messageTime(value) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "";
@@ -85,8 +114,6 @@ export function WaitingRoomSocial({
   ownPlayerId = "",
   disabled = false,
   onSendMessage,
-  onDrawStroke,
-  onClearDrawings,
   renderAvatar,
   title = "Room chat",
   className = ""
@@ -102,17 +129,12 @@ export function WaitingRoomSocial({
   const [chatText, setChatText] = useState("");
   const [chatBusy, setChatBusy] = useState(false);
   const [chatStatus, setChatStatus] = useState("");
-  const [brushSize, setBrushSize] = useState(7);
-  const [drawingEnabled, setDrawingEnabled] = useState(false);
-  const [drawingBusy, setDrawingBusy] = useState(false);
   const [minimized, setMinimized] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const rootRef = useRef(null);
   const messageListRef = useRef(null);
-  const canvasRef = useRef(null);
   const chatInputRef = useRef(null);
-  const activeStrokeRef = useRef(null);
   const knownMessageKeysRef = useRef(new Set(visibleMessages.map(socialMessageKey)));
   const sectionTitleId = useId();
   const chatTitleId = useId();
@@ -142,126 +164,9 @@ export function WaitingRoomSocial({
     setNotifications((current) => [...current, ...incoming].slice(-3));
   }, [newestMessageKey, minimized, ownPlayerId]);
 
-  const strokes = Array.isArray(snapshot?.whiteboardStrokes) ? snapshot.whiteboardStrokes : [];
-  const boardRevision = Number(snapshot?.whiteboardRevision || 0);
-  const hasOwnDrawings = strokes.some(stroke => String(stroke?.senderId || "") === String(ownPlayerId || ""));
-
-  const paintCanvas = (draft = activeStrokeRef.current) => {
-    const canvas = canvasRef.current;
-    const shell = messageListRef.current;
-    if (!canvas || !shell) return;
-    const rect = shell.getBoundingClientRect();
-    const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const width = Math.max(1, Math.round(rect.width * ratio));
-    const height = Math.max(1, Math.round(rect.height * ratio));
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    context.clearRect(0, 0, rect.width, rect.height);
-    const drawStroke = stroke => {
-      const points = Array.isArray(stroke?.points) ? stroke.points : [];
-      if (!points.length) return;
-      context.save();
-      context.globalAlpha = 0.5;
-      context.strokeStyle = "#ffffff";
-      context.fillStyle = "#ffffff";
-      context.lineWidth = Number(stroke.size) || 7;
-      context.lineCap = "round";
-      context.lineJoin = "round";
-      context.beginPath();
-      context.moveTo(points[0].x * rect.width, points[0].y * rect.height);
-      points.slice(1).forEach(point => context.lineTo(point.x * rect.width, point.y * rect.height));
-      if (points.length === 1) {
-        context.arc(points[0].x * rect.width, points[0].y * rect.height, context.lineWidth / 2, 0, Math.PI * 2);
-        context.fill();
-      } else {
-        context.stroke();
-      }
-      context.restore();
-    };
-    strokes.forEach(drawStroke);
-    if (draft) drawStroke(draft);
-  };
-
-  useEffect(() => {
-    paintCanvas();
-    const shell = messageListRef.current;
-    if (!shell || typeof ResizeObserver === "undefined") return undefined;
-    const observer = new ResizeObserver(() => paintCanvas());
-    observer.observe(shell);
-    return () => observer.disconnect();
-  }, [strokes, boardRevision]);
-
-  const pointFromEvent = event => {
-    const rect = messageListRef.current?.getBoundingClientRect();
-    if (!rect?.width || !rect?.height) return null;
-    return {
-      x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
-      y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
-    };
-  };
-
-  const startDrawing = event => {
-    if (!drawingEnabled || disabled || drawingBusy) return;
-    const point = pointFromEvent(event);
-    if (!point) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    activeStrokeRef.current = { tool: "brush", color: "#ffffff", size: brushSize, points: [point] };
-    paintCanvas(activeStrokeRef.current);
-  };
-
-  const continueDrawing = event => {
-    const stroke = activeStrokeRef.current;
-    if (!stroke) return;
-    const point = pointFromEvent(event);
-    if (!point) return;
-    const previous = stroke.points[stroke.points.length - 1];
-    if (Math.hypot(point.x - previous.x, point.y - previous.y) < 0.003) return;
-    event.preventDefault();
-    stroke.points.push(point);
-    paintCanvas(stroke);
-  };
-
-  const finishDrawing = async event => {
-    const stroke = activeStrokeRef.current;
-    if (!stroke) return;
-    event.preventDefault();
-    activeStrokeRef.current = null;
-    setDrawingBusy(true);
-    try {
-      for (const segment of drawingStrokeSegments(stroke)) {
-        await Promise.resolve(onDrawStroke?.(segment));
-      }
-    } catch (error) {
-      setChatStatus(error?.message || "Drawing not shared. Try again.");
-    } finally {
-      setDrawingBusy(false);
-      paintCanvas(null);
-    }
-  };
-
-  const chooseBrush = size => {
-    setBrushSize(size);
-    setDrawingEnabled(true);
-  };
-
-  const clearDrawings = async () => {
-    if (disabled || drawingBusy || typeof onClearDrawings !== "function") return;
-    setDrawingBusy(true);
-    try {
-      await Promise.resolve(onClearDrawings());
-    } catch (error) {
-      setChatStatus(error?.message || "Drawings not cleared. Try again.");
-    } finally {
-      setDrawingBusy(false);
-    }
-  };
-
+  // Painting moved off the chat window and onto the lobby player wall; see
+  // LobbyPaintLayer below. Scribbling over the messages hid the conversation,
+  // and the drawing had no relationship to anything underneath it.
   const sendMessage = async event => {
     event.preventDefault();
     const text = chatText.trim().slice(0, SOCIAL_CHAT_CHARACTER_LIMIT);
@@ -279,12 +184,7 @@ export function WaitingRoomSocial({
     }
   };
 
-  const stopDrawing = () => setDrawingEnabled(false);
-
-  const minimizeChat = () => {
-    stopDrawing();
-    setMinimized(true);
-  };
+  const minimizeChat = () => setMinimized(true);
 
   const restoreChat = () => {
     setMinimized(false);
@@ -297,15 +197,11 @@ export function WaitingRoomSocial({
     const handlePagePointerDown = event => {
       const root = rootRef.current;
       if (!root) return;
-      if (!root.contains(event.target)) {
-        minimizeChat();
-        return;
-      }
-      if (drawingEnabled && !canvasRef.current?.contains(event.target)) stopDrawing();
+      if (!root.contains(event.target)) minimizeChat();
     };
     document.addEventListener("pointerdown", handlePagePointerDown);
     return () => document.removeEventListener("pointerdown", handlePagePointerDown);
-  }, [drawingEnabled, minimized]);
+  }, [minimized]);
 
   const rootClassName = [`waiting-room-social`, minimized ? "is-minimized" : "is-expanded", className].filter(Boolean).join(" ");
 
@@ -332,16 +228,16 @@ export function WaitingRoomSocial({
     <header className="waiting-room-social__header">
       <h2 id={sectionTitleId}>{title}</h2>
       <div className="social-chat-window-actions">
-        <div className="social-drawing-tools" role="group" aria-label="Draw over room chat">
-          {[3, 7, 14].map((size, index) => <button className={drawingEnabled && brushSize === size ? "is-selected" : ""} type="button" aria-pressed={drawingEnabled && brushSize === size} onClick={() => chooseBrush(size)} key={size} title={["Small brush", "Medium brush", "Large brush"][index]}><span style={{ width: size, height: size }} /> <b>{["S", "M", "L"][index]}</b></button>)}
-          <button className="social-drawing-tools__clear" type="button" onClick={clearDrawings} disabled={disabled || drawingBusy || !hasOwnDrawings} title="Erase only your drawings">Erase</button>
-        </div>
         <button className="social-chat-minimize" type="button" onClick={minimizeChat} aria-label="Minimize room chat" title="Minimize room chat"><span aria-hidden="true">×</span></button>
       </div>
     </header>
 
     <section className="social-chat" aria-labelledby={chatTitleId}>
-      <h3 className="sr-only" id={chatTitleId}>Room messages and drawings</h3>
+      {/* Drawing moved off the chat and onto the player wall, so this heading
+          no longer promises a surface that is not here. A screen-reader user
+          being told about drawings they cannot reach is a worse bug than the
+          stale wording looks. */}
+      <h3 className="sr-only" id={chatTitleId}>Room messages</h3>
       <div className="social-chat__canvas-shell">
       <ol ref={messageListRef} className="social-chat__messages" role="log" aria-live="polite" aria-relevant="additions text">
         {visibleMessages.length ? visibleMessages.map((message, index) => {
@@ -362,8 +258,6 @@ export function WaitingRoomSocial({
           </li>;
         }) : <li className="social-chat__empty">No messages yet. Break the ice!</li>}
       </ol>
-      <canvas ref={canvasRef} className={drawingEnabled ? "social-chat__drawing is-active" : "social-chat__drawing"} aria-label="Shared chat drawing surface" onPointerDown={startDrawing} onPointerMove={continueDrawing} onPointerUp={finishDrawing} onPointerCancel={finishDrawing} onWheel={event => { if (messageListRef.current) messageListRef.current.scrollTop += event.deltaY; }} />
-      {drawingEnabled ? <button className="social-chat__stop-drawing" type="button" onClick={stopDrawing}>Done drawing</button> : null}
       </div>
       <form className="social-chat__composer" onSubmit={sendMessage}>
         <label className="sr-only" htmlFor={chatInputId}>Message the room</label>
@@ -389,4 +283,178 @@ export function WaitingRoomSocial({
       </div>
     </section>
   </section>;
+}
+
+/** Opacity every lobby stroke is painted at. One value, deliberately. */
+export const LOBBY_PAINT_OPACITY = 0.6;
+/** The one brush. Mid-sized: broad enough to be a gesture, fine enough to write with. */
+export const LOBBY_PAINT_BRUSH = 7;
+
+/**
+ * Paint over the lobby's player wall.
+ *
+ * Deliberately one tool and no options. The chat drawing surface had three
+ * brush sizes, an eraser and a colour, which is a drawing app; this is a way
+ * to scribble on your friends while you wait. Colour comes from the player's
+ * own profile, size and opacity are fixed, and the only control is Draw.
+ *
+ * Strokes are stored per player on the server, which is what lets a Gahook
+ * erase only the strokes belonging to the person who got Gahooked.
+ */
+export function LobbyPaintLayer({ snapshot = null, ownPlayer = null, disabled = false, onDrawStroke, onClearDrawings }) {
+  const [drawing, setDrawing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  const canvasRef = useRef(null);
+  const surfaceRef = useRef(null);
+  const activeStrokeRef = useRef(null);
+
+  const strokes = Array.isArray(snapshot?.whiteboardStrokes) ? snapshot.whiteboardStrokes : [];
+  const boardRevision = Number(snapshot?.whiteboardRevision || 0);
+  const ownPlayerId = String(ownPlayer?.id || "");
+  const hasOwnStrokes = strokes.some((stroke) => String(stroke?.senderId || "") === ownPlayerId);
+  const paintColor = profilePaintColor(ownPlayer);
+  const canPaint = Boolean(ownPlayerId) && !disabled && typeof onDrawStroke === "function";
+
+  const paintCanvas = (draft = activeStrokeRef.current) => {
+    const canvas = canvasRef.current;
+    const surface = surfaceRef.current;
+    if (!canvas || !surface) return;
+    const rect = surface.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const ratio = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const width = Math.max(1, Math.round(rect.width * ratio));
+    const height = Math.max(1, Math.round(rect.height * ratio));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, rect.width, rect.height);
+    const drawStroke = (stroke) => {
+      const points = Array.isArray(stroke?.points) ? stroke.points : [];
+      if (!points.length) return;
+      context.save();
+      context.globalAlpha = LOBBY_PAINT_OPACITY;
+      context.strokeStyle = stroke.color || "#ffffff";
+      context.fillStyle = stroke.color || "#ffffff";
+      context.lineWidth = Number(stroke.size) || LOBBY_PAINT_BRUSH;
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.beginPath();
+      context.moveTo(points[0].x * rect.width, points[0].y * rect.height);
+      points.slice(1).forEach((point) => context.lineTo(point.x * rect.width, point.y * rect.height));
+      if (points.length === 1) {
+        context.arc(points[0].x * rect.width, points[0].y * rect.height, context.lineWidth / 2, 0, Math.PI * 2);
+        context.fill();
+      } else {
+        context.stroke();
+      }
+      context.restore();
+    };
+    strokes.forEach(drawStroke);
+    if (draft) drawStroke(draft);
+  };
+
+  useEffect(() => {
+    paintCanvas();
+    const surface = surfaceRef.current;
+    if (!surface || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => paintCanvas());
+    observer.observe(surface);
+    return () => observer.disconnect();
+  }, [strokes, boardRevision, drawing]);
+
+  // The wall grows as players join, so a stroke is stored against the surface
+  // it was drawn on, in fractions, not pixels.
+  const pointFromEvent = (event) => {
+    const rect = surfaceRef.current?.getBoundingClientRect();
+    if (!rect?.width || !rect?.height) return null;
+    return {
+      x: Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
+    };
+  };
+
+  const startStroke = (event) => {
+    if (!drawing || !canPaint || busy) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    activeStrokeRef.current = { tool: "brush", color: paintColor, size: LOBBY_PAINT_BRUSH, points: [point] };
+    paintCanvas(activeStrokeRef.current);
+  };
+
+  const continueStroke = (event) => {
+    const stroke = activeStrokeRef.current;
+    if (!stroke) return;
+    const point = pointFromEvent(event);
+    if (!point) return;
+    const previous = stroke.points[stroke.points.length - 1];
+    if (Math.hypot(point.x - previous.x, point.y - previous.y) < 0.003) return;
+    event.preventDefault();
+    stroke.points.push(point);
+    paintCanvas(stroke);
+  };
+
+  const finishStroke = async (event) => {
+    const stroke = activeStrokeRef.current;
+    if (!stroke) return;
+    event.preventDefault();
+    activeStrokeRef.current = null;
+    setBusy(true);
+    try {
+      for (const segment of drawingStrokeSegments(stroke)) {
+        await Promise.resolve(onDrawStroke?.(segment));
+      }
+      setStatus("");
+    } catch (error) {
+      setStatus(error?.message || "That stroke was not shared. Try again.");
+    } finally {
+      setBusy(false);
+      paintCanvas(null);
+    }
+  };
+
+  const eraseOwn = async () => {
+    if (busy || typeof onClearDrawings !== "function") return;
+    setBusy(true);
+    try {
+      await Promise.resolve(onClearDrawings());
+      setStatus("");
+    } catch (error) {
+      setStatus(error?.message || "Your drawings were not cleared. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <div className={drawing ? "lobby-paint is-drawing" : "lobby-paint"} ref={surfaceRef}>
+    <canvas
+      ref={canvasRef}
+      className="lobby-paint__canvas"
+      aria-hidden="true"
+      onPointerDown={startStroke}
+      onPointerMove={continueStroke}
+      onPointerUp={finishStroke}
+      onPointerCancel={finishStroke}
+    />
+    {canPaint ? <div className="lobby-paint__tools">
+      {/* One option. Not a toolbar. */}
+      <button
+        className={drawing ? "lobby-paint__draw is-on" : "lobby-paint__draw"}
+        type="button"
+        aria-pressed={drawing}
+        style={{ "--lobby-paint-color": paintColor }}
+        onClick={() => setDrawing((was) => !was)}>
+        <span className="lobby-paint__swatch" aria-hidden="true" />
+        {drawing ? "Done" : "Draw"}
+      </button>
+      {hasOwnStrokes ? <button className="lobby-paint__erase" type="button" disabled={busy} onClick={eraseOwn}>Erase mine</button> : null}
+    </div> : null}
+    {status ? <p className="lobby-paint__status" role="status">{status}</p> : null}
+  </div>;
 }

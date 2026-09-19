@@ -362,25 +362,6 @@ export function CustomGahookCreator({
           <div><span>Step 1</span><h3 id="custom-gahook-frames-title">Draw the avatar</h3></div>
           <small>PNG, JPG, or WebP · resized to a room-safe {formatBytes(safeMaxImageBytes)}</small>
         </div>
-        <div className="custom-gahook-frame-tabs" role="group" aria-label="Avatar poses">
-          {frames.map((frame, index) => <button
-            type="button"
-            aria-pressed={activeFrame === index}
-            className={activeFrame === index ? "is-selected" : ""}
-            onClick={() => setActiveFrame(index)}
-            disabled={disabled || saving}
-            key={`frame-${index}`}
-          >
-            <span>{frame ? <img src={frame} alt="" /> : index + 1}</span>
-            Pose {index + 1}
-          </button>)}
-          {frames.length < MAX_CUSTOM_GAHOOK_FRAMES ? <button type="button" className="custom-gahook-frame-tabs__add" onClick={addFrame} disabled={disabled || saving}>
-            <span aria-hidden="true">+</span> Add pose
-          </button> : null}
-          {frames.length > 1 ? <button type="button" className="custom-gahook-frame-tabs__remove" onClick={removeFrame} disabled={disabled || saving}>
-            Remove pose {activeFrame + 1}
-          </button> : null}
-        </div>
         <SimplePaintEditor
           value={frames[activeFrame] || null}
           onChange={updateFrame}
@@ -399,6 +380,29 @@ export function CustomGahookCreator({
           readOnly={disabled || saving}
           className="custom-gahook-paint"
         />
+        {/* The poses live under the canvas: they describe what has been drawn,
+            so reading them before the drawing put the summary above the thing
+            it summarises. */}
+        <div className="custom-gahook-frame-tabs" role="group" aria-label="Avatar poses">
+          {frames.map((frame, index) => <button
+            type="button"
+            aria-pressed={activeFrame === index}
+            className={activeFrame === index ? "is-selected" : ""}
+            onClick={() => setActiveFrame(index)}
+            disabled={disabled || saving}
+            key={`frame-${index}`}
+          >
+            <span>{frame ? <img src={frame} alt="" /> : index + 1}</span>
+            Pose {index + 1}
+          </button>)}
+          {frames.length < MAX_CUSTOM_GAHOOK_FRAMES ? <button type="button" className="custom-gahook-frame-tabs__add" onClick={addFrame} disabled={disabled || saving}>
+            <span aria-hidden="true">+</span> Add pose
+          </button> : null}
+          {frames.length > 1 ? <button type="button" className="custom-gahook-frame-tabs__remove" onClick={removeFrame} disabled={disabled || saving}>
+            <span className="custom-gahook-button-icon" aria-hidden="true">🗑</span>
+            Remove pose {activeFrame + 1}
+          </button> : null}
+        </div>
       </section>
 
       <aside className="custom-gahook-preview-panel" aria-labelledby="custom-gahook-preview-title">
@@ -460,11 +464,16 @@ export function CustomGahookCreator({
       </div>
       <div className="custom-gahook-sound__custom">
         <button type="button" onClick={recording ? stopRecording : startRecording} disabled={disabled || saving || (!canRecord && !recording)} className={recording ? "is-recording" : ""}>
+          <span className="custom-gahook-button-icon" aria-hidden="true">{recording ? "■" : "●"}</span>
           {recording ? "Stop recording" : "Record sound"}
         </button>
-        <button type="button" onClick={() => audioInputRef.current?.click()} disabled={disabled || saving || recording}>Upload audio</button>
+        <button type="button" onClick={() => audioInputRef.current?.click()} disabled={disabled || saving || recording}>
+          <span className="custom-gahook-button-icon" aria-hidden="true">⭱</span>
+          Upload audio
+        </button>
         <input ref={audioInputRef} className="sr-only" type="file" accept="audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/x-m4a" onChange={chooseAudioFile} />
         {soundId !== "none" ? <button type="button" onClick={previewSound} disabled={disabled || saving || (soundId === "custom" && !customAudio) || (soundId !== "custom" && typeof onPreviewPresetSound !== "function")}>
+          <span className="custom-gahook-button-icon" aria-hidden="true">▶</span>
           Preview sound
         </button> : null}
         {!canRecord ? <span>Microphone recording is unavailable here; audio upload still works.</span> : null}
@@ -472,15 +481,22 @@ export function CustomGahookCreator({
       {customAudio ? <div className="custom-gahook-sound__player">
         <span>{customAudio.name}</span>
         <audio ref={audioPreviewRef} className="custom-gahook-audio" controls preload="metadata" src={customAudio.dataUrl} />
-        <button type="button" onClick={() => { setCustomAudio(null); if (soundId === "custom") setSoundId("bonk"); }} disabled={disabled || saving || recording}>Remove</button>
+        <button type="button" onClick={() => { setCustomAudio(null); if (soundId === "custom") setSoundId("bonk"); }} disabled={disabled || saving || recording}>
+          <span className="custom-gahook-button-icon" aria-hidden="true">✕</span>
+          Remove
+        </button>
       </div> : null}
     </section>
 
     <div className="custom-gahook-creator__footer">
       <p className="custom-gahook-creator__status" role="status" aria-live="polite">{status}</p>
       <div>
-        <button type="button" className="custom-gahook-creator__cancel" onClick={onCancel} disabled={saving || recording}>Cancel</button>
+        <button type="button" className="custom-gahook-creator__cancel" onClick={onCancel} disabled={saving || recording}>
+          <span className="custom-gahook-button-icon" aria-hidden="true">✕</span>
+          Cancel
+        </button>
         <button type="submit" className="custom-gahook-creator__save" disabled={disabled || saving || recording || typeof onSave !== "function"}>
+          <span className="custom-gahook-button-icon" aria-hidden="true">{saving ? "⏳" : "✓"}</span>
           {saving ? "Saving…" : "Use my Gahook"}
         </button>
       </div>

@@ -1,0 +1,39 @@
+
+> gahookz@0.1.0 test:disposable
+> node standalone/test-disposable.mjs npm run test:browser
+
+
+> gahookz@0.1.0 test:browser
+> node standalone/browser-flow.mjs
+
+  ok  the client boots and renders without throwing
+  ok  a guest can create a room with no account, code MOOP
+  ok  a second device opens the room link
+  ok  a player joining appears live in the host lobby (server-sent events work)
+  ok  quiet host lobby: 0 recovery polls over 32 seconds with heartbeat events
+  ok  a player reload reconnects without dropping them from the room
+  ok  the player view fits a 320px phone without sideways scrolling
+  ok  each device holds its own credential
+  ok  two host tabs: stale Save rejected, fresh Save accepted, Shift+Tab contained, Escape restored focus
+  ok  a third device joins and both players appear live
+  ok  locking setup moves players to question writing
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: educational draft selects verified key
+    at main (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/standalone/browser-flow.mjs:275:12)
+    at async file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/standalone/browser-flow.mjs:372:1 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: undefined,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.13.1
+Gahookz release-4a97d7b7c3b5edca running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 0 active room(s).
+All rooms finished; closing cleanly.
+Disposable server stopped (owned PID 2235535).

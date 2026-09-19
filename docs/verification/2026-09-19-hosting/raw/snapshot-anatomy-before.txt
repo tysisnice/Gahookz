@@ -1,0 +1,17 @@
+
+> gahookz@0.1.0 test:disposable
+> node standalone/test-disposable.mjs node /tmp/snapshot-anatomy.mjs
+
+total snapshot bytes: 36585 (15 players, lobby, no questions)
+    11527   31.5%  leaderboard
+    11527   31.5%  winners
+    11392   31.1%  players
+      490    1.3%  customGahookOptions
+       60    0.2%  ownGahookUses
+       49    0.1%  phaseDurations
+
+one player entry: 758 bytes
+player-shaped payloads repeated in this snapshot: players, leaderboard, winners, losers, winner, loser
+Gahookz release-598ce9d412e60d62 running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 1 active room(s).
+Disposable server stopped (owned PID 2435492).

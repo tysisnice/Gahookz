@@ -1,0 +1,54 @@
+
+> gahookz@0.1.0 test:disposable
+> node standalone/test-disposable.mjs npm run test:browser
+
+
+> gahookz@0.1.0 test:browser
+> node standalone/browser-flow.mjs
+
+  ok  the client boots and renders without throwing
+  ok  a guest can create a room with no account, code MEEP
+  ok  a second device opens the room link
+  ok  a player joining appears live in the host lobby (server-sent events work)
+  ok  quiet host lobby: 0 recovery polls over 32 seconds with heartbeat events
+  ok  a player reload reconnects without dropping them from the room
+  ok  the player view fits a 320px phone without sideways scrolling
+  ok  each device holds its own credential
+  ok  two host tabs: stale Save rejected, fresh Save accepted, Shift+Tab contained, Escape restored focus
+  ok  a third device joins and both players appear live
+  ok  locking setup moves players to question writing
+  ok  real generated suggestion renders with an explicit verified answer at portrait and landscape sizes
+  ok  a started game puts the question on every screen
+  ok  a player tap is accepted by the server and awards Classic points
+  ok  the reveal renders for the host and server phase is reveal
+  ok  the game reaches the finale with a nonzero final leaderboard
+  ok  no screen shows an unresolved token or a rendering fault after a full game
+  ok  no unresolved tokens or rendering faults on screen
+{
+  "ok": true,
+  "checks": 18,
+  "checked": [
+    "the client boots and renders without throwing",
+    "a guest can create a room with no account, code MEEP",
+    "a second device opens the room link",
+    "a player joining appears live in the host lobby (server-sent events work)",
+    "quiet host lobby: 0 recovery polls over 32 seconds with heartbeat events",
+    "a player reload reconnects without dropping them from the room",
+    "the player view fits a 320px phone without sideways scrolling",
+    "each device holds its own credential",
+    "two host tabs: stale Save rejected, fresh Save accepted, Shift+Tab contained, Escape restored focus",
+    "a third device joins and both players appear live",
+    "locking setup moves players to question writing",
+    "real generated suggestion renders with an explicit verified answer at portrait and landscape sizes",
+    "a started game puts the question on every screen",
+    "a player tap is accepted by the server and awards Classic points",
+    "the reveal renders for the host and server phase is reveal",
+    "the game reaches the finale with a nonzero final leaderboard",
+    "no screen shows an unresolved token or a rendering fault after a full game",
+    "no unresolved tokens or rendering faults on screen"
+  ]
+}
+Gahookz release-4a97d7b7c3b5edca running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 0 active room(s).
+All rooms finished; closing cleanly.
+Disposable server stopped (owned PID 2241257).

@@ -1,145 +1,67 @@
-# Overhaul progress — read this before continuing the plan
+# Overhaul progress — audited 2026-09-19
 
-**Purpose.** `IMPLEMENTATION-PLAN.md` is the approved scope. This file is the
-running answer to "where did we get to, and what is safe to assume". Read both
-before doing anything; read this one first, because the plan describes intent
-and this describes what actually happened.
+`IMPLEMENTATION-PLAN.md` remains the approved scope. The latest handoff there supersedes older completion claims. **The overhaul is partial and not release-ready.** This correction does not remove requirements.
 
-**Branch:** `overhaul/quiz-herd-p00-p12`
-**Base:** `81a70d2` — the review base the plan names
-**Production:** untouched for the whole plan. `gahookz.com` still reports
-revision `815c7e494bef`.
+Branch: `overhaul/quiz-herd-p00-p12`. HEAD: `e31cdc88989a78d7e1dabb468f589f46f18546b2` plus uncommitted review repairs. Browser build: `release-4a97d7b7c3b5edca`. No new candidate commit/image digest exists. Production, beta and port 3102 were not queried or changed; `/Vault` was read-only.
 
----
+## Stage acceptance audit
 
-## Stage status
+No stage is newly checked off. P00 retains historical completion; every other stage has unfinished implementation or acceptance evidence.
 
-| Stage | Status | One-line summary |
+| Stage | Status | Supported work and outstanding numbered steps/acceptance |
 | --- | --- | --- |
-| P00 | ✅ | One Syncthing-artifact rule; 15 conflict copies reconciled and archived |
-| P01 | ✅ | Canonical `gameFamily`/`quizScoring`; typed network adapter; fixture corpus |
-| P02 | ✅ | Herd answer colours no longer identify authors; tie reasons truthful |
-| P03 | ✅ | Two-game selector, Majority as a toggle, saved bank, locked rules |
-| P04 | ✅ | Host Lobby rules dialog; server-enforced Gahook effects and arena policy |
-| P05 | ✅ | Shared prompt catalogue, 40 new prompts, safe `{Player1}` substitution |
-| P06 | ✅ | Herd is short — 20 players play 8 rounds; writing load spread ≤ 1 |
-| P07 | ✅ | Career results survive a database outage via a durable journal |
-| P08 | ✅ | Idle polling removed, SSE backpressure, asset revalidation |
-| P09 | ✅ | Phase progression as a pure decision; authorisation stated as data |
-| P10 | ✅ | Reveal is its own feature; honest scoring copy; browser harness |
-| P11 | ✅ | Fast start keeps player work; arena is findable; public page is for players |
-| P12 | 🟡 | Automated half done. Human, device and real-database gates outstanding |
+| P00 | Complete, historical | Canonical source/conflict preservation remains in place; fresh check, smoke and separate room games pass. No conflict archive was discarded. |
+| P01 | Partial | Host settings validation/aliases and real health/settings shape checks repaired. Steps 1–2, 4–7 still need full discriminated phase/role fixtures, runtime public-data validation, credential-safe errors and subscription lifecycle coverage. The generic `ok` check is not full snapshot validation. |
+| P02 | Partial | Engine anonymity/tie tests and legal-vote simulations pass. Steps 2–4 still need the complete role-filtered payload/inference/privacy matrix, including review/moderation surfaces. No claim of anonymity against recognition or collusion. |
+| P03 | Partial | Saved scoring round-trip and missing Classic key repaired and HTTP-tested; family lengths remembered. Steps 2–6 still need stable option identities through edits, all role/start/reconnect labels and full preservation, approval, race and rematch coverage. |
+| P04 | Partial | Atomic settings, stale modal draft and initial focus trapping repaired; real two-tab Save/Cancel and focus checks pass. Steps 1, 4–7 and acceptance still need all policy/media paths, both host routes, 320px/short-landscape dialog, touch and screen-reader checks. Hidden-avatar preservation alone does not prove all media visibility is enforced. |
+| P05 | Partial | Shared autofill, credential/phase-bound suggestions, owned metadata and unset keys repaired. Catalogue tests and one real browser suggestion pass. Steps 2, 5–7 still need stable option-ID editing and full suggest/edit/approve/fill/reveal/reset/reconnect coverage across modes; factual and read-aloud content review remains pending. |
+| P06 | Partial | Capped allocator and legal simulations pass; 20-player Quick plays 8 rounds with spread 1. Steps 2, 6–7 still need author rotation by stable ID over rematches, honest waiting/duration/carryover status, and complete Quick/Full/Custom plus 2/3/5-player boundary coverage. Human timing comparison is pending. |
+| P07 | Partial | Torn-tail append, fsync ordering, bounded exhausted storage and I/O error tests pass; career status wired. Steps 3–7 still need real PostgreSQL acceptance (probe failed), full account-app status, persistent-volume/container replacement, disk-full/power-loss and operational replay proof. |
+| P08 | Partial | Named heartbeat, jitter, stale-pending rejection and timed backpressure repaired. Chromium observed 0 polls over 32 quiet seconds. Steps 1, 3–6 still need party-sized measurements, suspension/credential/reconnect storms, real socket/counter cleanup, bounded RSS and p95 comparison. No material-latency-regression or 90%-reduction claim is proven by this one sample. |
+| P09 | Partial | Pause defect repaired and host route policy invoked. Steps 1–6 still lack the planned typed private/public state, authoritative transition/effect engine, route/lifecycle extraction, deterministic replay and materially smaller orchestration. A tested phase helper does not complete this stage. |
+| P10 | Partial | Reveal extraction exists; improved browser harness passes 18 checks for a representative Classic flow. Steps 1–3, 6–7 still need host/writing/voting/finale/roster and style decomposition plus all major phase/role/rematch/viewports and accessibility coverage. Main JSX is not strict-TS checked. |
+| P11 | Partial | Fast start, consent-based discovery and public guides exist; scoring explanation corrected. Steps 3, 5–6 need observed rematch/cheer implementation-or-deferral evidence and reproducible scoring alternatives with observed disposition. Existing numerical rules stay in place. |
+| P12 | Partial | Fresh automated results below; ledger corrected. Steps 1–7 still need the remaining matrix, database/load/storage/drain/rollback proof, human/device/content sessions and a reproducible immutable candidate. This is not merely a human-only gate. |
 
-Every stage's own handoff entry, with full detail, is at the bottom of
-`IMPLEMENTATION-PLAN.md` in reverse date order.
+## Fresh verification
 
----
-
-## How to verify anything
-
-Each suite needs its **own fresh** disposable server on port 3199. Reusing one
-process across batches fails on the 32-room cap rather than on a defect, which
-looks like a bug and is not.
+Run sequentially from this repository:
 
 ```bash
-npm run clean:generated && npm run build   # never `rm client/*.js` — that deletes source
-npm run check                              # typecheck, unit tests, build
-npm test                                   # 24 smoke scripts
-npm run test:rooms                         # 12 complete games
-npm run test:browser                       # 16 checks in real Chromium
-npm run drill:resilience                   # 4 failure drills
+npm run check
+npm test
+npm run test:disposable -- npm run test:rooms
+npm run test:disposable -- npm run test:browser
+npm run test:disposable -- npm run standalone:smoke:review-repairs
 ```
 
-Current state at `d0a7f5b`: **167 unit tests, 24 smoke scripts, 12 games, 16
-browser checks, 4 drills — all passing.** The production image builds, starts,
-and passes all 16 browser checks when serving the client itself.
+`npm test` owns its servers. Do not start a server first or wrap that command again. The other wrapper commands each start and stop their own 127.0.0.1:3199 process with synthetic configuration and a temporary journal. Do not stop an unfamiliar listener or target the real containers.
 
----
+Fresh final results: check **177 passed, 0 failed**; full smoke **exit 0** with 15,000 seeded games and 24 smoke scripts; rooms **12 games, exit 0**; Chromium **18 checks, exit 0**; focused repair suite **exit 0**. Initial smoke/Chromium failures and fixture corrections are preserved, not erased. See [exact commands, outputs and limits](docs/verification/2026-09-19-review-repairs/README.md).
 
-## Things a future session must not rediscover the hard way
+The real PostgreSQL probe failed in the interrupted run with unhandled Pool error `57P01`. It has not passed. The journal-volume probe was not run. No current-tree image/container, account-enabled UI, load or rollback test is claimed. Historical September 12 results do not qualify this dirty tree.
 
-These cost time once already.
+## Next work
 
-- **`standalone/public/client/*.js` mixes generated output with hand-written
-  source.** `audio.js` and `gahook-forms.js` are source. Use
-  `npm run clean:generated`, never `rm *.js`.
-- **`tsconfig.web.json` does not type-check `.jsx` at all**, and esbuild
-  transforms each file without resolving globals. A deleted top-level constant
-  passes every check and throws on first render. A regex guard for this was
-  written and then deleted because it did not work — JSX prose containing an
-  apostrophe breaks any regex that strips string literals.
-- **Everything under `packages/` must stay within erasable TypeScript syntax.**
-  Production runs plain `node`, which strips types by erasure only. Parameter
-  properties, `enum` and `namespace` parse under `tsx` and then fail at
-  container start-up. `erasableSyntaxOnly` now catches this at typecheck.
-- **Source-string assertions pinned to `app.jsx` break whenever code moves.**
-  Four tests needed the same fix: scan every shipped browser module instead.
-  Expect to do it again on the next extraction.
-- **Two browser tabs in one profile share `localStorage`** and are treated as
-  the same device. A second player in a browser test needs its own context.
-- **The room cap is now `GAHOOKZ_MAX_ACTIVE_ROOMS`**, defaulting to 32. The beta
-  site runs with 2.
+1. Resolve the integration regression between `compose.yaml`'s configurable/default prod image and `scripts/docker-deploy.sh`'s hard-coded `gahookz:local` verification. Use offline/stubbed checks; never execute a real deployment here.
+2. Repair readiness and Pool-error/cleanup handling in the disposable PostgreSQL probe and account repository; run migration, deduplication, outage/restart and partial-account recovery assertions to completion. This needs local engineering, not Tyson's production credentials.
+3. Verify a current isolated image's read-only/non-root journal volume across replacement, then finish the outstanding stage acceptance above. Preserve old immutable images and rehearse drain/rollback on an isolated stack before any later deployment request.
 
----
+## Owner-dependent gates
 
-## Deliberately not done, and why
+Tyson needs to arrange observed 4/8/12/20-player sessions and physical Safari/Android, keyboard/screen-reader and accessibility checks. Use at least eight people to evaluate eight-round Quick Herd pacing. Review the 40 prompts factually and aloud with real names; record aggregate clarity, writing waits, duration and rematch/cheer feedback without raw personal content. Numerical scoring changes may remain deferred while the approved rules continue.
 
-Not omissions — decisions, each recorded where the work is.
+Accounts/OAuth provisioning and any proxy/deployment operations require separate owner-led operational work when local engineering is ready. Do not ask Tyson for a database just to run disposable integration tests.
 
-- **P09's full server decomposition.** The 274-line `handleRoomAction` and its
-  ~60 handlers stay in `server.js`. They close over module state in a
-  5,000-line file. The stage was checked off on its verifiable goals; this part
-  is better done behind the browser harness now that one exists.
-- **P11 step 3, the arena rematch and cheers.** The plan gates it on observing
-  the current arena first and permits explicit deferral. Building it on a guess
-  about whether waiting feels long is the speculative work the plan warns
-  against. The arena is now discoverable, which is what makes observation
-  possible.
-- **Both proposed scoring changes.** Evaluated with worked examples in
-  `docs/architecture/0003-scoring-alternatives.md`, neither adopted. A guard
-  fails if shipped scoring changes at all, so neither can arrive by accident.
-  Recommendation if one is taken: the authored-point denominator.
+## Historical operations reminder — not reverified
 
----
+Earlier notes describe a guest-only two-room beta and a manually managed certificate expiring **13 December 2026**, outside Nginx Proxy Manager automatic renewal. Treat that as a reminder for Tyson to confirm ownership and renewal privately, not as current service evidence. No live revision, certificate, mount or running image was inspected in this review.
 
-## What is waiting on you
+## Preserve these implementation constraints
 
-The full list with reasoning is in `RELEASE-CANDIDATE.md`. The short version:
-
-1. **Play it.** No human has. The testing script is in your Vault at
-   `Gahookz-Beta-Testing.md`.
-2. **A phone.** No physical iOS or Android device has opened it.
-3. **A screen reader.** The accessibility work is structural and reasoned
-   about, never heard.
-4. **A real PostgreSQL**, if accounts matter. The career outbox has only run
-   against the in-memory repository.
-5. **Decide the denominator question** in `docs/architecture/0003`.
-
----
-
-## Beta site
-
-**Live at https://beta.gahookz.com.** Same build as production, open to anyone,
-no login, **two rooms at a time**, no database so nothing durable to lose.
-Container `gahookz-beta` on `127.0.0.1:3103`.
-
-Its TLS certificate was issued with certbot's Cloudflare DNS plugin, which the
-Nginx Proxy Manager container already carries, using the same token that runs
-the DDNS updater. The proxy host is a hand-written config
-(`/data/nginx/proxy_host/beta-gahookz.conf`, copy in
-`deploy/nginx/beta.gahookz.com.conf.example`) because creating one through the
-NPM UI needs admin credentials. **It therefore does not appear in the NPM UI and
-NPM will not renew its certificate**, which expires 2026-12-13. Recreating the
-host in the UI before then hands both back to NPM; delete the file if you do.
-
----
-
-## When you come back
-
-Say *"read the plan and the progress file, then continue"*. The next work,
-in the order I would take it:
-
-1. Act on whatever the playtest turns up. That is the point of the pause.
-2. P12's remaining gates, as they become passable.
-3. P09's server decomposition, now that a browser harness makes it safe.
-4. P11 step 3, if the arena observation says waiting is worth fixing.
+- `standalone/public/client/*.js` includes handwritten `audio.js` and `gahook-forms.js`. Use `npm run clean:generated`; never delete all `.js` files.
+- `.jsx` is outside strict TypeScript coverage. Build success does not prove browser execution; run real interaction checks.
+- Packages executed by plain Node must keep erasable TypeScript syntax.
+- Browser tabs in one profile intentionally share a device credential; use distinct contexts for distinct players.
+- The room cap is 32 by default. Separate batches need separate server lifetimes.

@@ -474,32 +474,27 @@ as a routine cleanup step.
 
 ### Isolated full-suite test
 
-Many smoke scripts create rooms, players, media, scores and timers, so the
-suite must never run against live production. Since 2026-09-06 both base-URL
-variables default to the disposable port 3199, so an unconfigured run fails to
-connect instead of reaching a real game, and `standalone/smoke-deployment.mjs`
-fails the build if any smoke file goes back to defaulting to 3102. Set the
-variables explicitly anyway:
-
-Terminal 1:
+Many smoke scripts create rooms, players, media, scores and timers. They must
+never target production, the live beta or any public domain. The September 19
+review runner owns fresh disposable lifetimes on 127.0.0.1:3199:
 
 ```bash
 npm run build
-HOST=127.0.0.1 PORT=3199 npm start
-```
-
-Terminal 2:
-
-```bash
-GAHOOKZ_BASE_URL=http://127.0.0.1:3199 \
-GAHOOKZ_TEST_BASE_URL=http://127.0.0.1:3199 \
-GAHOOKZ_TEST_REQUIRE_SERVER=1 \
 npm test
+npm run test:disposable -- npm run test:rooms
+npm run test:disposable -- npm run test:browser
 ```
 
-Stop Terminal 1 with Ctrl+C and confirm the graceful shutdown message. Both
-environment variable names are set because older smoke scripts use
-`GAHOOKZ_BASE_URL` while PWA/information scripts use `GAHOOKZ_TEST_BASE_URL`.
+Run sequentially. Do not pre-start a server for `npm test` or wrap it again.
+The other wrapper commands set both test URLs, omit database/OAuth credentials,
+use a temporary journal and stop their exact child after success or failure.
+They refuse an occupied port; leave an unfamiliar process alone. No broad
+process kills or real dev/beta/prod container operations are needed.
+
+See `PLAN-PROGRESS.md` and the latest `IMPLEMENTATION-PLAN.md` handoff for
+current acceptance and known release blockers. In particular, the new Compose
+image references and the deploy script's old hard-coded image check are not
+yet reconciled; do not treat the source deployment smoke as an executed deploy.
 
 Also run:
 

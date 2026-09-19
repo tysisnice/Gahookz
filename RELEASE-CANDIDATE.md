@@ -1,157 +1,49 @@
-# Release candidate — Quiz/Herd overhaul (P00–P12)
+# Release readiness — Quiz/Herd overhaul
 
-**Status: ready for an explicitly requested deployment. Not deployed, and this
-document does not authorise one.**
+**2026-09-19: NOT RELEASE-READY.** Review repairs exist and focused verification passes, but required implementation and acceptance gates remain open. No deployment is authorized.
 
-Branch: `overhaul/quiz-herd-p00-p12`
-Base: `81a70d2` (the review base the implementation plan names)
-Previous recoverable image: `gahookz:local`
+Branch `overhaul/quiz-herd-p00-p12`, HEAD `e31cdc88989a78d7e1dabb468f589f46f18546b2` plus uncommitted repairs; browser build `release-4a97d7b7c3b5edca`. This is not a clean immutable candidate. No current image ID/digest or previous recoverable image has been verified. Earlier `d0a7f5b`/image claims are historical and must not be attributed to this tree.
 
----
+## Fresh evidence
 
-## What changed, in one line each
+All stateful runs used owned disposable servers on 127.0.0.1:3199. Production and beta were neither queried nor changed.
 
-| Stage | Change |
-| --- | --- |
-| P00 | One shared Syncthing-artifact rule; 15 conflict copies reconciled and archived |
-| P01 | Canonical `gameFamily`/`quizScoring`; typed browser network adapter; fixture corpus |
-| P02 | Herd answer colours no longer identify their authors; tie reasons are truthful |
-| P03 | Two-game selector with Majority as a scoring toggle; saved question bank; locked rules |
-| P04 | Host Lobby rules dialog; server-enforced Gahook effects and arena policy |
-| P05 | One shared prompt catalogue, 40 new prompts, safe `{Player1}` substitution |
-| P06 | Herd is short: 20 players play 8 rounds, not 20; writing load spread ≤ 1 |
-| P07 | Career results survive a database outage via a durable journal |
-| P08 | Idle recovery polling removed; SSE backpressure; asset revalidation |
-| P09 | Phase progression as a pure decision; authorisation stated as data |
-| P10 | Reveal extracted as a feature; scoring explained honestly; browser harness |
-| P11 | Fast start that keeps player work; the arena is findable; public page is for players |
-| P12 | This document, plus the defects below |
+| Command | Final result | Scope limit |
+| --- | --- | --- |
+| `npm run check` | Exit 0; 177 tests passed, 0 failed; typecheck/build pass | Strict typing covers migrated modules, not all JSX/server code |
+| `npm test` | Exit 0; 15,000 simulations and 24 smoke scripts | Static deployment assertions do not execute a container or deploy |
+| `npm run test:disposable -- npm run test:rooms` | Exit 0; 12 games, 4/8/12/20 per mode | Accelerated HTTP lifecycle, not public-network load or human pacing |
+| `npm run test:disposable -- npm run test:browser` | Exit 0; 18 Chromium checks | Representative Classic flow, not full role/mode/device/rematch matrix |
+| `npm run test:disposable -- npm run standalone:smoke:review-repairs` | Exit 0; all three repair summaries | Targeted HTTP fixtures, not complete plan acceptance |
+| Real PostgreSQL probe | Prior run failed: unhandled Pool error `57P01` | No successful transaction/outage/replay evidence; not rerun here |
+| Journal-volume replacement probe | Not run | Configuration is not durability proof |
+| Current-tree image, load, staging drain/rollback | Not verified | No release identity, capacity or recovery claim |
 
----
+[Exact commands, raw outputs, initial failures and source hashes](docs/verification/2026-09-19-review-repairs/README.md) are retained. The first smoke failed a shuffled-fixture assumption; the first two browser attempts failed/stalled before harness corrections. Final successes do not erase those findings.
 
-## Defects this candidate fixes that players would have felt
+## Repairs and remaining implementation
 
-- **Herd answers were identifiable.** An answer's colour came from its writer's
-  position in a fixed rotation, so one reveal taught the pattern and every later
-  question was solvable by hand — in the mode whose whole appeal is not knowing.
-- **Ties lied.** Any tie with a winner was announced as decided by speed, even
-  when the stable answer order decided it.
-- **Herd was not short.** "Quick" played one round per player with no ceiling.
-- **Career stats could vanish.** `statsRecorded` was set before the write, which
-  was fire-and-forget with a `.catch` that only logged.
-- **Every tab polled the whole room state 33 times a minute** whether or not the
-  live stream was healthy — 733 requests a minute in a 20-player room.
-- **A stalled reader grew server memory** for as long as it stayed connected.
-- **Static assets were never cacheable**, so the whole client re-downloaded on
-  every load.
-- **Funny Classic suggestions invented a correct answer** for opinion prompts.
-- **Disabling custom profiles destroyed uploads** rather than hiding them.
-- **A fast start binned pending player questions.**
-- **A completed game could be reopened** at question zero by a duplicated advance.
+Repairs address pause, saved-question scoring, suggestion authorization, torn journal append/compaction, hidden content inventory, stale modal saves/focus, shared style-aware generation, owned factual metadata, settings validation, browser heartbeat/backoff and stalled-stream deadlines. See the [latest handoff](IMPLEMENTATION-PLAN.md#8-handoff-discipline) for files and [stage acceptance audit](PLAN-PROGRESS.md#stage-acceptance-audit) for missing work.
 
-## Defects found by building a real image, in this stage
+P01–P12 remain partial. Required runtime contracts, option identity/carryover and complete privacy coverage, typed transition/lifecycle extraction and feature-owned UI/CSS are still engineering work. They are not waived by passing a narrow suite.
 
-Both were introduced earlier in the branch and passed every other check.
+## Storage and release configuration — not applied
 
-1. **The production image could not be built.** `build-client.mjs` imports the
-   shared artifact rule added in P00, which the Dockerfile never copied.
-2. **The production image could not start.** `packages/content` used TypeScript
-   parameter properties, which Node's type stripping rejects with
-   `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`. Development runs under `tsx` and never
-   saw it. `erasableSyntaxOnly` now catches this at typecheck.
+`Dockerfile` creates `/app/data` owned by the non-root user. `compose.yaml` mounts `career-data:/app/data` and sets `GAHOOKZ_CAREER_JOURNAL=/app/data/career.journal` for the read-only production service. This changes the checked-in storage configuration; no live mount or migration was inspected or applied. Verify permissions, durable acceptance, compaction/disk-full recovery and container replacement with a disposable volume and current image.
 
-Also: 18 of our own test files were shipping inside the production image. Now
-zero, and `smoke-deployment.mjs` fails if any of the three regress.
+Prod and beta now have separate configurable image references (`GAHOOKZ_PROD_IMAGE` and `GAHOOKZ_BETA_IMAGE`), but defaults are mutable tags. **Known integration regression: `scripts/docker-deploy.sh` still verifies `gahookz:local` after Compose builds the changed prod image name. Resolve and test that before operational use.** Separate tags alone do not preserve a rollback image.
 
----
+No SQL migration was added by these repairs. Compatibility and real transactional idempotency still require a passing disposable PostgreSQL test; lack of a new migration is not proof of compatibility. Actual account status must also be checked through the application.
 
-## Test evidence
+## Rollback remains unqualified
 
-All run against the candidate at `d0a7f5b`, each suite on its own fresh
-disposable server on port 3199. Production and development were never targeted.
+The previous document's deploy command was not a rollback procedure. Do not run it as one. First preserve the exact old image ID/digest, build an independently identified candidate, prove old/new journal and database compatibility, then rehearse synthetic-room drain and restoration of that old image on an isolated staging stack. Capture post-restore health, guest gameplay, account recovery and schema compatibility. No production/beta replacement is part of this review, and no previous image identity has been confirmed.
 
-| Gate | Result |
-| --- | --- |
-| `npm run check` | 167 unit tests, typecheck, build — pass |
-| `npm test` | 24 smoke scripts — pass |
-| `npm run test:rooms` | 12 complete games at 4/8/12/20 players — pass |
-| `npm run test:browser` | 16 checks, three browser contexts — pass |
-| `npm run drill:resilience` | 4 failure drills — pass |
-| `docker build --target production` | builds, starts, healthy |
-| Browser flow **against the built image** | 16/16 pass |
+## External gates
 
-Image hygiene: 0 conflict artifacts, 0 of our test files, no Puppeteer, no
-TypeScript. `esbuild` is present as a transitive dependency of `tsx`, which is a
-runtime dependency. Image size 262MB.
+- Observed 4/8/12/20-player sessions, with at least eight people for eight-round Quick Herd; compare Quick/Full, setup clarity, writing waits, scoring understanding and arena fatigue/rematch choices.
+- Physical iOS Safari and Android Chrome, rotation/keyboard/background-resume/poor connectivity; desktop keyboard and real screen reader, contrast, reduced motion, muted audio and shared-screen readability.
+- Factual review and read-aloud personalization of all 40 new prompts, with small-screen and intended-answer/Fact-check clarity.
+- Separate owner-authorized account/OAuth, proxy/certificate and eventual release operations when local engineering is ready. The historical December 13 beta certificate reminder needs owner confirmation; it was not checked live.
 
----
-
-## Deployment needs
-
-- **A persistent volume for the career journal.** It defaults to
-  `standalone/.data/` inside the container. Without a volume, results survive a
-  database outage but not a container replace. Set `GAHOOKZ_CAREER_JOURNAL` to a
-  mounted path.
-- **No schema migration is required.** `recordMatch` was already idempotent in
-  both repositories, so no new table or column was needed.
-- **No environment variable is required to change.** New room settings default
-  to existing behaviour: Gahook effects default to `chaos`, lobby duels to on.
-
-## Rollback
-
-```bash
-cd /srv/gahookz
-docker compose ps                      # note the running image id
-docker image inspect gahookz:local     # the previous recoverable image
-GAHOOKZ_DRAIN_WAIT_SECONDS=300 bash scripts/docker-deploy.sh
-```
-
-The deploy script refuses to continue if the production port belongs to a
-Compose project it does not own, stamps the revision into the image, and fails
-if the running container reports a different one. A restart still ends every
-room in progress, which is why the drain window exists.
-
-**Rollback was not rehearsed against a real deployment.** The image was built,
-started and exercised on a throwaway port; replacing a running production
-container and putting the previous one back was not performed, because doing so
-on this host would interrupt the live service.
-
----
-
-## Open risks and what is NOT verified
-
-These are the gates P12 names that a machine cannot pass. None is a reason the
-candidate is unsound; each is a reason not to call it proven.
-
-- **No human has played it.** No observed sessions at 4, 8, 12 or 20 players.
-  Whether eight Herd rounds feels right, whether the new prompts land, and
-  whether the reveal now reads clearly are all unanswered.
-- **No physical device.** iOS Safari and Android Chrome untested. The 320px
-  layout is verified in headless Chromium only.
-- **No screen reader.** The accessibility work — focus order, Tab trapping,
-  `aria-modal`, 44px targets, reduced motion — is structural and reasoned about,
-  never heard.
-- **No real PostgreSQL.** The career outbox ran only against the in-memory
-  repository, because `accountPersistence` is `memory` on this host. Outage
-  injection against a real database, and the journal on a real volume, are
-  untested.
-- **No load test.** P08's instrumented baseline was not built, so "no p95
-  regression" is unverified, as is behaviour under a reconnect storm against the
-  32-stream per-address cap.
-- **The 40 new prompts have not been read aloud** with real player names, or
-  checked on a small phone. That is Appendix B's own content-acceptance gate.
-- **Rollback not rehearsed**, as above.
-
----
-
-## Recommended order before any deploy
-
-1. Play a full game on dev with three or four people. Herd on Quick, then Quiz
-   with Majority on. This answers more than any remaining automated work.
-2. Open the Lobby rules dialog on a phone; check the toggles are comfortable and
-   the dialog scrolls.
-3. If accounts matter, stand up a disposable PostgreSQL and run the career
-   outbox against it, including stopping the database mid-game.
-4. Decide the authored-point denominator question recorded in
-   `docs/architecture/0003-scoring-alternatives.md`.
-5. Then, and only then, request a deploy.
+Tyson does not need to provide a database or production access for the next local repairs. Numerical scoring changes may stay deferred. Release readiness requires the unfinished engineering, automated, human/device and isolated operations gates; a later explicit deployment request is still required after that.

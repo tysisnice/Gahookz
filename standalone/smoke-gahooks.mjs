@@ -178,7 +178,7 @@ function runClientGahookContractSmoke() {
       "five dark premium themes with object effects and animated animal poses",
       "three-second GET GOT sound and banana barrage",
       "interactive Counter Gahook offers and Gahook Arena challenge",
-      "five-tap lead tug of war and spectator arena",
+      "five-point lead tug of war and spectator arena",
       "non-interruptible room-wide GET GOT",
       "immediate 50-point Gahook theft"
     ]
@@ -256,12 +256,17 @@ async function runGahookSmoke() {
   await taps(target.key, 4);
   await taps(sender.key, 5);
   const beforeWin = await state(roomCode, "host", hostKey);
-  assert(beforeWin.gahookDuel.status === "active" && beforeWin.gahookDuel.hits[senderId] === 6 && beforeWin.gahookDuel.hits[targetId] === 4, "Passing five taps with only a two-tap lead must not win");
-  await taps(target.key, 7);
+  assert(beforeWin.gahookDuel.status === "active" && beforeWin.gahookDuel.hits[senderId] === 6 && beforeWin.gahookDuel.hits[targetId] === 4, "Passing five points with only a two-point lead must not win");
+  // Ten presses, not seven. Presses and points stopped being the same thing
+  // once closing out a win started costing more: from 4-6 the first five
+  // presses each score (the lead is never above two), the next two buy the
+  // point at a lead of three, and the last three buy the winning point at a
+  // lead of four. 5 + 2 + 3 = 10 presses for 7 points.
+  await taps(target.key, 10);
   const spectatorDuelState = await state(roomCode, "host", hostKey);
-  assert(spectatorDuelState.gahookDuel?.status === "finished", "A five-tap lead should finish the arena for everyone");
-  assert(spectatorDuelState.gahookDuel.winnerId === targetId && spectatorDuelState.gahookDuel.loserId === senderId, "The player five taps ahead should win");
-  assert(spectatorDuelState.gahookDuel.hits[targetId] === 11 && spectatorDuelState.gahookDuel.hits[senderId] === 6, "The crowd should see every accepted tap");
+  assert(spectatorDuelState.gahookDuel?.status === "finished", "A five-point lead should finish the arena for everyone");
+  assert(spectatorDuelState.gahookDuel.winnerId === targetId && spectatorDuelState.gahookDuel.loserId === senderId, "The player five points ahead should win");
+  assert(spectatorDuelState.gahookDuel.hits[targetId] === 11 && spectatorDuelState.gahookDuel.hits[senderId] === 6, "The crowd should see every scored point");
   assert(spectatorDuelState.gahookDuel.players.length === 2 && spectatorDuelState.gahookDuel.lastHit.playerId === targetId, "Spectators should receive both profiles and the scoring player");
   assert(spectatorDuelState.gahookDuel.reactionEndsAt - spectatorDuelState.gahookDuel.finishedAt === 10000, "Crowd reactions should stay open for ten seconds");
 

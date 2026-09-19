@@ -58,7 +58,13 @@ export const HealthResponseSchema = z.object({
   draining: z.boolean().optional(),
   activeRooms: z.number().int().nonnegative().optional(),
   accountPersistence: z.enum(["memory", "postgres"]).optional(),
-  googleLoginAvailable: z.boolean().optional()
+  googleLoginAvailable: z.boolean().optional(),
+  careerResults: z.object({
+    queued: z.number().int().nonnegative(), delivered: z.number().int().nonnegative(),
+    exhausted: z.number().int().nonnegative(), corruptLines: z.number().int().nonnegative(),
+    pendingBytes: z.number().int().nonnegative(), journalBytes: z.number().int().nonnegative().optional(),
+    journalErrors: z.number().int().nonnegative().optional()
+  }).strict().optional()
 }).strict();
 
 export const ApiErrorSchema = z.object({

@@ -1,0 +1,49 @@
+
+> gahookz@0.1.0 test:disposable
+> node standalone/test-disposable.mjs npm run test:browser
+
+
+> gahookz@0.1.0 test:browser
+> node standalone/browser-flow.mjs
+
+  ok  the client boots and renders without throwing
+  ok  a guest can create a room with no account, code NOOB
+  ok  a second device opens the room link
+  ok  a player joining appears live in the host lobby (server-sent events work)
+  ok  quiet host lobby: 0 recovery polls over 32 seconds with heartbeat events
+  ok  a player reload reconnects without dropping them from the room
+  ok  the player view fits a 320px phone without sideways scrolling
+  ok  each device holds its own credential
+file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/common/CallbackRegistry.js:88
+            this._reject(callback, new TargetCloseError('Target closed'));
+                                   ^
+
+TargetCloseError: Protocol error (Runtime.callFunctionOn): Target closed
+    at CallbackRegistry.clear (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/common/CallbackRegistry.js:88:36)
+    at CdpCDPSession.onClosed (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/cdp/CdpSession.js:121:25)
+    at Connection.onMessage (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/cdp/Connection.js:166:25)
+    at WebSocket.<anonymous> (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/node/NodeWebSocketTransport.js:48:32)
+    at callListener (/mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onMessage (/mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/ws/lib/event-target.js:209:9)
+    at WebSocket.emit (node:events:508:28)
+    at Receiver.receiverOnMessage (/mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/ws/lib/websocket.js:1239:20)
+    at Receiver.emit (node:events:508:28)
+    at Immediate.<anonymous> (/mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/ws/lib/receiver.js:638:16) {
+  cause: ProtocolError
+      at <instance_members_initializer> (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/common/CallbackRegistry.js:108:14)
+      at new Callback (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/common/CallbackRegistry.js:112:16)
+      at CallbackRegistry.create (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/common/CallbackRegistry.js:27:26)
+      at Connection._rawSend (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/cdp/Connection.js:125:26)
+      at CdpCDPSession.send (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/cdp/CdpSession.js:72:14)
+      at #evaluate (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/cdp/ExecutionContext.js:374:50)
+      at ExecutionContext.evaluate (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/cdp/ExecutionContext.js:288:36)
+      at IsolatedWorld.evaluate (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/cdp/IsolatedWorld.js:104:30)
+      at CdpJSHandle.evaluate (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/api/JSHandle.js:154:37)
+      at CdpElementHandle.evaluate (file:///mnt/storage/syncthing/codex/2026-07-01/Gahookz/node_modules/puppeteer-core/lib/puppeteer/api/ElementHandle.js:343:38)
+}
+
+Node.js v24.13.1
+Gahookz release-4a97d7b7c3b5edca running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 0 active room(s).
+All rooms finished; closing cleanly.
+Disposable server stopped (owned PID 2231172).

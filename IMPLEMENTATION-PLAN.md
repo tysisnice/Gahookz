@@ -1,8 +1,8 @@
 # Gahookz — implementation and session handoff plan
 
-Created: 2026-09-08. Status: **planned; implementation has not started**.
+Created: 2026-09-08. Status audited: 2026-09-19. **Implementation partial; review repairs verified within the coverage below; not release-ready.**
 
-This is the actionable follow-up to the owner's approval of the **2026-09-07 Arena rebuild and project review**, plus the owner's requested lobby-rules modal, merged Quiz/Majority selector, and 20 educational + 20 personalised funny prompts. It describes work to implement in subsequent sessions; it does not claim those features already exist.
+This is the actionable follow-up to the owner's approval of the **2026-09-07 Arena rebuild and project review**, plus the owner's requested lobby-rules modal, merged Quiz/Majority selector, and 20 educational + 20 personalised funny prompts. It remains the authoritative acceptance scope. Some features exist, but only the execution ledger and latest handoff describe verified completion.
 
 The earlier arena rebuild exists in this working tree, with uncommitted changes. Preserve it. No production deployment is authorised by this plan. Guest play must remain completely account-free.
 
@@ -176,18 +176,20 @@ All checkboxes below refer to **new implementation**, not the completed arena ba
 | Done | ID | Deliverable | Depends on |
 | --- | --- | --- | --- |
 | [x] | P00 | Preserved source baseline and conflict-safe verification | — |
-| [x] | P01 | Runtime contracts, compatible schema evolution, typed client adapter/build seam | P00 |
-| [x] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
-| [x] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
-| [x] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
-| [x] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
-| [x] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
-| [x] | P07 | Durable, retry-safe career-result delivery | P01 |
-| [x] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
-| [x] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
-| [x] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
-| [x] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
+| [~] | P01 | Runtime contracts, compatible schema evolution, typed client adapter/build seam | P00 |
+| [~] | P02 | Herd per-question anonymity and truthful tie reasons | P01 |
+| [~] | P03 | One Quiz selector, Majority toggle, non-destructive scoring changes | P01, P02 |
+| [~] | P04 | Host Lobby rules modal and authoritative room effects | P03 |
+| [~] | P05 | Shared generation, safe player substitution, all 40 new prompts | P03, P04 |
+| [~] | P06 | Short Herd, balanced capped writing, fair carryover | P02, P04 |
+| [~] | P07 | Durable, retry-safe career-result delivery | P01 |
+| [~] | P08 | Measured recovery polling, SSE backpressure and cache policy | P01; test P03–P06 flows |
+| [~] | P09 | Pure phase/mode boundaries and smaller server orchestration | P02, P03, P06, P07, P08 |
+| [~] | P10 | Feature-owned UI/CSS, clearer reveal and lobby hierarchy | P04, P05, P06, P09 |
+| [~] | P11 | Faster start, consensual arena discovery/polish, public content cleanup | P05, P10 |
 | [~] | P12 | Full regression matrix, human tests, release/rollback readiness | P00–P11 |
+
+**2026-09-19 correction:** P01–P11 have been reopened as partial because their written acceptance criteria are not all met. P00 retains its historically evidenced completion; no stage is newly checked off. Earlier completion claims below are historical and are superseded by this ledger and the latest handoff. [PLAN-PROGRESS.md](PLAN-PROGRESS.md) maps each stage to its remaining numbered steps; [verification evidence](docs/verification/2026-09-19-review-repairs/README.md) records fresh passes and failures.
 
 Default execution order is the table order. P07 is separable if account infrastructure work is blocked; complete its local tests and record the external gate rather than stopping unrelated gameplay work. A working deliverable can be reviewed after P05 and P06, without waiting for a giant overhaul release.
 
@@ -362,30 +364,17 @@ Use representative combinations for browser smoke and exhaustive cheap unit/prop
 
 ### Commands
 
-From the intended test working copy, first inspect `git status --short` and the listener on 3199. Never stop an unfamiliar existing process; choose/record another disposable port if necessary and set both URLs consistently. Dependencies should already be pinned; use `npm ci` only when a clean install is needed.
+From the intended test working copy, inspect `git status --short` and the listener on 3199. Never stop an unfamiliar process. This review's test runner requires 127.0.0.1:3199 and refuses an occupied port; leave real dev/beta/prod containers alone. Dependencies should already be installed; use `npm ci` only when a clean install is needed.
 
 ```bash
 npm run check
-npm run test:simulation
+npm test
+npm run test:disposable -- npm run test:rooms
+npm run test:disposable -- npm run test:browser
+npm run test:disposable -- npm run standalone:smoke:review-repairs
 ```
 
-Start a disposable process in its own terminal, with test-only data configuration and no production database credentials:
-
-```bash
-HOST=127.0.0.1 PORT=3199 npm start
-```
-
-In a second terminal:
-
-```bash
-GAHOOKZ_BASE_URL=http://127.0.0.1:3199 GAHOOKZ_TEST_BASE_URL=http://127.0.0.1:3199 npm test
-```
-
-Stop **that exact test process**, start a fresh one, then run the separate complete-game batch:
-
-```bash
-GAHOOKZ_BASE_URL=http://127.0.0.1:3199 GAHOOKZ_TEST_BASE_URL=http://127.0.0.1:3199 npm run test:rooms
-```
+`npm test` now runs seeded simulations, the self-managed expiry test, and the shared smoke batch with its own fresh disposable server. **Do not pre-start a server for `npm test`, and do not wrap `npm test` in `test:disposable`.** Each other wrapper invocation owns one separate server lifetime, sets both test URLs, supplies a temporary journal and omits database/OAuth credentials. It stops its exact child and removes its scratch data on completion or test failure. Run these commands sequentially, not concurrently on 3199. `test:browser` itself still expects a running disposable server; the wrapper supplies it.
 
 The server has a 32-room limit; unrelated batches on the same uncleared process can fail through capacity rather than a game defect. Never solve this by pointing tests at production. Use relevant `standalone:smoke:*` scripts for each slice and the full suite at integration gates. Add new browser/load/outbox commands to `package.json` when those tests exist; don't claim proposed commands already run.
 
@@ -431,6 +420,39 @@ Known regressions or external gates:
 Next exact task, files to read, and acceptance test:
 Production touched: no / explicitly authorised action and evidence
 ```
+
+### Handoff — 2026-09-19 — resumed review repairs and corrected completion ledger
+
+- **Last updated:** 2026-09-19; completes the documentation omitted when the September 18 run was interrupted.
+- **Current stage and completed numbered steps:** review repair slices across P01 steps 5–7; P03 steps 2/4–6; P04 steps 2/4/5; P05 steps 2/4–6; P06 step 7; P07 steps 2–4/6–7; P08 steps 2–4; P09 steps 3–4; P10 step 7; P11 step 5; P12 steps 1/5–6. These are coverage references, **not newly completed whole steps**. P01–P12 remain partial against their full acceptance criteria. P00's existing completion is retained.
+- **Revision / relevant uncommitted changes:** branch `overhaul/quiz-herd-p00-p12`, HEAD `e31cdc88989a78d7e1dabb468f589f46f18546b2`, plus the preserved review diff. Node `v24.13.1`, npm `11.8.0`; browser build `release-4a97d7b7c3b5edca`. No commit, push or immutable release candidate was made. [Source hashes](docs/verification/2026-09-19-review-repairs/source-sha256.txt) identify modified/new executable and configuration files; the browser hash alone does not identify the server tree.
+- **Files changed and why:**
+  - `standalone/server.js`: fix pause helper shadowing; use current/locked scoring on retained questions; separate intended key/prediction, refuse unkeyed Classic starts; remember family lengths; authenticate and phase-check suggestions; bind factual metadata to owned unchanged drafts; use shared generation for autofill; connect content inventory, host route policy and career status; send named heartbeats and enforce stalled-stream deadlines.
+  - `packages/contracts/src/{host-settings,schemas}.ts`: align health/settings response fields and validate host settings before mutation, preserving supported aliases. This does not complete runtime snapshot validation.
+  - `standalone/public/app.jsx`: capture modal revision with its draft; contain initial Shift+Tab; unset missing intended keys; retain/clear draft-instance metadata; show Classic attention and career result status. `standalone/public/client/{net.ts,net.test.ts}`: heartbeat activity, bounded jittered retry, stale pending-state rejection and tests.
+  - `standalone/server/{career-outbox.mjs,career-outbox.test.mjs}`: repair torn append boundaries, fsync compaction and parent directory, retain exhausted-byte accounting and attempts across restart, contain journal acknowledgement/exhaustion failures, copy accepted events and expose result status. Real PostgreSQL and container-volume durability remain unverified.
+  - New `standalone/server/{content-inventory.mjs,content-inventory.test.mjs}`, plus `standalone/server/media.mjs`: inventory parked questions and hidden avatars for pruning/removal. New `standalone/server/{sse-backpressure.mjs,sse-backpressure.test.mjs}`: bounded saturation deadline, drain and cleanup tests with a real PassThrough stream.
+  - `standalone/browser-flow.mjs`: exercise quiet heartbeat, stale/fresh rules saves, keyboard focus, suggestions, accepted answer points, actual reveal/finale. During re-verification, dismiss the first-use tutorial before interacting with rules, foreground the keyboard target, and return a boolean instead of a DOM node from the key assertion.
+  - New `standalone/smoke-review-repairs.mjs`: HTTP regression coverage below. Re-verification corrected its assumption that a retained question precedes shuffled autofill; it now locates the authored fixture before asserting its original key. `standalone/simulate-games.mjs`: legal Herd votes. `standalone/{smoke-regressions,smoke-room-rules}.mjs`: align assertions/setup with shared shuffled content, required setup lock and retained banks.
+  - New `standalone/test-disposable.mjs`, plus `standalone/smoke-room-expiry.mjs`, `package.json`, `.github/workflows/ci.yml`: isolated test lifetimes on 3199 with synthetic configuration and exact-child cleanup.
+  - `Dockerfile`, `compose.yaml`: owned `/app/data`, persistent career-data mount/journal path, separate configurable prod/beta image references. Configuration only; **the deploy script still checks `gahookz:local`, so the changed image default is an unresolved integration regression**.
+  - New `standalone/{verify-postgres-outbox,verify-journal-volume}.mjs`: disposable integration probes. PostgreSQL probe failed in the interrupted run; volume probe remains unrun. Neither is passing evidence.
+  - `standalone/public/{index.html,service-worker.js,vendor-bootstrap.js}`: regenerated browser hashes. `docs/architecture/0003-scoring-alternatives.md`: correct authors' vote points versus winner bonus and label worked examples accurately.
+  - `IMPLEMENTATION-PLAN.md`, `PLAN-PROGRESS.md`, `RELEASE-CANDIDATE.md`, `README.md`, `CLAUDE.md`, `OPERATIONS-AND-ROADMAP.md`, and `docs/verification/2026-09-19-review-repairs/`: honest ledger, release gates, safe commands and durable fresh evidence.
+- **Tests run (exact commands, disposable environment, pass/fail):** commands below ran from the repository; each `.txt` log is in the linked [evidence directory](docs/verification/2026-09-19-review-repairs/README.md). Server suites used only 127.0.0.1:3199, synthetic guests, no database/OAuth credentials, and distinct owned lifetimes.
+  - `npm run check > docs/verification/2026-09-19-review-repairs/check.txt 2>&1` — exit 0: `tests 177`, `pass 177`, `fail 0`, typecheck and build passed.
+  - `npm test > docs/verification/2026-09-19-review-repairs/smoke.txt 2>&1` — exit 1 at the new Classic fixture assertion. `npm run test:disposable -- npm run standalone:smoke:review-repairs > docs/verification/2026-09-19-review-repairs/review-repairs-first.txt 2>&1` reproduced it, exit 1. After fixing the shuffled-fixture assumption, the same focused command writing `review-repairs.txt` exited 0.
+  - `npm test > docs/verification/2026-09-19-review-repairs/smoke-final.txt 2>&1` — exit 0: 15,000 seeded games, self-managed room expiry and 23 shared smoke scripts (24 smoke scripts total), including the real arena deadline and all three new repair summaries.
+  - `npm run test:disposable -- npm run test:rooms > docs/verification/2026-09-19-review-repairs/rooms.txt 2>&1` — exit 0: `ok: true`, `games: 12`; Classic/Majority/Herd at 4/8/12/20; Herd rounds 4/8/8/8 and workload spread 0/0/1/1.
+  - `npm run test:disposable -- npm run test:browser` with logs `browser.txt`, `browser-final.txt`, then `browser-retry.txt` — exits 1, 1, 0 respectively. First run stalled with the first-use tutorial covering the target and was ended by closing only its owned browser (TargetCloseError); second failed the DOM-node serialization assertion. Final run: `ok: true`, `checks: 18`. No browser/product acceptance is inferred from the first two runs.
+  - `node --check standalone/server.js` and `node --check` on each of the eight new `.mjs` files — all exit 0, listed individually in `syntax.txt`. These parse checks do not verify the integration probes' behaviour.
+  - Final audit: `git diff --check`, `node --check standalone/browser-flow.mjs`, `node --check standalone/smoke-review-repairs.mjs`, `sha256sum --check docs/verification/2026-09-19-review-repairs/source-sha256.txt`, and `ss -ltnp 'sport = :3199'` — all exit 0; all 29 source hashes matched, no 3199 listener, and new progress/release/evidence local links resolved. Output: `final-audit.txt`.
+  - Prior interrupted-run command `node --import tsx standalone/verify-postgres-outbox.mjs` — **failed**, unhandled PostgreSQL Pool error `57P01: terminating connection due to administrator command`. No transaction/outage success marker was reached. Initial temporary-server readiness is a suspected cause, not a confirmed diagnosis. Not rerun or relabelled as passing here; the user independently confirmed its disposable container was already removed.
+- **Observed behaviour / screenshots or fixture paths:** `smoke-review-repairs.mjs` exercises private-ID forgery rejection, lobby/live/banned suggestion refusal, reading/answering/reveal and actual progress-wait pause/resume, both scoring directions, missing-key refusal/edit, atomic malformed settings rejection, aliases and owned factual metadata. The final browser log records zero recovery polls over 32 quiet seconds, two-tab stale-save protection, keyboard containment/restoration, portrait/landscape suggestion, actual Classic points, reveal and nonzero finale. There are no new screenshots or physical-device results. Unit paths above cover torn-tail append across two restarts, exhausted storage, acknowledgement I/O, fsync ordering, hidden-media pruning and timed backpressure. Static deployment-smoke labels are not an image/container test.
+- **Decisions changed from this plan and rationale:** no product scope or scoring formula changed. Completion claims were corrected to match the original criteria. Keep the approved factual fallback for fully automatic Classic. `npm test` now owns disposable lifetimes. Distinct default image tags are still mutable and are not rollback identities. Human scoring feedback may defer numerical changes; it cannot waive engineering acceptance.
+- **Known regressions or external gates:** deploy-script/image-name mismatch; failed real-PG drill; volume replacement and current image unverified; account status not exercised through an account-enabled app; full runtime contracts, stable option-ID editing, carryover author rotation/status, complete role/media privacy, typed transitions and UI decomposition remain unfinished. No party-sized load/p95/RSS or reconnect-storm proof, full browser phase/role matrix, physical mobile/screen reader, human/content sessions, or staging drain/exact-image rollback. See the per-stage map in `PLAN-PROGRESS.md`. Historical live revision/certificate claims were not queried.
+- **Next exact task, files to read, and acceptance test:** first reconcile `compose.yaml` and `scripts/docker-deploy.sh` image resolution (read the whole script and `standalone/smoke-deployment.mjs`); prove default and overridden image selection with an isolated stubbed-command test, without executing deployment against this machine. Then read `standalone/verify-postgres-outbox.mjs`, `standalone/server/accounts.mjs`, `packages/accounts/src/index.ts`, `infra/postgres/001_accounts.sql` and `standalone/server/career-outbox.mjs`; stabilize real-PG readiness, contain idle Pool errors and close failed initialization. Rerun `node --import tsx standalone/verify-postgres-outbox.mjs` using only its disposable database; require all transaction/deduplication, outage/restart and partial-account recovery assertions and cleanup before claiming P07 integration evidence. These are engineering tasks that do not require Tyson to provide a database or production access. Continue remaining stages in plan order afterward.
+- **Production touched:** **no**. No request to port 3102, live beta or gahookz.com; no deploy/restart or mutation of the three long-running containers. Every server/browser started in this resumption stopped; final 3199 listener inspection was empty. `/Vault` was read-only; the complete note for Tyson is printed only in the final terminal response.
 
 ### Handoff — 2026-09-12 — P12 automated half complete
 

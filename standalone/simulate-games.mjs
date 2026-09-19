@@ -89,18 +89,19 @@ for (let gameIndex = 0; gameIndex < GAME_SETS; gameIndex += 1) {
   for (const question of questions) {
     const answerAssignments = assignmentPlan.byQuestionId[question.id] || [];
     const answers = answerAssignments.map((assignment, index) => ({ id: "a" + index, text: "answer " + index, authorId: assignment.answerAuthorId }));
-    const selections = playerIds.map((playerId, index) => ({
-      playerId,
-      answerId: answers[integer(0, answers.length - 1)].id,
-      elapsedMs: integer(0, ANSWERING_MS),
-      answeredAt: gameIndex * 1_000_000 + index
-    }));
+    const selections = playerIds.flatMap((playerId, index) => {
+      const legal = answers.filter((answer) => answer.authorId !== playerId);
+      if (!legal.length) return [];
+      const selected = legal[integer(0, legal.length - 1)];
+      assert(selected.authorId !== playerId, "Herd simulation must never self-vote");
+      return { playerId, answerId: selected.id, elapsedMs: integer(0, ANSWERING_MS), answeredAt: gameIndex * 1_000_000 + index };
+    });
     const result = buildHerdRoundResults({ answers, selections, eligiblePlayerIds: playerIds, answeringMs: ANSWERING_MS });
-    assert(result.answeredCount === playerCount, "Herd lost a valid vote");
-    assert(result.groups.find((group) => group.id === result.winningAnswerId)?.count === result.topCount, "Herd favourite did not have the top vote count");
+    assert(result.answeredCount === selections.length, "Herd lost a valid vote");
+    assert(!selections.length ? result.winningAnswerId === null : result.groups.find((group) => group.id === result.winningAnswerId)?.count === result.topCount, "Herd favourite did not have the top vote count");
     assert(result.playerResults.every((entry) => entry.points >= 0 && entry.points <= 500), "Herd voter score escaped the 500-point cap");
     assert(result.authorResults.every((entry) => entry.points >= 0 && entry.points <= 500), "Herd author score escaped the 500-point cap");
-    assert(result.authorResults.reduce((total, entry) => total + entry.voteCount, 0) === playerCount, "Herd authored vote totals do not reconcile");
+    assert(result.authorResults.reduce((total, entry) => total + entry.voteCount, 0) === selections.length, "Herd authored vote totals do not reconcile");
     summary.herd.rounds += 1;
     summary.herd.votes += result.answeredCount;
     summary.herd.authoredAnswers += answers.length;

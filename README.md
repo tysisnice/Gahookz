@@ -98,33 +98,28 @@ Most smoke tests drive a running app. They create and mutate real rooms, so
 point them at a **disposable** server on port 3199 — never at port 3102, which
 is production on the deployment host, and never at a public domain.
 
-Start the throwaway server in one terminal:
+The full suite owns its disposable servers and stops them when finished:
 
 ```bash
 npm run build
-HOST=127.0.0.1 PORT=3199 npm start
-```
-
-Run the suite in a second terminal:
-
-```bash
-export GAHOOKZ_BASE_URL=http://127.0.0.1:3199
-export GAHOOKZ_TEST_BASE_URL=http://127.0.0.1:3199
 npm test
 ```
 
-Both variables already default to port 3199, so an unconfigured run fails to
-connect rather than quietly reaching a live game. Stop the throwaway server by
-port rather than by process name, because a pattern such as `pkill -f
-server.js` also matches the running containers:
+Do not pre-start a server or wrap `npm test` in `test:disposable`. Run other
+batches sequentially on their own fresh lifetimes:
 
 ```bash
-kill "$(ss -lptnH 'sport = :3199' | grep -oP 'pid=\K[0-9]+')"
+npm run test:disposable -- npm run test:rooms
+npm run test:disposable -- npm run test:browser
+npm run test:disposable -- npm run standalone:smoke:review-repairs
 ```
 
-Individual smoke commands are listed in `package.json` and can be run by name,
-such as `npm run standalone:smoke:deployment`. `npm run standalone:smoke:room-expiry`
-starts and stops its own server and needs no setup.
+The wrapper refuses an occupied 127.0.0.1:3199, sets both test URLs, uses a
+temporary journal without database/OAuth credentials, and stops only the exact
+child it started. Leave an unfamiliar listener alone. Never use `pkill` or
+target the real dev/beta/prod containers. Individual smoke commands are in
+`package.json`; use the wrapper for scripts that expect a running server.
+`standalone:smoke:room-expiry` starts and stops its own server and must run alone.
 
 The lobby's Gahook Arena is a tap tug of war. Counter a Gahook, challenge back,
 and accept to start. After the countdown, each competitor chases one Gahook
@@ -142,19 +137,22 @@ checks scoring and spectator state; `standalone:smoke:arena` checks challenge
 expiry, the actual 45-second draw deadline, result cleanup, removal of a
 competitor and cancellation when the main game starts (about one minute).
 
-`npm run test:rooms` drives twelve complete games against the same disposable
-server: each mode at 4, 8, 12 and 20 players, from setup through voting, results
+`npm run test:disposable -- npm run test:rooms` drives twelve complete games
+on its own fresh disposable server: each mode at 4, 8, 12 and 20 players, from setup through voting, results
 and reset. It uses host skip to accelerate phase timers and records Herd's
 answer-writing workloads. This checks lifecycle correctness, not real-world
 network capacity or whether people enjoy the pacing.
 
-`npm run test:browser` runs the real client in headless Chromium against the
-same disposable server: it creates a room, joins from a second browser context,
-and checks that the player appears in the host lobby live, that a reload
-reconnects, and that the player view fits a 320px phone. Everything else in the
-suite drives the server over HTTP and never executes the client, so this is the
-only check that the browser app actually works. Puppeteer is a development
-dependency and is kept out of every container image.
+`npm run test:disposable -- npm run test:browser` runs the real client in
+headless Chromium. It checks live joining/reload, a 320px player lobby, a quiet
+heartbeat, two-tab stale rules saves and keyboard focus, generated educational
+content, and a representative Classic game with a real accepted answer, reveal
+and nonzero final leaderboard. It does not cover the full mode/role/rematch or
+physical-device/accessibility matrix. Puppeteer is a development dependency and
+is kept out of runtime images.
+
+See [fresh review evidence](docs/verification/2026-09-19-review-repairs/README.md)
+and [plan progress](PLAN-PROGRESS.md) for actual results and remaining gates.
 
 The same three jobs run in CI on every push and pull request to `main`
 (`.github/workflows/ci.yml`).

@@ -1,0 +1,41 @@
+$ git diff --check
+exit 0
+$ node --check standalone/browser-flow.mjs
+exit 0
+$ node --check standalone/smoke-review-repairs.mjs
+exit 0
+$ sha256sum --check docs/verification/2026-09-19-review-repairs/source-sha256.txt
+.github/workflows/ci.yml: OK
+Dockerfile: OK
+compose.yaml: OK
+package.json: OK
+packages/contracts/src/host-settings.ts: OK
+packages/contracts/src/schemas.ts: OK
+standalone/browser-flow.mjs: OK
+standalone/public/app.jsx: OK
+standalone/public/client/net.test.ts: OK
+standalone/public/client/net.ts: OK
+standalone/public/index.html: OK
+standalone/public/service-worker.js: OK
+standalone/public/vendor-bootstrap.js: OK
+standalone/server.js: OK
+standalone/server/career-outbox.mjs: OK
+standalone/server/career-outbox.test.mjs: OK
+standalone/server/content-inventory.mjs: OK
+standalone/server/content-inventory.test.mjs: OK
+standalone/server/media.mjs: OK
+standalone/server/sse-backpressure.mjs: OK
+standalone/server/sse-backpressure.test.mjs: OK
+standalone/simulate-games.mjs: OK
+standalone/smoke-regressions.mjs: OK
+standalone/smoke-review-repairs.mjs: OK
+standalone/smoke-room-expiry.mjs: OK
+standalone/smoke-room-rules.mjs: OK
+standalone/test-disposable.mjs: OK
+standalone/verify-journal-volume.mjs: OK
+standalone/verify-postgres-outbox.mjs: OK
+exit 0
+$ ss -ltnp sport = :3199
+State Recv-Q Send-Q Local Address:Port Peer Address:PortProcess
+exit 0
+PASS new progress/release/evidence local links and no listener on 3199.

@@ -1,0 +1,21 @@
+
+> gahookz@0.1.0 test:disposable
+> node standalone/test-disposable.mjs node standalone/load-gahook-storm.mjs --players 15 --duration 30 --rate 4 --label uncoalesced-15p-4hz --out docs/verification/2026-09-19-hosting/raw/uncoalesced-15p-4hz.json
+
+== uncoalesced-15p-4hz ==
+  rooms=1 players/room=15 rate=4/s duration=30.26s [one source IP per player]
+  Gahooks: sent=1726 ok=1726 rejected=0 rate-limited=0 transport-errors=0 (57.04/s)
+  poke POST latency ms: p50=12.49 p95=309.99 p99=485.66 max=663.65 n=1726
+  fan-out latency ms:   p50=16 p95=282 p99=435 max=615 n=27616  coverage=100%
+  health probe ms:      p50=3 p95=139.87 p99=484.4 max=687.44 n=268  failures=0
+  idle health ms:       p50=2.37 p95=3.34 p99=4.42 max=4.42 n=30
+  SSE: frames=27928 bytes=754.38MB meanFrame=28324B amplification=16.18 frames/Gahook
+  server CPU % of one core: p50=39.68 p95=52.63 p99=57.29 max=64 n=135  cpuSeconds=12
+  server RSS MB: idle=91.86 peak=113.05
+  harness CPU % of one core: p50=31.87 p95=64 p99=80 max=84 n=135 (co-located; subtract mentally when reading the server figure)
+  survived: true
+Raw report written to docs/verification/2026-09-19-hosting/raw/uncoalesced-15p-4hz.json
+Gahookz release-f05cb407bb761323 running on http://127.0.0.1:3199/
+SIGTERM received; refusing new rooms and draining 1 active room(s).
+All rooms finished; closing cleanly.
+Disposable server stopped (owned PID 2765885).
