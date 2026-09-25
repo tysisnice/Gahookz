@@ -46,7 +46,13 @@ async function pageFor(key, code, viewport = { width: 900, height: 900 }) {
     for (const mode of ['quiz', 'herd', 'majority', 'host']) localStorage.setItem('gahookz-how-to-play-seen-v2-' + mode, '1');
   }, key);
   await page.goto(base + '/' + code);
-  await page.waitForSelector('.player-card');
+  try {
+    await page.waitForSelector('.player-card');
+  } catch (error) {
+    // Say what the page showed instead, so a failure here is diagnosable.
+    const text = await page.evaluate(() => document.body.innerText.slice(0, 600)).catch(() => '(unreadable)');
+    throw new Error(`${key}: the lobby never showed a player card. Page text: ${JSON.stringify(text)}`, { cause: error });
+  }
   return page;
 }
 
@@ -81,7 +87,11 @@ try {
 
   const pageA = await pageFor(aKey, code);
   const phone = { width: 390, height: 844 };
-  const pageB = await pageFor(bKey, code, phone);
+  // Loaded at desktop size so the lobby's player cards are the ready signal,
+  // then shrunk to a phone: that is where the arena checks and screenshots
+  // for the thrown minis matter.
+  const pageB = await pageFor(bKey, code);
+  await pageB.setViewport(phone);
 
   // -------------------------------------------------------------------
   // Item 4 - challenge from the player banner menu
