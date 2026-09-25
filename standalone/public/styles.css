@@ -10696,3 +10696,87 @@ button.answer-tile {
     font-size: 0.72rem;
   }
 }
+
+/* Host presence notices (client/host-presence.jsx).
+   A small stack under the top bar: "<host> disconnected — waiting…", "<name>
+   is now the host", and the replaced host's own notice. Pointer events are off
+   so a notice can never cover a control a player needs mid-round; only the
+   replaced host's dismiss button takes taps. Sits under menus and dialogs. */
+.host-presence-layer {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 72px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: grid;
+  gap: 8px;
+  width: min(92vw, 460px);
+  pointer-events: none;
+}
+
+.host-presence-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(8, 10, 16, 0.9);
+  border: 2px solid rgba(255, 223, 69, 0.85);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  color: #ffffff;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.3;
+  animation: host-presence-in 220ms ease-out both;
+}
+
+.host-presence-notice.is-change { border-color: rgba(143, 240, 188, 0.9); }
+.host-presence-notice.is-replaced { border-color: rgba(255, 143, 184, 0.95); }
+
+.host-presence-dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffdf45;
+  animation: host-presence-pulse 1.2s ease-in-out infinite;
+}
+
+.is-change .host-presence-dot { background: #8ff0bc; animation: none; }
+.is-replaced .host-presence-dot { background: #ff8fb8; animation: none; }
+
+.host-presence-text { flex: 1 1 auto; min-width: 0; }
+.host-presence-time { font-variant-numeric: tabular-nums; color: #ffdf45; }
+
+.host-presence-dismiss {
+  flex: 0 0 auto;
+  pointer-events: auto;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@keyframes host-presence-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes host-presence-pulse {
+  50% { opacity: 0.35; }
+}
+
+.gahookz-reduced-effects .host-presence-notice,
+.gahookz-reduced-effects .host-presence-dot { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .host-presence-notice,
+  .host-presence-dot { animation: none; }
+}

@@ -7,6 +7,7 @@ import { OfflineExperience, ServerUpdateExperience, useServerConnection } from "
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
 import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
 import { FactCheckPanel, HerdRevealBreakdown, MajorityRevealBreakdown, PromptText, tieBreakLabel } from "./client/reveal.jsx";
+import { HostPresenceNotices } from "./client/host-presence.jsx";
 import {
   installGahookWarmup,
   playAnswerOohSound,
@@ -1588,7 +1589,7 @@ function HostMode({ playerKey, code }) {
   const showPlayerWorkspace = Boolean(lobby.ownPlayer) && lobby.phase !== "lobby" || joiningAsPlayer || editingProfile;
   return showPlayerWorkspace ?
   <PlayerView playerKey={playerKey} hostMenu={hostMenu} editingProfile={editingProfile} onProfileEditComplete={() => setEditingProfile(false)} /> :
-  <><HostView playerKey={playerKey} onPlayAsPlayer={enterAsPlayer} onExitAsPlayer={exitAsPlayer} rejoiningAsPlayer={rejoiningAsPlayer} hostMenu={hostMenu} /><RoomGetGotOverlay roomPoke={lobby.roomPoke} ignorePlayerId={lobby.phase === "lobby" ? lobby.ownPlayer?.id : ""} /></>;
+  <><HostView playerKey={playerKey} onPlayAsPlayer={enterAsPlayer} onExitAsPlayer={exitAsPlayer} rejoiningAsPlayer={rejoiningAsPlayer} hostMenu={hostMenu} /><RoomGetGotOverlay roomPoke={lobby.roomPoke} ignorePlayerId={lobby.phase === "lobby" ? lobby.ownPlayer?.id : ""} /><HostPresenceNotices lobby={lobby} /></>;
 
 }
 
@@ -3222,6 +3223,7 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     };
   }
   const effectsLayer = <>
+    <HostPresenceNotices lobby={lobby} />
     {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} action={pokeAction} /> : null}
     {!activePoke ? <CounterGahookPrompt
       offer={lobby.ownCounterOffer}

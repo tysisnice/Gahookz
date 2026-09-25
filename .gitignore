@@ -13,6 +13,7 @@ standalone/public/release.json
 standalone/public/client/audio.runtime.js
 standalone/public/client/net.js
 standalone/public/client/reveal.js
+standalone/public/client/host-presence.js
 standalone/public/client/custom-gahook.js
 standalone/public/client/drawing.js
 standalone/public/client/information.js
