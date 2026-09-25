@@ -23,6 +23,7 @@ standalone/public/client/presentation.js
 standalone/public/client/qr.js
 standalone/public/client/social.js
 standalone/public/client/tutorial.js
+standalone/public/client/controls.js
 
 # Logs, coverage, and temporary output
 *.log
@@ -36,9 +37,11 @@ temp/
 # Local release archives, tunnels, and scratch files
 work/
 
-# Local Codex/agent notes and shared machine handoffs
+# Local Codex/agent notes and shared machine handoffs. Claude Code subagent
+# definitions are shared project tooling and are tracked.
 .agents/
-.claude/
+.claude/*
+!.claude/agents/
 .codex/
 codexLastPrompt.md
 git.md
@@ -55,7 +58,8 @@ LAPTOP-DEPLOY-PROMPT.md
 # Local reconciliation archive for Syncthing conflict copies (P00). Kept out of
 # Git deliberately: CI fails if any *.sync-conflict-* path is tracked, and
 # renaming the copies to dodge that check would defeat the protection.
-archive/
+# Anchored to the root so that docs/archive/ (historical documents) is tracked.
+/archive/
 
 # Durable career-result journal. Local runtime state, never source.
 standalone/.data/

@@ -170,7 +170,8 @@ function runStaticUiSmoke() {
   assert(socialSource.includes("chatInputRef.current?.focus") && socialSource.includes("requestAnimationFrame"), "Chat should return focus to the message input after a send finishes");
   assert(socialSource.includes("drawingStrokeSegments") && !socialSource.includes("stroke.points.splice"), "Long chat drawings should be preserved and split into server-safe segments instead of erasing their oldest points");
   assert(socialSource.includes('document.addEventListener("pointerdown", handlePagePointerDown)') && socialSource.includes("!root.contains(event.target)"), "Clicking away from the expanded room chat should minimize it");
-  assert(socialSource.includes("drawingEnabled && !canvasRef.current?.contains(event.target)") && socialSource.includes("onClick={stopDrawing}"), "Clicking outside the drawing surface should use the Done drawing action");
+  // Painting moved from chat to the lobby wall; the Done behaviour moved with it.
+  assert(socialSource.includes("drawing && !surfaceRef.current?.contains(event.target)") && socialSource.includes('{drawing ? "Done" : "Draw"}'), "Clicking outside the drawing surface should use the Done drawing action");
 
   assert(customCreatorSource.includes("export function CustomGahookCreator"), "The custom Gahook creator should be exported");
   assert(customCreatorSource.includes("<SimplePaintEditor"), "Custom Gahook frames should use the shared paint editor");
@@ -189,7 +190,9 @@ function runStaticUiSmoke() {
   assert(joinScreen.includes("upload an image here"), "The custom profile drawing editor should explain where image upload now lives");
   const socialHub = functionSection(appSource, "RoomSocialHub");
   assert(socialHub.includes("WaitingRoomSocial"), "The app should connect its waiting rooms to WaitingRoomSocial");
-  assert(socialHub.includes("/api/room/chat") && socialHub.includes("/api/room/whiteboard/stroke") && socialHub.includes("/api/room/whiteboard/clear"), "RoomSocialHub should wire chat and its shared drawing layer");
+  // Chat stays in RoomSocialHub; the shared drawing layer moved to the lobby wall.
+  const paintSurface = functionSection(appSource, "LobbyPaintSurface");
+  assert(socialHub.includes("/api/room/chat") && paintSurface.includes("/api/room/whiteboard/stroke") && paintSurface.includes("/api/room/whiteboard/clear"), "RoomSocialHub should wire chat and LobbyPaintSurface its shared drawing layer");
   assert(socialHub.includes("<AvatarBadge"), "Room chat should render the same avatar badges used by player banners");
   for (const lobbyFunction of ["HostLobby", "HostBuildingLobby", "ReadonlyPartyView", "PlayerWaitingLobby", "PlayerLobby"]) {
     assert(functionSection(appSource, lobbyFunction).includes("RoomSocialHub"), `${lobbyFunction} should show room chat while waiting`);
@@ -199,7 +202,7 @@ function runStaticUiSmoke() {
   assert(picker.includes("CustomGahookCreator") && picker.includes("/api/player/custom-gahook"), "The Gahook picker should expose and save the player's custom option");
 
   assert(stylesSource.includes(".simple-paint-editor") && stylesSource.includes(".waiting-room-social") && stylesSource.includes(".custom-gahook-creator"), "Paint, social, and custom-Gahook interfaces need integrated styling");
-  assert(stylesSource.includes(".social-chat__message.is-own") && stylesSource.includes(".social-chat__drawing"), "Chat should use player-banner-like lobby styling with a translucent drawing layer");
+  assert(stylesSource.includes(".social-chat__message.is-own") && stylesSource.includes(".lobby-paint__canvas"), "Chat should use player-banner-like lobby styling, and the lobby wall a translucent drawing layer");
   assert(stylesSource.includes("position: fixed") && stylesSource.includes(".social-chat-notification") && stylesSource.includes(".social-chat-fab"), "Floating chat, notification bubbles, and its action button need integrated styling");
   for (const moduleName of ["drawing", "social", "custom-gahook"]) {
     assert(buildSource.includes(`client/${moduleName}.jsx`) && buildSource.includes(`client/${moduleName}.js`), `${moduleName} should be included in the browser build`);

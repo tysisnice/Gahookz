@@ -61,7 +61,8 @@
     "standalone:smoke:review-repairs": "node --import tsx standalone/smoke-review-repairs.mjs",
     "test:disposable": "node standalone/test-disposable.mjs",
     "standalone:smoke:host-controls": "node standalone/smoke-host-controls.mjs",
-    "standalone:smoke:desktop-ui": "node standalone/smoke-desktop-ui.mjs"
+    "standalone:smoke:desktop-ui": "node standalone/smoke-desktop-ui.mjs",
+    "docs:check": "node scripts/check-docs.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

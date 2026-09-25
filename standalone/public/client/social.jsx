@@ -358,6 +358,18 @@ export function LobbyPaintLayer({ snapshot = null, ownPlayer = null, disabled = 
     if (draft) drawStroke(draft);
   };
 
+  // Tapping anywhere off the wall means "Done", the same as the button. Chat
+  // had this before painting moved here, and losing it left phones stuck in
+  // drawing mode with the wall swallowing every touch.
+  useEffect(() => {
+    if (!drawing) return undefined;
+    const handlePagePointerDown = (event) => {
+      if (drawing && !surfaceRef.current?.contains(event.target)) setDrawing(false);
+    };
+    document.addEventListener("pointerdown", handlePagePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePagePointerDown);
+  }, [drawing]);
+
   useEffect(() => {
     paintCanvas();
     const surface = surfaceRef.current;
