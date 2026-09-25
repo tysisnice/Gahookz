@@ -1445,7 +1445,10 @@ function tapGahookDuel(room, payload) {
   }
   const result = tapArena(duel, player.id, payload?.targetId, now);
   if (result.ok && !result.duplicate) {
-    if (result.winnerId) finishGahookDuel(room, result.winnerId, result.opponentId, "five-ahead");
+    // "lead" (was "five-ahead") names the rule rather than its number, so the
+    // next change to ARENA_LEAD_TO_WIN cannot make it lie. No client branches
+    // on it: the browser only distinguishes "left".
+    if (result.winnerId) finishGahookDuel(room, result.winnerId, result.opponentId, "lead");
     else broadcastState(room);
   }
   return { ...result, duel: publicGahookDuel(room, player.id) };

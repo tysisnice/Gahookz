@@ -288,3 +288,115 @@
   0%, 72% { opacity: 1; transform: translate(-50%, -50%); }
   100% { opacity: 0; transform: translate(-50%, -50%); }
 }
+
+/* Gahooks thrown at a duelist (2026-09-25).
+   Unlike the opponent-tap minis above, these land anywhere below the score --
+   over the tap zone included, so they get in the way -- and each one is a real
+   button that Gahooks its sender back. The layer lets taps through; only the
+   cards catch them. Its z-index is local to .arena-overlay's own stacking
+   context (the overlay is fixed with z-index 94), so nothing outside the arena
+   moves: above the playfield and the opponent-tap minis (3), nothing else. */
+.arena-thrown-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  overflow: hidden;
+}
+.arena-thrown-mini {
+  position: absolute;
+  width: 84px;
+  height: 84px;
+  padding: 4px 4px 6px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: center;
+  gap: 1px;
+  border: 3px solid var(--arena-pink);
+  border-radius: 16px;
+  background: rgba(8, 10, 16, .92);
+  color: #fff;
+  font: inherit;
+  box-shadow: 0 5px 0 var(--arena-ink), 0 0 0 3px #ff65a64d, 0 10px 24px #0008;
+  transform: translate(-50%, -50%) rotate(var(--mini-rotate));
+  pointer-events: auto;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  animation: arena-thrown-life var(--thrown-life, 2.4s) linear both;
+}
+.arena-thrown-mini.is-ultimate { border-color: #ff3b3f; box-shadow: 0 5px 0 var(--arena-ink), 0 0 0 3px #ff3b3f80, 0 10px 24px #0008; }
+.arena-thrown-mini:focus-visible { outline: 4px solid #fff; outline-offset: 3px; }
+.arena-thrown-mini__art { display: grid; place-items: center; width: 52px; height: 52px; overflow: hidden; pointer-events: none; }
+.arena-thrown-mini .poke-animal,
+.arena-thrown-mini .poke-monkey,
+.arena-thrown-mini .custom-gahook-visual { width: 50px; height: 50px; min-width: 0; min-height: 0; max-width: 50px; max-height: 50px; animation: none; }
+.arena-thrown-mini > b { max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .62rem; font-weight: 1000; line-height: 1.1; pointer-events: none; }
+/* The corner badge says "this one can be thrown back". */
+.arena-thrown-mini > i {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--arena-ink);
+  border-radius: 50%;
+  background: var(--arena-pink);
+  color: var(--arena-ink);
+  font-size: .85rem;
+  font-style: normal;
+  font-weight: 1000;
+  pointer-events: none;
+}
+/* Tapped: the card is replaced by a short, inert confirmation so the next tap
+   goes straight through to the arena target underneath. */
+.arena-thrown-mini.is-sent,
+.arena-thrown-mini.is-failed,
+.arena-thrown-mini.is-dismissed {
+  width: auto;
+  height: auto;
+  min-width: 84px;
+  padding: 8px 10px;
+  border-color: var(--arena-ink);
+  background: var(--arena-yellow);
+  color: var(--arena-ink);
+  pointer-events: none;
+  animation: arena-thrown-pop .65s ease-out forwards;
+}
+.arena-thrown-mini.is-failed { background: #d0ddec; }
+.arena-thrown-mini.is-sent > b,
+.arena-thrown-mini.is-failed > b,
+.arena-thrown-mini.is-dismissed > b { max-width: none; font-size: .78rem; }
+
+@keyframes arena-thrown-life {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(.4); }
+  7% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(1.12); }
+  13% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(1); }
+  82% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(.9); }
+}
+@keyframes arena-thrown-pop {
+  0% { opacity: 1; transform: translate(-50%, -50%) rotate(var(--mini-rotate)) scale(1); }
+  30% { opacity: 1; transform: translate(-50%, -58%) rotate(0deg) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -90%) rotate(0deg) scale(1); }
+}
+/* Reduced effects and reduced motion: still there, still tappable, no bounce.
+   The card holds still and fades at the end of its life. */
+@keyframes arena-thrown-still {
+  0%, 82% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -50%); }
+}
+.gahookz-reduced-effects .arena-thrown-mini,
+.gahookz-muted .arena-thrown-mini { animation-name: arena-thrown-still; }
+.gahookz-reduced-effects .arena-thrown-mini.is-sent,
+.gahookz-reduced-effects .arena-thrown-mini.is-failed,
+.gahookz-reduced-effects .arena-thrown-mini.is-dismissed,
+.gahookz-muted .arena-thrown-mini.is-sent,
+.gahookz-muted .arena-thrown-mini.is-failed,
+.gahookz-muted .arena-thrown-mini.is-dismissed { animation: arena-thrown-still .65s linear forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .arena-thrown-mini { animation-name: arena-thrown-still; }
+  .arena-thrown-mini.is-sent, .arena-thrown-mini.is-failed, .arena-thrown-mini.is-dismissed { animation: arena-thrown-still .65s linear forwards; }
+}

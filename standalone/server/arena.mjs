@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-export const ARENA_LEAD_TO_WIN = 5;
+export const ARENA_LEAD_TO_WIN = 6;
 export const ARENA_DURATION_MS = 45_000;
 export const ARENA_TARGET_BUFFER = 12;
 
@@ -8,14 +8,29 @@ export const ARENA_TARGET_BUFFER = 12;
 //
 // Every tap used to be worth exactly one point, which made a match effectively
 // decided the moment someone got three ahead. The rubber band keeps it tense:
-// the last two points are the expensive ones, so a trailing player always has
-// a window to pull it back.
+// the last points before the win are the expensive ones, so a trailing player
+// always has a window to pull it back.
+//
+// 2026-09-25 (Tyson: "remove the need to press 3 Gahookz in a row. Increase the
+// number needed to win overall by 1"): the lead to win went from 5 to 6 and the
+// three-press final pull is gone. The last two points -- at leads 4 and 5 --
+// each cost two presses; every other point costs one. Six points for eight
+// presses, where it used to be five points for eight presses.
 //
 // The lead passed in is the player's lead *before* the press being counted.
+export const ARENA_CLOSING_POINTS = 2;
+export const ARENA_CLOSING_PRESSES = 2;
+
 export function pressesRequiredAtLead(lead) {
-  if (lead >= ARENA_LEAD_TO_WIN - 1) return 3; // one tug from winning
-  if (lead >= ARENA_LEAD_TO_WIN - 2) return 2; // two tugs from winning
+  if (lead >= ARENA_LEAD_TO_WIN - ARENA_CLOSING_POINTS) return ARENA_CLOSING_PRESSES;
   return 1;
+}
+
+// The rule table the client mirrors, one entry per non-negative lead below the
+// win. Publishing it means the browser's optimistic projection follows these
+// constants instead of re-stating them, so the two cannot drift apart.
+export function arenaPressTable() {
+  return Array.from({ length: ARENA_LEAD_TO_WIN }, (_, lead) => pressesRequiredAtLead(lead));
 }
 
 // Coordinates describe the safe centre area inside the lower-half playfield.
@@ -143,6 +158,7 @@ export function arenaProgress(duel, viewerPlayerId) {
     revision: duel.revision,
     endsAt: duel.endsAt,
     leadToWin: ARENA_LEAD_TO_WIN,
+    pressesByLead: arenaPressTable(),
     hits: { ...duel.hits },
     ownTargets: isParticipant && duel.status === "active" ? duel.targets[viewerPlayerId].map(target => ({ ...target })) : [],
     ownPresses: isParticipant ? (duel.presses?.[viewerPlayerId] || 0) : 0,
