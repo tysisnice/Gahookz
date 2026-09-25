@@ -270,7 +270,7 @@ function ThrownMiniLayer({ ownPoke, active, ownId, playerKey, request, overlayRe
       }
       return <button type="button" className={`arena-thrown-mini${mini.ultimate ? " is-ultimate" : ""}`} key={mini.key}
         style={{ ...position, "--thrown-life": `${ARENA_THROWN_MINI_MS}ms` }}
-        data-sender-id={mini.senderId || undefined}
+        data-poke-id={mini.key}
         aria-label={mini.senderId ? `Gahook ${mini.from} back` : `Dismiss ${mini.from}'s Gahook`}
         onPointerDown={event => gahookBack(event, mini)}
         onMouseDown={event => event.preventDefault()}

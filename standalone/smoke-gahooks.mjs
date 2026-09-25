@@ -162,6 +162,12 @@ function runClientGahookContractSmoke() {
   assert(appSource.includes("function GahookDuelOverlay") && appSource.includes("function GahookDuelArena"), "The client should provide participant, spectator, and room-wide Arena views");
   assert(arenaSource.includes("onPointerDown={tap}") && arenaSource.includes("arena-rope") && arenaSource.includes("arena-player__portrait"), "Arena should provide immediate tapping, a tug bar and avatar hit feedback");
   assert(appSource.includes("/api/player/duel-react") && appSource.includes("GahookArenaCrowdControls"), "Spectators should be able to congratulate the winner and boo the loser");
+  // A Gahook thrown at a duelist is drawn by the arena, inside its own
+  // overlay, as a button that throws one back through the ordinary route.
+  assert(arenaSource.includes("export function isArenaThrownGahook") && arenaSource.includes('request("/api/player/poke", { playerKey, playerId: mini.senderId }'), "Arena minis should Gahook their sender back through /api/player/poke");
+  assert(arenaSource.includes("aria-label={mini.senderId ? `Gahook ${mini.from} back`"), "Each thrown mini should be a labelled button");
+  assert(playerView.includes("inActiveDuelRef.current && isArenaThrownGahook(incomingPoke)") && !playerView.includes("host-mini-gahook-layer"), "PlayerView should leave thrown Gahooks to the arena instead of drawing them underneath it");
+  assert(getFunctionSection("HostLobbyPokeEffects").includes("isArenaThrownGahook(ownPoke)"), "A host who is dueling should get the same tappable arena minis");
   assert(audioSource.includes("playCounterGahookSound"), "Counter Gahooks should have dedicated audio feedback");
 
   return {
@@ -178,7 +184,8 @@ function runClientGahookContractSmoke() {
       "five dark premium themes with object effects and animated animal poses",
       "three-second GET GOT sound and banana barrage",
       "interactive Counter Gahook offers and Gahook Arena challenge",
-      "five-point lead tug of war and spectator arena",
+      "six-point lead tug of war and spectator arena",
+      "Gahooks thrown at a duelist are tappable arena minis that Gahook the sender back",
       "non-interruptible room-wide GET GOT",
       "immediate 50-point Gahook theft"
     ]
@@ -194,7 +201,8 @@ async function runGahookSmoke() {
   assert(serverSource.includes("COUNTER_GAHOOK_TRIGGER_COUNT = 10"), "Counter Gahook should unlock on the tenth consecutive Gahook");
   assert(serverSource.includes("COUNTER_GAHOOK_REPEAT_EVERY = 2"), "Counter Gahook should reappear every second Gahook after ten");
   assert(serverSource.includes("COUNTER_GAHOOK_OVERLAY_MS = 2750"), "Counter Gahook should last half a second longer");
-  assert(arenaEngine.includes("ARENA_LEAD_TO_WIN = 5") && arenaEngine.includes("ARENA_DURATION_MS = 45_000"), "Arena should need a five-tap lead and have a bounded duration");
+  assert(arenaEngine.includes("ARENA_LEAD_TO_WIN = 6") && arenaEngine.includes("ARENA_DURATION_MS = 45_000"), "Arena should need a six-point lead and have a bounded duration");
+  assert(arenaEngine.includes("ARENA_CLOSING_PRESSES = 2") && !/return 3;/.test(arenaEngine), "No arena point should cost three presses any more");
   assert(serverSource.includes("function finishGahookDuel") && serverSource.includes("function publicGahookDuel"), "Duel outcomes and spectator state should be server-authoritative");
   const clientContract = runClientGahookContractSmoke();
 
@@ -233,7 +241,19 @@ async function runGahookSmoke() {
   targetLobbyState = await state(roomCode, "player", target.key);
   const targetId = targetLobbyState.ownPlayer.id;
   assert(senderLobbyState.gahookDuel?.status === "active" && senderLobbyState.gahookDuel.ownTargets.length === 12, "Both players should receive a private buffer of tap targets");
-  assert(senderLobbyState.gahookDuel.leadToWin === 5 && senderLobbyState.gahookDuel.introEndsAt > senderLobbyState.serverTime, "The Arena should publish the five-tap-lead rules and countdown");
+  assert(senderLobbyState.gahookDuel.leadToWin === 6 && senderLobbyState.gahookDuel.introEndsAt > senderLobbyState.serverTime, "The Arena should publish the six-point-lead rules and countdown");
+  assert(JSON.stringify(senderLobbyState.gahookDuel.pressesByLead) === JSON.stringify([1, 1, 1, 1, 2, 2]), "The Arena should publish its press table so the client mirrors it: " + JSON.stringify(senderLobbyState.gahookDuel.pressesByLead));
+
+  // A bystander's Gahook reaches a duelist with its sender attached, and the
+  // duelist can throw one straight back through the ordinary route -- which
+  // is what tapping an arena mini does.
+  const bystanderId = (await state(roomCode, "player", secondTarget.key)).ownPlayer.id;
+  await post("/api/player/poke", { code: roomCode, playerKey: secondTarget.key, playerId: senderLobbyState.ownPlayer.id });
+  const duelistGahooked = await state(roomCode, "player", sender.key);
+  assert(duelistGahooked.gahookDuel?.status === "active" && duelistGahooked.ownPoke?.senderPlayerId === bystanderId && duelistGahooked.ownPoke.kind === "normal", "A Gahook thrown at a duelist should arrive as an ordinary Gahook carrying its sender");
+  await post("/api/player/poke", { code: roomCode, playerKey: sender.key, playerId: bystanderId });
+  const bystanderGahooked = await state(roomCode, "player", secondTarget.key);
+  assert(bystanderGahooked.ownPoke?.senderPlayerId === senderLobbyState.ownPlayer.id && bystanderGahooked.ownPoke.from === sender.name, "A duelist should be able to Gahook the sender back mid-match");
   const firstToken = senderLobbyState.gahookDuel.ownTargets[0].id;
   await expectError("/api/player/duel-tap", { code: roomCode, playerKey: sender.key, duelId: challenge.duelId, targetId: firstToken }, "Wait for GO");
   const spectatorStart = await state(roomCode, "host", hostKey);
@@ -256,17 +276,20 @@ async function runGahookSmoke() {
   await taps(target.key, 4);
   await taps(sender.key, 5);
   const beforeWin = await state(roomCode, "host", hostKey);
-  assert(beforeWin.gahookDuel.status === "active" && beforeWin.gahookDuel.hits[senderId] === 6 && beforeWin.gahookDuel.hits[targetId] === 4, "Passing five points with only a two-point lead must not win");
-  // Ten presses, not seven. Presses and points stopped being the same thing
-  // once closing out a win started costing more: from 4-6 the first five
-  // presses each score (the lead is never above two), the next two buy the
-  // point at a lead of three, and the last three buy the winning point at a
-  // lead of four. 5 + 2 + 3 = 10 presses for 7 points.
-  await taps(target.key, 10);
+  assert(beforeWin.gahookDuel.status === "active" && beforeWin.gahookDuel.hits[senderId] === 6 && beforeWin.gahookDuel.hits[targetId] === 4, "Passing six points with only a two-point lead must not win");
+  // Ten presses for eight points. Presses and points stopped being the same
+  // thing once closing out a win started costing more: from 4-6 the first six
+  // presses each score (the lead is never above three), the next two buy the
+  // point at a lead of four, and the last two buy the winning point at a lead
+  // of five. 6 + 2 + 2 = 10. (Before 2026-09-25 the final pull cost three.)
+  await taps(target.key, 9);
+  const oneShort = await state(roomCode, "host", hostKey);
+  assert(oneShort.gahookDuel.status === "active" && oneShort.gahookDuel.hits[targetId] === 11, "The winning point should still be owed one press at a five-point lead");
+  await taps(target.key, 1);
   const spectatorDuelState = await state(roomCode, "host", hostKey);
-  assert(spectatorDuelState.gahookDuel?.status === "finished", "A five-point lead should finish the arena for everyone");
-  assert(spectatorDuelState.gahookDuel.winnerId === targetId && spectatorDuelState.gahookDuel.loserId === senderId, "The player five points ahead should win");
-  assert(spectatorDuelState.gahookDuel.hits[targetId] === 11 && spectatorDuelState.gahookDuel.hits[senderId] === 6, "The crowd should see every scored point");
+  assert(spectatorDuelState.gahookDuel?.status === "finished" && spectatorDuelState.gahookDuel.resultReason === "lead", "A six-point lead should finish the arena for everyone");
+  assert(spectatorDuelState.gahookDuel.winnerId === targetId && spectatorDuelState.gahookDuel.loserId === senderId, "The player six points ahead should win");
+  assert(spectatorDuelState.gahookDuel.hits[targetId] === 12 && spectatorDuelState.gahookDuel.hits[senderId] === 6, "The crowd should see every scored point");
   assert(spectatorDuelState.gahookDuel.players.length === 2 && spectatorDuelState.gahookDuel.lastHit.playerId === targetId, "Spectators should receive both profiles and the scoring player");
   assert(spectatorDuelState.gahookDuel.reactionEndsAt - spectatorDuelState.gahookDuel.finishedAt === 10000, "Crowd reactions should stay open for ten seconds");
 
