@@ -43,6 +43,7 @@ import {
 import { initialiseRoomMedia, pruneRoomMedia, roomAssetDataUrl, serveRoomMedia, storeRoomImage } from "./server/media.mjs";
 import { allRoomQuestions, removeStoredQuestions } from "./server/content-inventory.mjs";
 import { presentPlayer } from "./server/presentation.mjs";
+import { chooseHostSuccessor, hostAwayState, isPromotionDue, publicHostChange, publicHostPresence, publicOwnHostReplaced, resolveRoomAbandonGraceMs, sameCredential } from "./server/host-presence.mjs";
 import { MAX_ACTIVE_ROOMS, MAX_PLAYERS_PER_ROOM } from "./server/room.mjs";
 import { gameEligiblePlayers, quizPoints, scorePlacements } from "./server/scoring.mjs";
 import { emptyCareerStats, matchCareerDelta } from "../packages/accounts/src/index.ts";
@@ -135,6 +136,11 @@ const PROGRESS_FORCE_ADVANCE_MS = 5000;
 // Overridable so the expiry regression test can observe a full lifecycle
 // without waiting five minutes. Clamped so a typo cannot disable room reaping.
 const ROOM_EXPIRE_MS = clamp(Number(process.env.GAHOOKZ_ROOM_EXPIRE_MS) || 5 * 60 * 1000, 250, 60 * 60 * 1000);
+// How long a room outlives its last live connection, and how long a host may be
+// gone before the host role passes to a connected player. One minute by
+// default; see server/host-presence.mjs. Overridable, clamped to 250 ms..10 min;
+// the expiry regression test shortens it.
+const ROOM_ABANDON_GRACE_MS = resolveRoomAbandonGraceMs(process.env.GAHOOKZ_ROOM_ABANDON_GRACE_MS);
 const LIVE_GAME_PHASES = ["reading", "answering", "reveal"];
 
 // How far Gahook interruptions may go during the main game.
@@ -528,6 +534,13 @@ async function shutdown(signal) {
   draining = true;
   console.log(signal + " received; refusing new rooms and draining " + lobbies.size + " active room(s).");
 
+  // A room nobody is connected to is only waiting out its reconnect grace, and
+  // the process is about to go away. Release it now, as happened before the
+  // grace existed, rather than hold the shutdown for a room nobody is in.
+  for (const room of [...lobbies.values()]) {
+    if (room.hadHostLiveClient && !hasLiveRoomClient(room.code)) expireRoom(room.code);
+  }
+
   // Give games in progress a bounded chance to finish before their room is
   // destroyed. The deadline must stay inside the container's stop grace period,
   // otherwise the runtime sends SIGKILL and the drain is pointless. Operators
@@ -615,6 +628,7 @@ function handleEvents(req, res, url, address) {
   room.hadLiveClient = true;
   if (playerKey && playerKey === room.hostKey) {
     room.hadHostLiveClient = true;
+    room.hostWasLive = true;
   }
 
   const connectedPlayer = getPlayerByCredential(room, playerKey);
@@ -625,6 +639,9 @@ function handleEvents(req, res, url, address) {
   } else {
     sendState(client);
   }
+  // A returning host cancels the host-away countdown; a player connecting to a
+  // room whose countdown already ran out with nobody to promote is promoted now.
+  reconcileHostPresence(room);
 
   const heartbeat = setInterval(() => {
     if (client.saturated) return;
@@ -641,6 +658,10 @@ function handleEvents(req, res, url, address) {
     clients.delete(id);
 
     setTimeout(() => {
+      // The room may have ended, or even been replaced under the same code,
+      // while this stream was closing. Nothing below may touch a dead room:
+      // a timer armed on it would outlive it.
+      if (lobbies.get(room.code) !== room) return;
       const closingPlayer = getPlayerByCredential(room, playerKey);
       if (closingPlayer) {
           if (!hasLivePlayerClient(playerKey, room.code) && getPlayerByCredential(room, playerKey)) {
@@ -659,6 +680,7 @@ function handleEvents(req, res, url, address) {
             }
         }
       }
+      reconcileHostPresence(room);
       scheduleRoomExpiry(room);
     }, 900);
   });
@@ -1208,6 +1230,9 @@ async function joinPlayer(room, payload, context = {}) {
   }
 
   broadcastState(room, { immediate: true });
+  // The joining device usually already holds a live stream under this
+  // credential, so it may be the player an overdue host-away was waiting for.
+  reconcileHostPresence(room);
   return { ok: true, player: publicPlayer(room, player) };
 }
 
@@ -2819,8 +2844,8 @@ function transferHost(room, payload) {
   if (!player.connected) {
     return { ok: false, error: "That player needs to be connected before becoming host." };
   }
-  room.hostKey = getCredentialForPlayer(room, player.id);
-  broadcastState(room, { immediate: true });
+  // Also cancels any host-away countdown: the room has a chosen host again.
+  assignHost(room, player, "handover");
   return { ok: true, playerId: player.id };
 }
 
@@ -3143,6 +3168,12 @@ function makeLobby(code = generateRoomCode()) {
     expireTimer: null,
     hadLiveClient: false,
     hadHostLiveClient: false,
+    // Host presence (server/host-presence.mjs). hostWasLive: the *current* host
+    // has held a live stream, so its closing means they are away.
+    hostWasLive: false,
+    hostAway: null,
+    hostAwayTimer: null,
+    hostChange: null,
     passwordHash: "",
     passwordSalt: "",
     gameMode: DEFAULT_GAME_MODE,
@@ -4744,6 +4775,8 @@ function sharedSnapshotParts(room, shared = {}) {
   shared.questionResults ??= questionResults(room);
   shared.gameSettings ??= roomGameSettings(room);
   shared.canStart ??= getStartCheck(room).ok;
+  shared.hostPresence ??= publicHostPresence(room.hostAway);
+  shared.hostChange ??= publicHostChange(room.hostChange, Date.now());
   return shared;
 }
 
@@ -4849,6 +4882,11 @@ function buildSnapshot(room, role, playerKey, sharedParts) {
     ownVote: ownPlayer && currentQuestion?.votes ? currentQuestion.votes[ownPlayer.id] ?? null : null,
     questionResults: shared.questionResults,
     lastGameSummary: room.lastGameSummary || null,
+    // Host presence: an absent host's countdown, a recent change of host, and
+    // (for the replaced host only) why they are no longer the host.
+    hostPresence: shared.hostPresence,
+    hostChange: shared.hostChange,
+    ownHostReplaced: publicOwnHostReplaced(room.hostChange, playerKey, isHost),
     phaseDurations: {
       reading: READING_MS,
       answering: ANSWERING_MS,
@@ -5154,12 +5192,23 @@ function refreshRoomExpiry(room, credential) {
   scheduleRoomExpiry(room, { awaitingConnection: true });
 }
 
+// Two deadlines, one timer. Before the host has ever connected, a room waits
+// ROOM_EXPIRE_MS (five minutes) for somebody to turn up. Once people have been
+// in it, the last live connection closing starts the shorter reconnect grace
+// instead: a slow refresh, an app switch or a phone that sleeps must not end
+// the party, but a room everybody has left must still give its slot back.
 function scheduleRoomExpiry(room, { awaitingConnection = false } = {}) {
-  if (!room || hasLiveRoomClient(room.code) || room.expireTimer) {
+  if (!room || lobbies.get(room.code) !== room || hasLiveRoomClient(room.code) || room.expireTimer) {
     return;
   }
   if (room.hadHostLiveClient && !awaitingConnection) {
-    expireRoom(room.code);
+    // During shutdown nobody can come back to this process in time; keep the
+    // old immediate release so the drain waits only for rooms with people in.
+    if (shuttingDown) {
+      expireRoom(room.code);
+      return;
+    }
+    room.expireTimer = setTimeout(() => expireRoom(room.code), ROOM_ABANDON_GRACE_MS);
     return;
   }
   room.expireTimer = setTimeout(() => expireRoom(room.code), ROOM_EXPIRE_MS);
@@ -5167,13 +5216,21 @@ function scheduleRoomExpiry(room, { awaitingConnection = false } = {}) {
 
 function expireRoom(code) {
   const room = lobbies.get(code);
-  if (!room || hasLiveRoomClient(code)) {
+  if (!room) {
+    return;
+  }
+  if (hasLiveRoomClient(code)) {
+    // Somebody is back. Forget the fired timer, or its stale handle would make
+    // scheduleRoomExpiry believe a deadline is still pending and never arm a
+    // new one when they leave again.
+    clearRoomExpiry(room);
     return;
   }
   clearPhaseTimerForRoom(room);
   clearGahookDuel(room);
   clearBroadcastTimer(room);
   clearRoomExpiry(room);
+  clearHostAway(room);
   counters.rooms_expired += 1;
   Object.values(room.players).forEach((player) => {
     clearUltimateGahookState(player);
@@ -5185,6 +5242,111 @@ function expireRoom(code) {
     client.res.end();
   }
   lobbies.delete(code);
+}
+
+// --- host presence ---------------------------------------------------------
+//
+// The rules live in server/host-presence.mjs. The functions here own the one
+// timer (room.hostAwayTimer) and must leave no trace once a room has ended:
+// every path that deletes a room goes through expireRoom, which clears it.
+
+function hasLiveHost(room) {
+  return Boolean(room.hostKey) && hasLivePlayerClient(room.hostKey, room.code);
+}
+
+function clearHostAway(room) {
+  if (room?.hostAwayTimer) {
+    clearTimeout(room.hostAwayTimer);
+  }
+  if (room) {
+    room.hostAwayTimer = null;
+    room.hostAway = null;
+  }
+}
+
+// Called whenever a live stream opens or closes and whenever a player joins.
+// Derives the host-away state from who is actually connected, so a missed
+// event cannot leave a countdown running for a host who is plainly here.
+function reconcileHostPresence(room) {
+  if (!room || lobbies.get(room.code) !== room) return;
+  // Only a host who has held a live stream can be "away". A host driving the
+  // room purely over the HTTP API (as the smoke tests do) never had one.
+  if (!room.hostWasLive || hasLiveHost(room)) {
+    if (room.hostAway) {
+      clearHostAway(room);
+      broadcastState(room, { immediate: true });
+    }
+    return;
+  }
+  if (!room.hostAway) {
+    startHostAway(room);
+    return;
+  }
+  if (isPromotionDue(room.hostAway, Date.now())) {
+    promoteAwayHost(room);
+  }
+}
+
+function startHostAway(room) {
+  const hostPlayer = getPlayerByCredential(room, room.hostKey);
+  room.hostAway = hostAwayState({ now: Date.now(), graceMs: ROOM_ABANDON_GRACE_MS, hostName: hostPlayer?.name || "" });
+  room.hostAwayTimer = setTimeout(() => {
+    room.hostAwayTimer = null;
+    promoteAwayHost(room);
+  }, ROOM_ABANDON_GRACE_MS);
+  broadcastState(room, { immediate: true });
+}
+
+// Game timers are deliberately left running while the host is away: rounds
+// advance on their own, so the players lose nothing by the host's absence,
+// and the moment anybody needs host controls (start, skip, reset) the room
+// has a new host within the grace.
+function promoteAwayHost(room) {
+  if (lobbies.get(room.code) !== room || !room.hostAway) return;
+  if (hasLiveHost(room)) {
+    clearHostAway(room);
+    broadcastState(room, { immediate: true });
+    return;
+  }
+  const successor = chooseHostSuccessor(Object.values(room.players), {
+    isEligible: (player) => {
+      const credential = getCredentialForPlayer(room, player.id);
+      return Boolean(credential) &&
+        !sameCredential(credential, room.hostKey) &&
+        !isCredentialBanned(room, credential) &&
+        hasLivePlayerClient(credential, room.code);
+    }
+  });
+  // Nobody connected to hand the room to. The away state stays, overdue, and
+  // the next player to connect or join is promoted at once (see
+  // reconcileHostPresence); if nobody does, the room's own grace reaps it.
+  if (!successor) return;
+  assignHost(room, successor, "host-away");
+}
+
+// The one way the host role moves, by hand ("Make host") or because the host
+// was away. A host who was also a player keeps their seat and is an ordinary
+// player from now on.
+function assignHost(room, player, reason) {
+  const previousHostKey = room.hostKey;
+  const nextHostKey = getCredentialForPlayer(room, player.id);
+  room.hostKey = nextHostKey;
+  // The previous host proved they may be here when they made or were given the
+  // room. In a password room they would otherwise be locked out of reading it,
+  // which leaves a host-only host with no way to rejoin as a player.
+  if (previousHostKey && !sameCredential(previousHostKey, nextHostKey)) admitCredential(room, previousHostKey);
+  clearHostAway(room);
+  room.hostWasLive = hasLivePlayerClient(nextHostKey, room.code);
+  room.hostChange = {
+    id: crypto.randomUUID(),
+    playerId: player.id,
+    name: player.name,
+    at: Date.now(),
+    reason,
+    // Server-side only: lets the replaced host be told why. Never serialised.
+    previousHostKey
+  };
+  broadcastState(room, { immediate: true });
 }
 
 function clearPhaseTimerForRoom(room) {
