@@ -90,6 +90,30 @@ export const PublicPlayerBaseSchema = z.object({
   connected: z.boolean()
 }).passthrough();
 
+// Host presence (standalone/server/host-presence.mjs). Strict on purpose: these
+// describe an absent or replaced host, which is exactly where a credential
+// would be tempting to include, and an unexpected key must fail loudly.
+export const HostPresenceSchema = z.object({
+  away: z.literal(true),
+  hostName: z.string().max(24),
+  since: UnixMillisecondsSchema,
+  promoteAt: UnixMillisecondsSchema
+}).strict();
+
+export const HostChangeSchema = z.object({
+  id: z.string().min(1).max(64),
+  playerId: PlayerIdSchema,
+  name: z.string().max(24),
+  at: UnixMillisecondsSchema,
+  reason: z.enum(["host-away", "handover"])
+}).strict();
+
+export const OwnHostReplacedSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().max(24),
+  at: UnixMillisecondsSchema
+}).strict();
+
 export const PublicSnapshotBaseSchema = z.object({
   schemaVersion: z.literal(SNAPSHOT_SCHEMA_VERSION).optional(),
   code: RoomCodeSchema,
@@ -105,7 +129,11 @@ export const PublicSnapshotBaseSchema = z.object({
   phase: GamePhaseSchema,
   players: z.array(PublicPlayerBaseSchema),
   ownPlayer: PublicPlayerBaseSchema.nullable(),
-  currentQuestion: z.unknown().nullable()
+  currentQuestion: z.unknown().nullable(),
+  // Optional so snapshots captured before host presence existed stay valid.
+  hostPresence: HostPresenceSchema.nullable().optional(),
+  hostChange: HostChangeSchema.nullable().optional(),
+  ownHostReplaced: OwnHostReplacedSchema.nullable().optional()
 }).passthrough();
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
@@ -114,4 +142,7 @@ export type ApiSuccess = z.infer<typeof ApiSuccessSchema>;
 export type RoomCommandEnvelope = z.infer<typeof RoomCommandEnvelopeSchema>;
 export type PublicPlayerBase = z.infer<typeof PublicPlayerBaseSchema>;
 export type PublicSnapshotBase = z.infer<typeof PublicSnapshotBaseSchema>;
+export type HostPresence = z.infer<typeof HostPresenceSchema>;
+export type HostChange = z.infer<typeof HostChangeSchema>;
+export type OwnHostReplaced = z.infer<typeof OwnHostReplacedSchema>;
 export type GameSettingsInput = z.infer<typeof GameSettingsInputSchema>;

@@ -62,3 +62,32 @@ test("public snapshot base accepts role-filtered live snapshots and rejects inva
   assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, gameMode: "oddball" }).success, false);
   assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, code: "TOO-LONG" }).success, false);
 });
+
+test("host presence fields are optional, nullable and never carry a credential", () => {
+  const snapshot = {
+    schemaVersion: 1,
+    code: "GOOK",
+    stateVersion: 9,
+    serverTime: 1_785_000_000_000,
+    isHost: false,
+    gameMode: "quiz",
+    roundPreset: "standard",
+    phase: "lobby",
+    players: [],
+    ownPlayer: null,
+    currentQuestion: null
+  } as const;
+  const away = { away: true, hostName: "Captain Waffles", since: 1_785_000_000_000, promoteAt: 1_785_000_060_000 } as const;
+  const change = { id: "change-1", playerId: "player-2", name: "Disco Potato", at: 1_785_000_060_000, reason: "host-away" } as const;
+  const replaced = { id: "change-1", name: "Disco Potato", at: 1_785_000_060_000 } as const;
+
+  assert.equal(PublicSnapshotBaseSchema.safeParse(snapshot).success, true, "older snapshots without the fields stay valid");
+  assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, hostPresence: null, hostChange: null, ownHostReplaced: null }).success, true);
+  assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, hostPresence: away, hostChange: change, ownHostReplaced: replaced }).success, true);
+  assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, hostChange: { ...change, reason: "coup" } }).success, false);
+  for (const secret of ["hostKey", "previousHostKey", "playerKey", "credential"]) {
+    assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, hostPresence: { ...away, [secret]: "leak" } }).success, false, "hostPresence must reject " + secret);
+    assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, hostChange: { ...change, [secret]: "leak" } }).success, false, "hostChange must reject " + secret);
+    assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, ownHostReplaced: { ...replaced, [secret]: "leak" } }).success, false, "ownHostReplaced must reject " + secret);
+  }
+});
