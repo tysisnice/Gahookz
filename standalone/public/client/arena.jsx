@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { GahookOverlayVisual } from "./presentation.jsx";
 import { getGahookForm } from "./gahook-forms.js";
 import { effectsMuted } from "./preferences.jsx";
-import { getAudioContext, playTone, playVictoryPartySound, playGetGotSound } from "./audio.js";
+import { getAudioContext, playTone, playVictoryPartySound, playGetGotSound, playGahookFormSound, resetPokeSoundChannel } from "./audio.js";
 
 function useArenaClock(duel) {
   const anchor = useRef({ server: duel?.serverTime || Date.now(), local: performance.now() });
@@ -31,41 +31,52 @@ function tapSound(lead) {
 // underneath it -- and long enough to read as a hit rather than a flicker.
 const TAP_GHOST_MS = 200;
 
+// The lead to win, read from the duel. The server always publishes it; the
+// fallback only matters for a snapshot from a build that predates the field,
+// and matches ARENA_LEAD_TO_WIN in standalone/server/arena.mjs.
+function leadToWinOf(duel) {
+  return duel?.leadToWin || 6;
+}
+
 // A display-only mirror of pressesRequiredAtLead in standalone/server/arena.mjs.
 // The server stays authoritative: it decides what scores, and its numbers
 // overwrite anything projected here the moment the acknowledgement lands. This
 // exists so the rope moves on the press that earned it instead of one round
 // trip later, which is the whole difference between "snappy" and "laggy".
-function pressesRequiredAtLead(lead, limit) {
-  if (lead >= limit - 1) return 3;
-  if (lead >= limit - 2) return 2;
-  return 1;
+//
+// It reads the server's own table (`pressesByLead`, one entry per lead) rather
+// than restating the rule, so changing the constants in arena.mjs is enough.
+// The fallback is today's rule: the last two points cost two presses each.
+function pressesRequiredAtLead(duel, lead) {
+  if (lead < 0) return 1;
+  const table = duel?.pressesByLead;
+  if (Array.isArray(table) && table.length) return table[Math.min(lead, table.length - 1)] || 1;
+  return lead >= leadToWinOf(duel) - 2 ? 2 : 1;
 }
 
 // Replays the presses that are still in flight over the last confirmed state,
 // so the score, the rope and the "presses left" pips all reflect what the
 // player has actually done rather than what the server has so far confirmed.
 function projectOwnScore(duel, ownId, opponentId, pendingCount) {
-  const limit = duel.leadToWin || 5;
   const other = duel.hits[opponentId] || 0;
   let own = duel.hits[ownId] || 0;
   let charge = duel.pressesDone || 0;
   for (let index = 0; index < pendingCount; index += 1) {
-    if (charge + 1 >= pressesRequiredAtLead(own - other, limit)) {
+    if (charge + 1 >= pressesRequiredAtLead(duel, own - other)) {
       own += 1;
       charge = 0;
     } else {
       charge += 1;
     }
   }
-  return { hits: own, charge, required: pressesRequiredAtLead(own - other, limit) };
+  return { hits: own, charge, required: pressesRequiredAtLead(duel, own - other) };
 }
 
 export function ArenaScore({ duel, Avatar, hits = duel.hits }) {
   const [first, second] = duel.players || [];
   if (!first || !second) return null;
   const lead = (hits[first.id] || 0) - (hits[second.id] || 0);
-  const limit = duel.leadToWin || 5;
+  const limit = leadToWinOf(duel);
   const winner = duel.players.find(player => player.id === duel.winnerId);
   const leader = lead > 0 ? first : second;
   const description = duel.status === "finished"
@@ -96,16 +107,184 @@ export function ArenaSpectator({ duel, Avatar }) {
     <ArenaScore duel={duel} Avatar={Avatar} />
     {/* "taps" was accurate when every tap scored. Points and presses are no
         longer the same thing, so the crowd is told about points. */}
-    <footer>{duel.status === "active" ? `Pull 5 points ahead to win · ${Math.max(0, Math.ceil((duel.endsAt - clock) / 1000))}s` : duel.winnerId ? "The crowd goes wild!" : "No five-point lead this time. Rematch?"}</footer>
+    <footer>{duel.status === "active" ? `Pull ${leadToWinOf(duel)} points ahead to win · ${Math.max(0, Math.ceil((duel.endsAt - clock) / 1000))}s` : duel.winnerId ? "The crowd goes wild!" : `No ${leadToWinOf(duel)}-point lead this time. Rematch?`}</footer>
   </aside>;
 }
 
-export function ArenaOverlay({ duel: incoming, ownPlayer, playerKey, Avatar, request }) {
+export function ArenaOverlay({ duel: incoming, ownPlayer, ownPoke, playerKey, Avatar, request }) {
   if (!incoming?.isParticipant || !ownPlayer || !["active", "finished"].includes(incoming.status)) return null;
-  return <TapMatch key={incoming.id} incoming={incoming} ownId={ownPlayer.id} playerKey={playerKey} Avatar={Avatar} request={request} />;
+  return <TapMatch key={incoming.id} incoming={incoming} ownId={ownPlayer.id} ownPoke={ownPoke} playerKey={playerKey} Avatar={Avatar} request={request} />;
 }
 
-function TapMatch({ incoming, ownId, playerKey, Avatar, request }) {
+// Gahooks thrown at a duelist -------------------------------------------------
+//
+// Anyone in the room can Gahook a player who is mid-1v1. Those used to go to a
+// small card in PlayerView's own layer, which sat *underneath* this overlay
+// (z-index 70 against 94), so a duelist heard them but never saw them.
+//
+// Since 2026-09-25 (Tyson: "make it so the mini gahookz appear randomly but
+// can also appear in the bottom half of the players screen ... players can tap
+// on these mini gahookz to gahook the player that sent it") the arena draws
+// them itself, inside its own stacking context, so no global z-index moves:
+//
+// - they land anywhere below the score, including over the tap zone, so they
+//   genuinely get in the way; the score header always stays readable;
+// - each one is a real button: tapping it Gahooks the sender back through the
+//   ordinary /api/player/poke route, so every server rule (effects policy,
+//   rate limits, spam, Ultimate, counter offers) applies exactly as it would
+//   from the roster;
+// - a tap on one never reaches the arena target and does not move focus away
+//   from it, and the layer itself lets taps through wherever no mini sits.
+//
+// The opponent's own presses (incomingMinis in TapMatch) stay decorative and
+// in the top band. They arrive several times a second; if those obstructed the
+// tap zone the duel would be unplayable.
+export const ARENA_THROWN_MINI_MS = 2400;
+const THROWN_MINI_LIMIT = 4;
+const THROWN_MINI_SIZE = 84;
+const THROWN_POP_MS = 650;
+const THROWN_STALE_MS = 4500;
+
+// Which Gahooks the arena draws as tappable minis. Ordinary and Ultimate
+// Gahooks are thrown by someone and can be thrown back; the ceremonial and
+// interactive kinds (Get Got, congratulations, boos, counters, challenges)
+// keep their own treatment. Ultimate is included because spam escalates into
+// it: leaving it out would make the minis stop exactly when the spam got worse.
+// PlayerView and HostLobbyPokeEffects use this same test to stand aside.
+export function isArenaThrownGahook(poke) {
+  const kind = poke?.kind || "normal";
+  return kind === "normal" || kind === "ultimate";
+}
+
+// A centre, in percent of the overlay, that keeps the whole card on screen
+// (320px wide included) and below the score. A few samples keep a new mini off
+// the ones already showing, bounded so a fixed random source still terminates.
+function placeThrownMini(overlay, existing, random = Math.random) {
+  const box = overlay?.getBoundingClientRect?.();
+  const width = box?.width || window.innerWidth;
+  const height = box?.height || window.innerHeight;
+  const score = overlay?.querySelector?.(".arena-score")?.getBoundingClientRect?.();
+  // Half the card plus room for its tilt, so a rotated corner stays inside.
+  const half = THROWN_MINI_SIZE / 2 + 8;
+  const scoreBottom = score && box ? score.bottom - box.top : height * 0.3;
+  const minX = half;
+  const maxX = Math.max(minX, width - half);
+  const maxY = Math.max(half, height - half - 10);
+  const minY = Math.min(maxY, scoreBottom + half);
+  let best = null;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const x = minX + random() * (maxX - minX);
+    const y = minY + random() * (maxY - minY);
+    const clearance = existing.reduce((closest, item) => Math.min(closest, Math.hypot(item.x / 100 * width - x, item.y / 100 * height - y)), Infinity);
+    if (!best || clearance > best.clearance) best = { x, y, clearance };
+    if (clearance >= THROWN_MINI_SIZE) break;
+  }
+  return { x: best.x / width * 100, y: best.y / height * 100 };
+}
+
+function ThrownMiniLayer({ ownPoke, active, ownId, playerKey, request, overlayRef, serverNow, onReturnFocus }) {
+  const [minis, setMinis] = useState([]);
+  const [announcement, setAnnouncement] = useState("");
+  // Whatever Gahook was current when the match opened is history, not a throw.
+  const seenRef = useRef(ownPoke?.id || "");
+  const timers = useRef(new Map());
+  const mounted = useRef(true);
+  const minisRef = useRef(minis);
+  minisRef.current = minis;
+
+  useEffect(() => () => {
+    mounted.current = false;
+    timers.current.forEach(clearTimeout);
+    timers.current.clear();
+  }, []);
+
+  const later = (key, ms, action) => {
+    clearTimeout(timers.current.get(key));
+    timers.current.set(key, setTimeout(() => {
+      timers.current.delete(key);
+      if (mounted.current) action();
+    }, ms));
+  };
+  const remove = key => setMinis(list => list.filter(item => item.key !== key));
+
+  useEffect(() => {
+    const poke = ownPoke;
+    if (!poke?.id || seenRef.current === poke.id) return;
+    seenRef.current = poke.id;
+    if (!active || !isArenaThrownGahook(poke)) return;
+    // Read against the server's clock, so a skewed phone neither drops fresh
+    // Gahooks nor replays old ones after a reconnect.
+    if (poke.createdAt && serverNow() - poke.createdAt > THROWN_STALE_MS) return;
+    const live = minisRef.current.filter(item => item.state === "live");
+    // Bounded: the oldest live mini makes way rather than the pile growing.
+    const dropped = live.slice(0, Math.max(0, live.length - THROWN_MINI_LIMIT + 1)).map(item => item.key);
+    dropped.forEach(key => {
+      clearTimeout(timers.current.get(key));
+      timers.current.delete(key);
+    });
+    const mini = {
+      key: poke.id,
+      senderId: poke.senderPlayerId && poke.senderPlayerId !== ownId ? poke.senderPlayerId : "",
+      from: poke.from || "Someone",
+      form: getGahookForm(poke.gahookForm),
+      customGahook: poke.customGahook || null,
+      ultimate: poke.kind === "ultimate",
+      state: "live",
+      rotate: -10 + Math.random() * 20,
+      ...placeThrownMini(overlayRef.current, live.filter(item => !dropped.includes(item.key)))
+    };
+    setMinis(list => [...list.filter(item => !dropped.includes(item.key)), mini]);
+    later(mini.key, ARENA_THROWN_MINI_MS, () => remove(mini.key));
+    playGahookFormSound(poke.gahookForm, resetPokeSoundChannel(), poke.customGahook, 1450);
+  }, [ownPoke?.id]);
+
+  function gahookBack(event, mini) {
+    if (event.type === "pointerdown" && (event.button !== 0 || !event.isPrimary)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    // A keyboard press, or a pointer that managed to focus the mini, would
+    // otherwise leave focus on a button that is about to disappear.
+    const returnFocus = event.type !== "pointerdown" || document.activeElement === event.currentTarget;
+    const canReply = Boolean(mini.senderId);
+    setMinis(list => list.map(item => item.key === mini.key ? { ...item, state: canReply ? "sent" : "dismissed" } : item));
+    setAnnouncement(canReply ? `Gahooked ${mini.from} back!` : "");
+    later(mini.key, THROWN_POP_MS, () => remove(mini.key));
+    if (returnFocus) onReturnFocus();
+    if (!canReply) return;
+    request("/api/player/poke", { playerKey, playerId: mini.senderId }, { refresh: false, timeoutMs: 1800 }).then(result => {
+      if (!mounted.current || result?.ok) return;
+      // The sender left, or the room refused it. Nothing was sent, so say so
+      // briefly rather than leaving "Gahooked back!" standing.
+      setMinis(list => list.map(item => item.key === mini.key ? { ...item, state: "failed" } : item));
+      setAnnouncement(`Could not Gahook ${mini.from} back.`);
+    });
+  }
+
+  return <div className="arena-thrown-layer">
+    {minis.map(mini => {
+      const position = { left: `${mini.x}%`, top: `${mini.y}%`, "--mini-rotate": `${mini.rotate}deg` };
+      if (mini.state !== "live") {
+        return <span className={`arena-thrown-mini is-${mini.state}`} key={mini.key} style={position} aria-hidden="true">
+          <b>{mini.state === "sent" ? "Gahooked back!" : mini.state === "failed" ? "Can't Gahook back" : "Poof!"}</b>
+        </span>;
+      }
+      return <button type="button" className={`arena-thrown-mini${mini.ultimate ? " is-ultimate" : ""}`} key={mini.key}
+        style={{ ...position, "--thrown-life": `${ARENA_THROWN_MINI_MS}ms` }}
+        data-sender-id={mini.senderId || undefined}
+        aria-label={mini.senderId ? `Gahook ${mini.from} back` : `Dismiss ${mini.from}'s Gahook`}
+        onPointerDown={event => gahookBack(event, mini)}
+        onMouseDown={event => event.preventDefault()}
+        onClick={event => { if (event.detail === 0) gahookBack(event, mini); }}>
+        <span className="arena-thrown-mini__art" aria-hidden="true"><GahookOverlayVisual form={mini.form} customGahook={mini.customGahook} small /></span>
+        <b aria-hidden="true">by {mini.from}</b>
+        {mini.senderId ? <i aria-hidden="true">↩</i> : null}
+      </button>;
+    })}
+    <span className="sr-only" role="status">{announcement}</span>
+  </div>;
+}
+
+function TapMatch({ incoming, ownId, ownPoke, playerKey, Avatar, request }) {
   const [ack, setAck] = useState(null);
   const [pending, setPending] = useState([]);
   const [error, setError] = useState("");
@@ -126,6 +305,8 @@ function TapMatch({ incoming, ownId, playerKey, Avatar, request }) {
   const current = useRef(duel);
   current.current = duel;
   const clock = useArenaClock(duel);
+  const clockRef = useRef(clock);
+  clockRef.current = clock;
   const open = duel.status === "active" && clock >= duel.gameplayStartsAt && clock < duel.endsAt;
   const opponent = duel.players.find(player => player.id !== ownId);
   const me = duel.players.find(player => player.id === ownId);
@@ -141,6 +322,7 @@ function TapMatch({ incoming, ownId, playerKey, Avatar, request }) {
   const pressesRequired = duel.status === "active" ? projected.required : 1;
   const pressesDone = duel.status === "active" ? projected.charge : 0;
   const finished = duel.status === "finished";
+  const leadToWin = leadToWinOf(duel);
   const countdown = Math.max(1, Math.ceil((duel.gameplayStartsAt - clock) / 1000));
 
   useEffect(() => () => {
@@ -278,19 +460,20 @@ function TapMatch({ incoming, ownId, playerKey, Avatar, request }) {
     <div className="arena-overlay__top">
       <header><span>1V1 · GAHOOK ARENA</span><b>TUG OF WAR</b></header>
       <ArenaScore duel={duel} Avatar={Avatar} hits={hits} />
-      {/* The old copy here said "ONE MORE PULL!" at a lead of four, which
-          stopped being true once closing out a win started costing three
-          presses. A player who taps and sees nothing move needs to be told the
-          point is part-paid, or the rubber band reads as a dropped input. */}
+      {/* The old copy here said "ONE MORE PULL!" one point from the win,
+          which stopped being true once closing out a win started costing
+          more than one press (two since 2026-09-25). A player who taps and
+          sees nothing move needs to be told the point is part-paid, or the
+          rubber band reads as a dropped input. */}
       <p className="arena-instruction" role="status">{finished ? duel.winnerId === ownId ? "YOU GAHOOKED 'EM!" : duel.winnerId ? "YOU GET GOT!" : "WHAT A MATCH. CALL IT A DRAW!"
-        : clock < duel.gameplayStartsAt ? "Tap the Gahook. It moves. Pull 5 ahead!"
-        : lead > 0 && pressesRequired > 1 ? `${pressesRequired - pressesDone} MORE ${lead >= (duel.leadToWin || 5) - 1 ? "TO WIN" : "FOR THE NEXT POINT"}!`
+        : clock < duel.gameplayStartsAt ? `Tap the Gahook. It moves. Pull ${leadToWin} ahead!`
+        : lead > 0 && pressesRequired > 1 ? `${pressesRequired - pressesDone} MORE ${lead >= leadToWin - 1 ? "TO WIN" : "FOR THE NEXT POINT"}!`
         : lead <= -4 ? "PULL IT BACK!"
         : "Tap. Chase. GAHOOK!"}</p>
       {!finished && pressesRequired > 1 ? <span className="arena-charge" role="status" aria-label={`${pressesRequired - pressesDone} of ${pressesRequired} presses left for this point`}>
         {Array.from({ length: pressesRequired }, (_, index) => <i className={index < pressesDone ? "is-paid" : ""} key={index} aria-hidden="true" />)}
       </span> : null}
-      {!finished && <span className="arena-timer">{Math.max(0, Math.ceil((duel.endsAt - Math.max(clock, duel.gameplayStartsAt)) / 1000))}s <small>· lead by 5 to win</small></span>}
+      {!finished && <span className="arena-timer">{Math.max(0, Math.ceil((duel.endsAt - Math.max(clock, duel.gameplayStartsAt)) / 1000))}s <small>· lead by {leadToWin} to win</small></span>}
     </div>
     {incomingMinis.length ? <div className="arena-mini-layer" aria-hidden="true">
       {incomingMinis.map(card => <span className="arena-mini-gahook" key={card.key} style={{ left: `${card.left}%`, top: `${card.top}%`, "--mini-rotate": `${card.rotate}deg` }}>
@@ -299,7 +482,7 @@ function TapMatch({ incoming, ownId, playerKey, Avatar, request }) {
     </div> : null}
     <div className="arena-playfield">
       <span className="arena-playfield__label" aria-hidden="true">YOUR TAP ZONE</span>
-      {finished ? <div className="arena-centre"><b>{duel.winnerId === ownId ? "🏆" : duel.winnerId ? "🍌" : "🤝"}</b><p>{duel.resultReason === "left" ? "Your opponent left the arena." : duel.winnerId ? "Five taps ahead. Bragging rights earned." : "45 seconds. No five-tap lead. Both survive!"}</p><button type="button" onClick={() => setDismissed(true)}>Back to lobby</button></div>
+      {finished ? <div className="arena-centre"><b>{duel.winnerId === ownId ? "🏆" : duel.winnerId ? "🍌" : "🤝"}</b><p>{duel.resultReason === "left" ? "Your opponent left the arena." : duel.winnerId ? `${leadToWin} points ahead. Bragging rights earned.` : `45 seconds. No ${leadToWin}-point lead. Both survive!`}</p><button type="button" onClick={() => setDismissed(true)}>Back to lobby</button></div>
         : clock < duel.gameplayStartsAt ? <div className="arena-centre arena-countdown" role="status"><b key={countdown}>{countdown}</b><p>GET READY TO GAHOOK</p></div>
         : error ? <div className="arena-centre"><p role="status">{error}</p><button type="button" onClick={sync}>Sync & keep playing</button></div>
         : !open ? <div className="arena-centre" role="status"><p>Time! Waiting for the result…</p></div>
@@ -314,5 +497,10 @@ function TapMatch({ incoming, ownId, playerKey, Avatar, request }) {
           </button> : <div className="arena-centre" role="status">Catching up with your taps…</div>}
         </div>}
     </div>
+    {/* After the playfield, so Tab reaches the target first and the minis sit
+        above it inside this overlay's own stacking context. */}
+    <ThrownMiniLayer ownPoke={ownPoke} active={duel.status === "active"} ownId={ownId} playerKey={playerKey} request={request}
+      overlayRef={dialog} serverNow={() => clockRef.current}
+      onReturnFocus={() => (targetButton.current || dialog.current)?.focus({ preventScroll: true })} />
   </section>;
 }

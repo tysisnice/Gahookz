@@ -28,7 +28,7 @@ import {
   speakText
 } from "./client/audio.js";
 import { GahookFormVisual, GahookOverlayVisual, PokeJumpScare } from "./client/presentation.jsx";
-import { ArenaSpectator, ArenaOverlay } from "./client/arena.jsx";
+import { ArenaSpectator, ArenaOverlay, isArenaThrownGahook } from "./client/arena.jsx";
 import { GameTutorial } from "./client/tutorial.jsx";
 import { SimplePaintEditor } from "./client/drawing.jsx";
 import { LobbyPaintLayer, WaitingRoomSocial } from "./client/social.jsx";
@@ -1709,8 +1709,10 @@ function GahookDuelArena({ duel }) {
   return <ArenaSpectator duel={duel} Avatar={AvatarBadge} />;
 }
 
-function GahookDuelOverlay({ duel, ownPlayer, playerKey }) {
-  return <ArenaOverlay duel={duel} ownPlayer={ownPlayer} playerKey={playerKey} Avatar={AvatarBadge} request={api} />;
+// ownPoke is handed on because the arena draws Gahooks thrown at a duelist
+// itself, as tappable minis (see isArenaThrownGahook in client/arena.jsx).
+function GahookDuelOverlay({ duel, ownPlayer, ownPoke, playerKey }) {
+  return <ArenaOverlay duel={duel} ownPlayer={ownPlayer} ownPoke={ownPoke} playerKey={playerKey} Avatar={AvatarBadge} request={api} />;
 }
 
 function CounterGahookPrompt({ offer, busy = false, onCounter }) {
@@ -2462,6 +2464,10 @@ function HostLobbyPokeEffects({ lobby, ownPlayer, ownPoke, playerKey }) {
     if (!ownPoke?.id || seenPokeIdRef.current === ownPoke.id) return undefined;
     seenPokeIdRef.current = ownPoke.id;
 
+    // A host who is in a 1v1 gets thrown Gahooks as tappable minis inside the
+    // arena, exactly like any other duelist; this layer sits under the arena.
+    if (lobby.gahookDuel?.status === "active" && lobby.gahookDuel?.isParticipant && isArenaThrownGahook(ownPoke)) return undefined;
+
     const isLocalSelfPoke = String(ownPoke.id).startsWith("local-poke-") && ownPoke.playerId === ownPlayer.id;
     const needsInteraction = Boolean(lobby.ownCounterOffer?.id) || ownPoke.kind === "counter" || ownPoke.kind === "duel-challenge";
     if (isLocalSelfPoke || needsInteraction) {
@@ -2984,8 +2990,6 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
   const playerMenu = hostMenu || (ownPlayer ? <PlayerQuickMenu ownPlayer={ownPlayer} mode={lobby.gameMode} customGahook={lobby.ownCustomGahook} customGahookOptions={lobby.customGahookOptions} allowCustomGahooks={lobby.allowCustomGahooks !== false} playerKey={playerKey} onEditProfile={() => setEditingLocalProfile(true)} onPartyView={() => setShowPartyView(true)} /> : null);
   const [activePoke, setActivePoke] = useState(null);
   const [pokeActionBusy, setPokeActionBusy] = useState(false);
-  const [miniPokes, setMiniPokes] = useState([]);
-  const miniTimersRef = useRef([]);
   const activePokeRef = useRef(null);
   const pokeTimeoutRef = useRef(null);
   const seenPokeIdRef = useRef("");
@@ -3004,31 +3008,12 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
   //
   // The full-screen jump scare would black out the arena for its whole
   // duration, which in a 45-second match is the difference between losing and
-  // not being allowed to play. The mini treatment is the same card the host
-  // already sees (.host-mini-gahook) and it covers both sources the plan names:
-  // the opponent's own taps, and a Gahook thrown in from the lobby by someone
-  // who is not in the duel at all.
+  // not being allowed to play. The arena draws thrown Gahooks itself, as
+  // tappable minis that Gahook the sender back (client/arena.jsx). It used to
+  // be a card in this view's own layer, but that layer sat underneath the
+  // arena overlay, so the duelist only ever heard it.
   const inActiveDuelRef = useRef(false);
   inActiveDuelRef.current = Boolean(lobby.gahookDuel?.status === "active" && lobby.gahookDuel?.isParticipant);
-
-  const showMiniPoke = (poke) => {
-    const mini = {
-      id: (poke.id || "mini") + "-" + Date.now(),
-      form: getGahookForm(poke.gahookForm),
-      customGahook: poke.customGahook || null,
-      from: poke.from || "Someone",
-      left: 6 + Math.random() * 76,
-      top: 10 + Math.random() * 40,
-      rotate: -14 + Math.random() * 28
-    };
-    // Capped hard. At a tap each, these can arrive many times a second, and a
-    // growing pile of cards would cost frame rate in the one place the game
-    // most needs it.
-    setMiniPokes((current) => [...current.slice(-3), mini]);
-    playGahookFormSound(poke.gahookForm, resetPokeSoundChannel(), poke.customGahook, 1450);
-    const timer = setTimeout(() => setMiniPokes((current) => current.filter((item) => item.id !== mini.id)), 1450);
-    miniTimersRef.current.push(timer);
-  };
 
   const clearPokeTimeout = () => {
     if (pokeTimeoutRef.current) {
@@ -3050,8 +3035,6 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
 
   useEffect(() => () => {
     clearPokeTimeout();
-    miniTimersRef.current.forEach((timer) => clearTimeout(timer));
-    miniTimersRef.current = [];
     stopCustomGahookAudio();
   }, []);
 
@@ -3089,13 +3072,11 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
       return undefined;
     }
 
-    // Mid-1v1, an ordinary Gahook is shown small rather than taking the screen.
-    // The interactive and ceremonial kinds are deliberately excluded: a counter
-    // offer or an arena challenge carries a button the player has to be able to
-    // press, and Get Got / Ultimate / congratulations are results rather than
-    // interruptions.
-    if (inActiveDuelRef.current && !isGetGot && !isCongrats && !isBoo && !isUltimate && !isUltimateCongrats && !isCounter && !isDuelChallenge && !hasCounterOffer) {
-      showMiniPoke(incomingPoke);
+    // Mid-1v1, a thrown Gahook (ordinary or Ultimate, with or without a
+    // counter offer riding on it) is the arena's to draw, as a tappable mini.
+    // The ceremonial and interactive kinds -- Get Got, congratulations, boos,
+    // counters, challenges -- keep their usual treatment.
+    if (inActiveDuelRef.current && isArenaThrownGahook(incomingPoke)) {
       return undefined;
     }
 
@@ -3165,6 +3146,11 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     const offer = lobby.ownCounterOffer;
     if (!offer?.id || offer.expiresAt <= Date.now() || seenCounterOfferIdRef.current === offer.id) return undefined;
     seenCounterOfferIdRef.current = offer.id;
+    // Mid-1v1 the Gahook that earned the offer is already a tappable mini in
+    // the arena, and tapping it throws one back. A full-screen offer here
+    // would only replay its sound from underneath the arena; if the offer is
+    // still live when the match ends, CounterGahookPrompt shows it then.
+    if (inActiveDuelRef.current) return undefined;
     const incomingPoke = lobby.ownPoke || {};
     const nextPoke = {
       ...incomingPoke,
@@ -3236,9 +3222,6 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     };
   }
   const effectsLayer = <>
-    {miniPokes.length ? <div className="host-mini-gahook-layer" aria-hidden="true">
-      {miniPokes.map((poke) => <div className="host-mini-gahook" key={poke.id} style={{ left: poke.left + "%", top: poke.top + "%", "--mini-rotate": poke.rotate + "deg" }}><GahookOverlayVisual form={poke.form} customGahook={poke.customGahook} small /><span>by {poke.from}</span></div>)}
-    </div> : null}
     {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} action={pokeAction} /> : null}
     {!activePoke ? <CounterGahookPrompt
       offer={lobby.ownCounterOffer}

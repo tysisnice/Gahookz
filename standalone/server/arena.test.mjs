@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ARENA_DURATION_MS, ARENA_TARGET_BUFFER, arenaProgress, initialiseArena, nextArenaTarget, pressesRequiredAtLead, tapArena } from "./arena.mjs";
+import { ARENA_DURATION_MS, ARENA_LEAD_TO_WIN, ARENA_TARGET_BUFFER, arenaPressTable, arenaProgress, initialiseArena, nextArenaTarget, pressesRequiredAtLead, tapArena } from "./arena.mjs";
 
 function fixture(random = Math.random) {
   const duel = { challengerId: "a", challengedId: "b", status: "active", gameplayStartsAt: 1000 };
@@ -11,7 +11,8 @@ function tap(duel, player, now = 1001) {
   return tapArena(duel, player, duel.targets[player][0].id, now);
 }
 
-test("a five-point lead wins, including a comeback after both pass five", () => {
+test("a six-point lead wins, including a comeback after both pass six", () => {
+  assert.equal(ARENA_LEAD_TO_WIN, 6);
   const duel = fixture();
   // Trading blow for blow, neither player is ever more than one ahead, so
   // every press is worth a full point at the unescalated rate.
@@ -21,75 +22,82 @@ test("a five-point lead wins, including a comeback after both pass five", () => 
   }
   assert.deepEqual(duel.hits, { a: 8, b: 8 });
 
-  // b pulls away. The first three points come one press each (leads 0, 1, 2);
-  // the fourth costs two presses because b is then three ahead.
-  for (let i = 0; i < 5; i++) assert.equal(tap(duel, "b").winnerId, "");
-  assert.deepEqual(duel.hits, { a: 8, b: 12 });
+  // b pulls away. The first four points come one press each (leads 0-3); the
+  // fifth costs two presses because b is then four ahead.
+  for (let i = 0; i < 6; i++) assert.equal(tap(duel, "b").winnerId, "");
+  assert.deepEqual(duel.hits, { a: 8, b: 13 });
 
-  // a claws it back from four behind and on past. The first seven presses are
-  // cheap — a is trailing or barely ahead for all of them — and take a to
-  // 15-12; the ninth press completes the two-press point owed at a lead of 3.
-  for (let i = 0; i < 9; i++) assert.equal(tap(duel, "a").winnerId, "");
-  assert.deepEqual(duel.hits, { a: 16, b: 12 });
+  // a claws it back from five behind and on past. The first nine presses are
+  // cheap -- a is trailing or at most three ahead for all of them -- and take a
+  // to 17-13; the next two pay for the two-press point owed at a lead of 4.
+  for (let i = 0; i < 11; i++) assert.equal(tap(duel, "a").winnerId, "");
+  assert.deepEqual(duel.hits, { a: 18, b: 13 });
 
-  // At four ahead the last point costs three presses, and only the third wins.
-  assert.equal(tap(duel, "a").winnerId, "");
+  // At five ahead the winning point costs two presses -- not three, as it did
+  // before 2026-09-25 -- and only the second wins.
   assert.equal(tap(duel, "a").winnerId, "");
   assert.equal(tap(duel, "a").winnerId, "a");
-  assert.deepEqual(duel.hits, { a: 17, b: 12 });
+  assert.deepEqual(duel.hits, { a: 19, b: 13 });
 });
 
-test("closing out a win costs more presses the closer it gets", () => {
+test("the last two points before the win cost two presses each, and no point costs three", () => {
   assert.equal(pressesRequiredAtLead(0), 1);
-  assert.equal(pressesRequiredAtLead(2), 1);
-  assert.equal(pressesRequiredAtLead(3), 2);
-  assert.equal(pressesRequiredAtLead(4), 3);
+  assert.equal(pressesRequiredAtLead(3), 1);
+  assert.equal(pressesRequiredAtLead(4), 2);
+  assert.equal(pressesRequiredAtLead(5), 2);
   // Trailing players never pay the surcharge.
   assert.equal(pressesRequiredAtLead(-4), 1);
+  // The three-press final pull is gone at every lead, not just the old one.
+  for (let lead = -10; lead <= 10; lead++) assert(pressesRequiredAtLead(lead) <= 2, `lead ${lead} costs ${pressesRequiredAtLead(lead)} presses`);
+  // The table the browser mirrors is the same rule, one entry per lead.
+  assert.deepEqual(arenaPressTable(), [1, 1, 1, 1, 2, 2]);
 
   const duel = fixture();
-  // Three cheap points, then the escalation begins.
-  for (let i = 0; i < 3; i++) assert.equal(tap(duel, "a").scored, true);
-  assert.equal(duel.hits.a, 3);
-  assert.deepEqual([tap(duel, "a").scored, tap(duel, "a").scored], [false, true]);
+  // Four cheap points, then the escalation begins.
+  for (let i = 0; i < 4; i++) assert.equal(tap(duel, "a").scored, true);
   assert.equal(duel.hits.a, 4);
-  const closing = [tap(duel, "a"), tap(duel, "a"), tap(duel, "a")];
-  assert.deepEqual(closing.map(result => result.scored), [false, false, true]);
+  assert.deepEqual([tap(duel, "a").scored, tap(duel, "a").scored], [false, true]);
+  assert.equal(duel.hits.a, 5);
+  const closing = [tap(duel, "a"), tap(duel, "a")];
+  assert.deepEqual(closing.map(result => result.scored), [false, true]);
+  assert.deepEqual(closing.map(result => result.pressesRequired), [2, 2]);
   assert.equal(closing.at(-1).winnerId, "a");
-  // Eight presses for five points: 1 + 1 + 1 + 2 + 3.
+  // Eight presses for six points: 1 + 1 + 1 + 1 + 2 + 2.
   assert.equal(duel.presses.a, 8);
 });
 
 test("a part-charged point is dropped when the opponent scores, and cannot be banked", () => {
   const duel = fixture();
-  for (let i = 0; i < 3; i++) tap(duel, "a");          // a leads 3-0
+  for (let i = 0; i < 4; i++) tap(duel, "a");          // a leads 4-0
   assert.equal(tap(duel, "a").scored, false);          // 1 of the 2 presses a now owes
   assert.equal(duel.charge.a, 1);
 
-  tap(duel, "b");                                      // 3-1: the price drops to one press
+  tap(duel, "b");                                      // 4-1: the price drops to one press
   // The banked press is gone. If it carried, this single press would score a
   // point that a only half paid for at the harder rate.
   assert.equal(duel.charge.a, 0);
-  assert.equal(tap(duel, "a").scored, true);           // 4-1, paid in full at the new rate
-  assert.deepEqual(duel.hits, { a: 4, b: 1 });
+  assert.equal(tap(duel, "a").scored, true);           // 5-1, paid in full at the new rate
+  assert.deepEqual(duel.hits, { a: 5, b: 1 });
 
   // The same reset applies in the other direction: a press spent toward a
   // cheap point does not part-pay the expensive point that follows it.
   const fresh = fixture();
-  for (let i = 0; i < 3; i++) tap(fresh, "a");         // 3-0, a owes two presses
+  for (let i = 0; i < 4; i++) tap(fresh, "a");         // 4-0, a owes two presses
   assert.equal(tap(fresh, "a").scored, false);         // one of them paid
-  tap(fresh, "b");                                     // 3-1, the price drops to one
+  tap(fresh, "b");                                     // 4-1, the price drops to one
   assert.equal(fresh.charge.a, 0);
-  assert.equal(tap(fresh, "a").scored, true);          // 4-1, a cheap point at lead 2
-  assert.equal(tap(fresh, "a").scored, false);         // lead 3 again: two presses, from zero
-  assert.equal(tap(fresh, "a").scored, true);          // 5-1
-  assert.deepEqual(fresh.hits, { a: 5, b: 1 });
+  assert.equal(tap(fresh, "a").scored, true);          // 5-1, a cheap point at lead 3
+  assert.equal(tap(fresh, "a").scored, false);         // lead 4 again: two presses, from zero
+  assert.equal(tap(fresh, "a").scored, true);          // 6-1
+  assert.deepEqual(fresh.hits, { a: 6, b: 1 });
 });
 
 test("the remaining presses are published so a non-scoring tap reads as the mechanic, not a bug", () => {
   const duel = fixture();
-  for (let i = 0; i < 3; i++) tap(duel, "a");
+  for (let i = 0; i < 4; i++) tap(duel, "a");
   const ahead = arenaProgress(duel, "a");
+  assert.equal(ahead.leadToWin, 6);
+  assert.deepEqual(ahead.pressesByLead, [1, 1, 1, 1, 2, 2]);
   assert.equal(ahead.pressesRequired, 2);
   assert.equal(ahead.pressesDone, 0);
   tap(duel, "a");
@@ -121,16 +129,18 @@ test("retrying an acknowledged or winning target never scores twice", () => {
   assert.equal(tapArena(duel, "a", token, 1000).ok, true);
   assert.equal(tapArena(duel, "a", token, 1001).duplicate, true);
   assert.equal(duel.hits.a, 1);
-  // Six more presses take an unopposed a to 4-0: two cheap points, then the
-  // two-press point at lead 3, then two of the three owed at lead 4.
+  // Six more presses take an unopposed a to 5-0 with the winning point half
+  // paid: three cheap points, the two-press point at lead 4, then one of the
+  // two owed at lead 5.
   for (let i = 0; i < 6; i++) tap(duel, "a");
-  assert.equal(duel.hits.a, 4);
+  assert.equal(duel.hits.a, 5);
+  assert.equal(duel.charge.a, 1);
   const winning = duel.targets.a[0].id;
   assert.equal(tapArena(duel, "a", winning, 1001).winnerId, "a");
   duel.status = "finished";
   assert.equal(tapArena(duel, "a", winning, 1002).duplicate, true);
   assert.equal(tap(duel, "b").ok, false);
-  assert.equal(duel.hits.a, 5);
+  assert.equal(duel.hits.a, 6);
 });
 
 test("targets stay private to their player and snapshots do not alias engine state", () => {
@@ -176,13 +186,15 @@ test("2,000 seeded tap races keep scores, ordered buffers, bounded memory and wi
       assert.equal(duel.revision, 1 + duel.presses.a + duel.presses.b);
       assert.equal(duel.targets[player][0].sequence, duel.presses[player] + 1);
       assert.equal(duel.targets[player].length, ARENA_TARGET_BUFFER);
+      // No press ever owes more than two -- the three-press pull is gone.
+      assert(result.pressesRequired >= 1 && result.pressesRequired <= 2);
       assert(duel.acceptedTargets[player].length <= ARENA_TARGET_BUFFER * 2);
       if (result.winnerId) {
-        assert.equal(Math.abs(duel.hits.a - duel.hits.b), 5);
+        assert.equal(Math.abs(duel.hits.a - duel.hits.b), ARENA_LEAD_TO_WIN);
         wins++;
         break;
       }
-      assert(Math.abs(duel.hits.a - duel.hits.b) < 5);
+      assert(Math.abs(duel.hits.a - duel.hits.b) < ARENA_LEAD_TO_WIN);
       time += 80 + Math.floor(random() * 500);
     }
     if (time >= duel.endsAt) draws++;
