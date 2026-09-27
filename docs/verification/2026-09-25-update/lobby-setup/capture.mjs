@@ -147,7 +147,8 @@ try {
     await scrollTo(host, ".host-control-panel .mode-selector");
     await shot(host, `host-herd-custom-${size.name}`);
     size_metrics.herdCustom = await setupHeight();
-    await host.browserContext().close();
+    // The host page stays open while the join screens are captured, so the
+    // room does not show its "host disconnected" notice over them.
 
     // Join screen for a newcomer: first visit (explainer shown) and returning (hidden).
     const joiner = await open(code + "-new-" + Date.now().toString(36), code, size);
@@ -165,6 +166,7 @@ try {
     await shot(returning, `join-returning-bottom-${size.name}`);
     size_metrics.joinReturningBottom = await joinMetrics(returning);
     await returning.browserContext().close();
+    await host.browserContext().close();
   }
   console.log(JSON.stringify({ ok: errors.length === 0, label, errors, metrics }, null, 2));
 } finally {

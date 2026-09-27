@@ -4413,33 +4413,48 @@ button.answer-tile {
   box-shadow: 0 18px 44px rgba(16, 24, 40, 0.12);
 }
 
+/* Name and profile picture (U4).
+   This used to be a card pinned to "viewport height minus a guess" with
+   overflow hidden and a picker that scrolled inside it. Whenever the guess
+   was wrong -- the explainer showing, a browser toolbar, a short phone -- the
+   rows could not shrink below their floors and the card cut off its own Join
+   button. Now the page simply scrolls: the form is as tall as its content,
+   every picture is in one grid, and the Join footer is sticky to the bottom
+   of the screen, so it is always visible and never clipped.
+   No overflow here: an overflow-y container would become the sticky footer's
+   scroll box and the footer would never stick. */
 .player-party-join {
   min-height: 100vh;
-  overflow-y: auto;
+  min-height: 100dvh;
 }
 
 .party-join-form {
+  --join-form-pad: 18px;
   width: min(100%, 620px);
-  height: min(650px, calc(100dvh - 250px));
-  min-height: 0;
-  max-height: calc(100dvh - 250px);
   margin: 12px auto 0;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
-  overflow: hidden;
+  padding: var(--join-form-pad);
+  gap: 16px;
 }
 
 .join-player-preview {
-  min-height: 92px;
-  display: grid;
-  grid-template-columns: 66px minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: 12px;
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px 12px;
   background: linear-gradient(135deg, #27334e, #07516a);
   color: #ffffff;
   border: 2px solid rgba(0, 191, 216, 0.52);
   box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.14);
+}
+
+.join-player-preview > .avatar-badge {
+  width: 56px;
+  height: 56px;
+}
+
+.join-player-preview > div {
+  min-width: 0;
 }
 
 .join-player-preview h2,
@@ -4449,24 +4464,16 @@ button.answer-tile {
 }
 
 .join-player-preview h2 {
-  font-size: 1.35rem;
-  line-height: 1.08;
+  font-size: 1.3rem;
+  line-height: 1.1;
   overflow-wrap: anywhere;
 }
 
 .join-player-preview p {
-  margin-top: 4px;
+  margin-top: 3px;
   color: #d8fbff;
   font-size: 0.84rem;
   font-weight: 900;
-}
-
-.join-player-preview > strong {
-  border-radius: 999px;
-  padding: 7px 10px;
-  background: rgba(255, 255, 255, 0.14);
-  color: #ffffff;
-  font-size: 0.95rem;
 }
 
 .join-explainer-slot {
@@ -4489,27 +4496,26 @@ button.answer-tile {
   font-size: 0.82rem;
 }
 
-.party-join-form .avatar-picker {
-  min-height: 0;
-  overflow: hidden;
-  grid-template-rows: auto minmax(0, 1fr);
-}
-
-.party-join-form .avatar-picker > div {
-  height: 100%;
-  max-height: none;
-  min-height: 0;
-  align-content: start;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
+/* Sticky to the bottom of the screen (lifted above an open keyboard by
+   useKeyboardInset), stretched to the form's edges, and fading the pictures
+   that scroll underneath it rather than slicing them with a hard line. When
+   the page is scrolled to the end it rests in place as the form's bottom. */
 .join-form-actions {
+  position: sticky;
+  bottom: var(--join-keyboard-inset, 0px);
+  z-index: 3;
   min-width: 0;
   display: grid;
   gap: 10px;
-  padding-top: 2px;
-  background: #ffffff;
+  margin: -6px calc(-1 * var(--join-form-pad, 18px)) calc(-1 * var(--join-form-pad, 18px));
+  border-radius: 0 0 8px 8px;
+  padding: 18px var(--join-form-pad, 18px) calc(var(--join-form-pad, 18px) + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #ffffff 16px);
+}
+
+/* Editing a profile: Cancel and Save side by side rather than stacked. */
+.join-form-actions:has(> .profile-edit-cancel) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
 }
 
 .join-form-actions > .primary-button {
@@ -4740,35 +4746,84 @@ button.answer-tile {
 }
 
 .avatar-picker legend {
+  margin-bottom: 7px;
   color: var(--muted);
   font-size: 0.85rem;
   font-weight: 900;
   padding: 0;
 }
 
+/* Every picture in one grid, no inner scroll box. Tiles are a fixed minimum
+   width and the grid fits as many columns as that allows: four on a phone,
+   six or seven on a desktop. */
 .avatar-picker > div {
+  --avatar-tile: 84px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--avatar-tile), 1fr));
   gap: 8px;
-  max-height: 315px;
-  overflow: auto;
 }
 
 .avatar-choice {
-  min-height: 92px;
+  --avatar-size: 52px;
+  position: relative;
+  min-width: 0;
   display: grid;
-  place-items: center;
-  gap: 5px;
-  border-radius: 8px;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  border-radius: 10px;
+  padding: 8px 4px 7px;
   background: #f3f5f9;
   color: var(--ink);
   border: 2px solid transparent;
+  font-size: 0.84rem;
   font-weight: 900;
+  line-height: 1.15;
 }
 
+.avatar-choice > span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-choice > .avatar-badge,
+.avatar-choice > .random-avatar-icon,
+.avatar-choice > .draw-avatar-icon {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.14);
+}
+
+.avatar-choice:not(.is-selected):hover {
+  background: #e8ecf4;
+}
+
+/* Selected: a pink ring and a tick, visible at a glance in a grid of 25. */
 .avatar-choice.is-selected {
-  border-color: #111214;
-  background: #ffffff;
+  border-color: #ff3d8b;
+  border-style: solid;
+  background: #fff0f6;
+  box-shadow: 0 0 0 3px rgba(255, 61, 139, 0.2);
+}
+
+.avatar-choice.is-selected::after {
+  content: "\2713";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #ff3d8b;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 1000;
+  line-height: 1;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.16);
 }
 
 .random-avatar-choice {
@@ -7821,19 +7876,31 @@ button.answer-tile {
     padding: 8px;
   }
 
-  /* The profile picture picker was the cramped part of joining on a phone:
-     the form only claimed 100dvh - 220px and gave the picker a 160px floor,
-     which is not quite two rows of 92px choices. Taking back most of that
-     reserved space and raising the floor to three rows plus their gaps
-     (3 * 92 + 2 * 8 = 292px) means a player sees a real spread of characters
-     without scrolling for them. */
+  /* Joining on a phone: four columns of pictures, a slimmer preview, and the
+     form's edge padding (which the sticky Join footer reaches out to). */
   .party-join-form {
-    height: max(430px, calc(100dvh - 130px));
-    min-height: 0;
-    max-height: none;
+    --join-form-pad: 12px;
     margin-top: 12px;
-    padding: 12px;
-    grid-template-rows: auto auto minmax(292px, 1fr) auto;
+    gap: 14px;
+  }
+
+  .avatar-picker > div {
+    --avatar-tile: 70px;
+    gap: 7px;
+  }
+
+  .avatar-choice {
+    --avatar-size: 48px;
+    font-size: 0.8rem;
+  }
+
+  .join-player-preview > .avatar-badge {
+    width: 50px;
+    height: 50px;
+  }
+
+  .join-player-preview h2 {
+    font-size: 1.18rem;
   }
 
   .join-explainer-slot {
@@ -9450,10 +9517,6 @@ button.answer-tile {
     width: min(100%, 56vh, 560px);
   }
 
-  .avatar-picker > div {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .custom-gahook-creator__header {
     padding: 12px;
   }
@@ -10713,53 +10776,73 @@ button.answer-tile {
 .tutorial-dialog .tutorial-guide__summary { color: #344054; }
 .herd-reveal-breakdown .round-score-breakdown dt { color: #344054; }
 
-/* Joining on a phone held sideways.
-   A 430px-tall form does not fit in a 360px-tall viewport at all, so rather
-   than let it clip, the form follows the viewport and the character choices
-   shrink until three rows still fit inside it. The picker scrolls for the rest.
-   This sits at the end of the sheet so it lands after the portrait rules it
-   needs to override. */
-@media (max-width: 900px) and (max-height: 560px) {
-  /* Pinning the form to the viewport height backfired here: roughly 190px of
-     page sits above it at this size, so "viewport height" left the picker a
-     32px slot -- not one full row. The form is allowed to size to its content
-     instead and the page scrolls, which is what the plan asks for when three
-     rows genuinely cannot fit. The picker then gets a real floor of two full
-     rows rather than whatever is left over. */
-  .party-join-form {
-    height: auto;
-    max-height: none;
-    grid-template-rows: auto auto auto auto;
-  }
-
-  .party-join-form .avatar-picker > div {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    height: auto;
-    max-height: 118px;
+/* Joining on the narrowest phones: still four columns, with smaller tiles. */
+@media (max-width: 380px) {
+  .avatar-picker > div {
+    --avatar-tile: 60px;
+    gap: 6px;
   }
 
   .avatar-choice {
-    min-height: 52px;
-    font-size: 0.68rem;
-    gap: 2px;
+    --avatar-size: 44px;
+    padding-inline: 2px;
+    font-size: 0.74rem;
+  }
+}
+
+/* Joining on a phone held sideways. The page scrolls like everywhere else and
+   the Join footer stays stuck to the bottom; what changes is density, so a
+   360px-tall screen still shows a useful spread of pictures above the footer.
+   It must stay after the portrait rules it overrides. */
+@media (max-width: 900px) and (max-height: 560px) {
+  .avatar-picker > div {
+    --avatar-tile: 64px;
+    gap: 6px;
   }
 
-  /* Everything that is not the picker gives up height here. In a 360px-tall
-     viewport the preview and the name field were together taking more room
-     than the thing the player is actually trying to use. */
+  .avatar-choice {
+    --avatar-size: 40px;
+    gap: 2px;
+    padding: 5px 2px 4px;
+    font-size: 0.7rem;
+  }
+
   .join-player-preview {
-    min-height: 0;
-    padding: 6px;
-    grid-template-columns: 44px minmax(0, 1fr) auto;
-    gap: 8px;
+    padding: 6px 10px;
+  }
+
+  .join-player-preview > .avatar-badge {
+    width: 42px;
+    height: 42px;
   }
 
   .join-player-preview h2 {
     font-size: 1rem;
   }
 
-  .party-join-form .avatar-picker legend {
-    font-size: 0.72rem;
+  .party-join-form {
+    gap: 10px;
+  }
+
+  /* Preview and name field side by side: height is what a sideways phone
+     lacks, and width is what it has. */
+  .party-join-form:has(> .join-player-preview) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: end;
+  }
+
+  .party-join-form:has(> .join-player-preview) > .avatar-picker,
+  .party-join-form:has(> .join-player-preview) > .join-form-actions {
+    grid-column: 1 / -1;
+  }
+
+  .join-form-actions {
+    padding-top: 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .join-form-actions > .primary-button {
+    min-height: 44px;
   }
 }
 

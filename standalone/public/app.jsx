@@ -3568,10 +3568,34 @@ function JoinPlayerPreview({ name, avatarId, avatarImageDataUrl, code, editing =
       <AvatarBadge player={previewPlayer} />
       <div>
         <h2>{previewPlayer.name}</h2>
-        <p>{editing ? "Updating your player" : "Joining room " + (code || "----")}</p>
+        <p>{editing ? "Updating your player in room " + (code || "----") : "Joining room " + (code || "----")}</p>
       </div>
-      <strong>{code || "----"}</strong>
     </section>);
+}
+
+// How much of the page an on-screen keyboard is covering. Mobile browsers now
+// shrink only the visual viewport when the keyboard opens, so anything stuck
+// to the bottom of the page -- the Join footer -- ends up underneath it. The
+// footer is lifted by this much instead. Small differences (a browser toolbar
+// sliding away) and pinch-zoom are ignored.
+function useKeyboardInset() {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+    const update = () => {
+      const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+      setInset(viewport.scale <= 1.01 && covered > 80 ? Math.round(covered) : 0);
+    };
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+    };
+  }, []);
+  return inset;
 }
 
 function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = null, onEditComplete }) {
@@ -3590,6 +3614,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
   const [wrongPasswordPoke, setWrongPasswordPoke] = useState(null);
   const [joining, setJoining] = useState(false);
   const [drawingAvatar, setDrawingAvatar] = useState(false);
+  const keyboardInset = useKeyboardInset();
 
   const chooseAvatar = (nextAvatarId) => {
     avatarIdRef.current = nextAvatarId;
@@ -3658,7 +3683,11 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
       <div className="join-explainer-slot"><RoomStatusBanner code={routeCode || code} tone="is-join-status" eyebrow={isEditingProfile ? "Player profile" : "Joining the room"} title={isEditingProfile ? "Make your player look right" : "Choose your player"}>
           Pick your name and profile picture, then {isEditingProfile ? "save your changes." : "join the lobby."}
         </RoomStatusBanner></div>
-      <form className="join-form party-join-form" onSubmit={submitJoin}>
+      {/* One page that scrolls, not a fixed-height card with its own
+          scrolling picker: the whole flow reads top to bottom, and the Join
+          footer is sticky, so it is on screen at every size without being
+          able to push anything out of reach or be cut off itself. */}
+      <form className="join-form party-join-form" onSubmit={submitJoin} style={keyboardInset ? { "--join-keyboard-inset": keyboardInset + "px" } : undefined}>
         {routeCode || isEditingProfile ? <JoinPlayerPreview name={name} avatarId={avatarId} avatarImageDataUrl={avatarImageDataUrl} code={routeCode || code} editing={isEditingProfile} /> : <label><span>Code</span><input maxLength="4" value={code} onChange={(event) => setCode(normaliseRoomCode(event.target.value))} placeholder="GOOK" /></label>}
         <label><span>Your name</span><input maxLength="24" value={name} onChange={(event) => setName(event.target.value)} placeholder="Player" /></label>
         <AvatarPicker value={avatarId} customImage={avatarImageDataUrl} onChange={chooseAvatar} onDraw={allowCustomProfiles ? () => setDrawingAvatar(true) : null} />
@@ -4715,9 +4744,9 @@ function AvatarPicker({ value, customImage, onChange, onDraw }) {
 
   return (
     <fieldset className="avatar-picker">
-      <legend>Profile pick</legend>
+      <legend>Profile picture</legend>
       <div>
-        {onDraw ? <button className={customImage ? "avatar-choice is-selected draw-avatar-choice" : "avatar-choice draw-avatar-choice"} type="button" onClick={onDraw}>
+        {onDraw ? <button className={customImage ? "avatar-choice is-selected draw-avatar-choice" : "avatar-choice draw-avatar-choice"} type="button" aria-pressed={Boolean(customImage)} onClick={onDraw}>
           {customImage ? <AvatarBadge customImage={customImage} avatarId={value} /> : <DrawAvatarIcon />}
           <span>{customImage ? "Edit custom" : "Draw"}</span>
         </button> : null}
@@ -4725,8 +4754,11 @@ function AvatarPicker({ value, customImage, onChange, onDraw }) {
           <RandomAvatarIcon />
           <span>Random</span>
         </button>
+        {/* A drawn picture keeps the first preset's id underneath it, so a
+            preset only counts as chosen when there is no drawing; otherwise
+            two tiles showed as selected at once. */}
         {AVATAR_PRESETS.map((avatar) =>
-        <button className={value === avatar.id ? "avatar-choice is-selected" : "avatar-choice"} type="button" key={avatar.id} onClick={() => onChange(avatar.id)}>
+        <button className={!customImage && value === avatar.id ? "avatar-choice is-selected" : "avatar-choice"} type="button" key={avatar.id} aria-pressed={!customImage && value === avatar.id} onClick={() => onChange(avatar.id)}>
             <AvatarBadge avatarId={avatar.id} />
             <span>{avatar.label}</span>
           </button>
