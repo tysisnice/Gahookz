@@ -13,7 +13,54 @@
 // tooltip is unreachable by keyboard and invisible on a touch screen — which
 // is how most people meet this game.
 
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+
+// The gap kept between a tip and the edge of the screen, and between a tip
+// and its (i). Tyson's phone screenshot (25 Sep) showed a tip hanging off the
+// left edge; every placement below is clamped to this margin.
+const TIP_EDGE_MARGIN = 8;
+const TIP_GAP = 8;
+
+/**
+ * Put a tip bubble next to its button, fully inside the viewport.
+ *
+ * The bubble is `position: fixed`, so a scrolling dialog body (Lobby rules)
+ * cannot clip it, and it is placed from the button's on-screen rectangle
+ * rather than from its parent. Above the button by default; below when there
+ * is more room there; clamped left and right so it never leaves the screen.
+ *
+ * A transformed ancestor turns `fixed` into "relative to that ancestor", so
+ * after placing the bubble we measure where it really landed and correct by
+ * the difference. That keeps the maths in viewport coordinates whatever the
+ * bubble happens to be nested in.
+ */
+export function placeTipBubble(bubble, anchor, align = "end") {
+  if (!bubble || !anchor) return;
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const target = anchor.getBoundingClientRect();
+  bubble.style.left = "0px";
+  bubble.style.top = "0px";
+  const size = bubble.getBoundingClientRect();
+  const width = Math.min(size.width, viewportWidth - TIP_EDGE_MARGIN * 2);
+  const preferredLeft = align === "start" ? target.left - 6 : target.right + 6 - width;
+  const left = Math.max(TIP_EDGE_MARGIN, Math.min(preferredLeft, viewportWidth - TIP_EDGE_MARGIN - width));
+  const roomAbove = target.top - TIP_GAP - TIP_EDGE_MARGIN;
+  const roomBelow = viewportHeight - target.bottom - TIP_GAP - TIP_EDGE_MARGIN;
+  const below = size.height > roomAbove && roomBelow > roomAbove;
+  let top = below ? target.bottom + TIP_GAP : target.top - TIP_GAP - size.height;
+  top = Math.max(TIP_EDGE_MARGIN, Math.min(top, viewportHeight - TIP_EDGE_MARGIN - size.height));
+  bubble.style.left = left + "px";
+  bubble.style.top = top + "px";
+  const landed = bubble.getBoundingClientRect();
+  const driftX = left - landed.left;
+  const driftY = top - landed.top;
+  if (Math.abs(driftX) > 0.5 || Math.abs(driftY) > 0.5) {
+    bubble.style.left = left + driftX + "px";
+    bubble.style.top = top + driftY + "px";
+  }
+  bubble.dataset.side = below ? "below" : "above";
+}
 
 /**
  * An on/off switch.
@@ -57,6 +104,24 @@ export function InfoTip({ label = "More information", children, align = "end" })
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
   const holderRef = useRef(null);
+  const buttonRef = useRef(null);
+  const bubbleRef = useRef(null);
+  const show = open || pinned;
+
+  // Placed before paint, so the bubble never flashes at its old spot. It
+  // follows its button while anything scrolls (the page or a dialog body) and
+  // when the screen is resized or rotated.
+  useLayoutEffect(() => {
+    if (!show) return undefined;
+    const place = () => placeTipBubble(bubbleRef.current, buttonRef.current, align);
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [show, align]);
 
   // A tip pinned open by a tap or a click has to be dismissable without
   // finding the same tiny target again.
@@ -82,7 +147,6 @@ export function InfoTip({ label = "More information", children, align = "end" })
     };
   }, [pinned]);
 
-  const show = open || pinned;
   return (
     <span
       className={show ? "info-tip is-open" : "info-tip"}
@@ -91,6 +155,7 @@ export function InfoTip({ label = "More information", children, align = "end" })
       onMouseLeave={() => setOpen(false)}>
       <button
         className="info-tip-button"
+        ref={buttonRef}
         type="button"
         aria-label={label}
         aria-expanded={show}
@@ -105,7 +170,7 @@ export function InfoTip({ label = "More information", children, align = "end" })
       </button>
       {/* Always in the tree, so a screen reader can reach the text even when
           the bubble is visually hidden. */}
-      <span className={"info-tip-bubble is-" + align} id={bubbleId} role="note" hidden={!show}>
+      <span className={"info-tip-bubble is-" + align} id={bubbleId} role="note" hidden={!show} ref={bubbleRef}>
         {children}
       </span>
     </span>);

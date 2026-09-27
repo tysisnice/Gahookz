@@ -11,7 +11,7 @@
 .arena-overlay {
   position: fixed;
   inset: 0;
-  z-index: 94;
+  z-index: var(--z-arena);
   height: 100dvh;
   display: grid;
   grid-template-rows: 50% 50%;
@@ -182,7 +182,7 @@
 }
 .gahook-arena-crowd-controls {
   position: fixed;
-  z-index: 88;
+  z-index: var(--z-arena-reactions);
   left: 50%;
   bottom: max(16px, env(safe-area-inset-bottom));
   width: min(720px, calc(100vw - 28px));
@@ -294,7 +294,7 @@
    over the tap zone included, so they get in the way -- and each one is a real
    button that Gahooks its sender back. The layer lets taps through; only the
    cards catch them. Its z-index is local to .arena-overlay's own stacking
-   context (the overlay is fixed with z-index 94), so nothing outside the arena
+   context (the overlay is fixed at --z-arena, 94), so nothing outside the arena
    moves: above the playfield and the opponent-tap minis (3), nothing else. */
 .arena-thrown-layer {
   position: absolute;
