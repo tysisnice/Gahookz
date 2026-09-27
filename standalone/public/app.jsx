@@ -35,6 +35,7 @@ import { SimplePaintEditor } from "./client/drawing.jsx";
 import { LobbyPaintLayer, WaitingRoomSocial } from "./client/social.jsx";
 import { RoomQrCode } from "./client/qr.jsx";
 import { InfoTip, ToggleSwitch } from "./client/controls.jsx";
+import { NumberWheel } from "./client/number-wheel.jsx";
 import { CustomGahookCreator } from "./client/custom-gahook.jsx";
 import { InformationHub } from "./client/information.jsx";
 import { LegalHub } from "./client/legal.jsx";
@@ -1444,7 +1445,7 @@ function LobbyCodeBand({ code, playerLink, shareNotice, onClick, className = "" 
     <button className={["code-band", className].filter(Boolean).join(" ")} type="button" aria-label="Share lobby link" onClick={onClick}>
       <span className="code-band__layout">
         <span className="code-band__text">
-          <span>Lobby code</span>
+          <span>Share Lobby Code</span>
           <strong>{code}</strong>
           <small>{playerLink}</small>
         </span>
@@ -1732,6 +1733,50 @@ function CounterGahookPrompt({ offer, busy = false, onCounter }) {
   </aside>;
 }
 
+// Quick / Standard / Custom as one segmented row (U2). Three stacked cards
+// took about 250px of a phone screen to offer one choice; the row takes one
+// line, and the selected option's description sits at the end of the heading
+// line, where it costs no height at all.
+//
+// A radio group, because exactly one length is always chosen: arrow keys move
+// between the options and select as they go, and only the selected option is
+// in the tab order.
+function LengthPresetSegments({ label, options, value, onChange }) {
+  const buttonsRef = useRef([]);
+  const selected = options.find((option) => option.id === value) || options[0];
+  const moveTo = (index) => {
+    const option = options[(index + options.length) % options.length];
+    buttonsRef.current[options.indexOf(option)]?.focus();
+    if (option.id !== value) onChange?.(option.id);
+  };
+  const onKeyDown = (event) => {
+    const from = Math.max(0, buttonsRef.current.indexOf(document.activeElement));
+    const steps = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    if (Object.prototype.hasOwnProperty.call(steps, event.key)) moveTo(from + steps[event.key]);
+    else if (event.key === "Home") moveTo(0);
+    else if (event.key === "End") moveTo(options.length - 1);
+    else return;
+    event.preventDefault();
+  };
+  return (
+    <>
+      <div className="round-preset-heading">
+        <span>{label}</span>
+        <em id="round-preset-detail">{selected.detail}</em>
+      </div>
+      <div className="round-preset-options" role="radiogroup" aria-label={label} onKeyDown={onKeyDown}>
+        {options.map((option, index) =>
+        <button className={value === option.id ? "is-selected" : ""} type="button" role="radio" aria-checked={value === option.id} aria-describedby={value === option.id ? "round-preset-detail" : undefined} tabIndex={value === option.id ? 0 : -1} key={option.id} ref={(node) => {buttonsRef.current[index] = node;}} onClick={() => onChange?.(option.id)}>
+            {option.title}
+          </button>
+        )}
+      </div>
+    </>);
+}
+
+// The server clamps a custom Herd game to 1-20 rounds (HERD_MAX_CUSTOM_ROUNDS).
+const HERD_CUSTOM_ROUNDS_MAX = 20;
+
 function HerdLengthSelector({ lobby, playerCount = 0, onChange, onRoundTarget }) {
   const preset = lobby.roundPreset === "standard" || lobby.roundPreset === "custom" ? lobby.roundPreset : "quick";
   const target = Number(lobby.herdRoundTarget || 8);
@@ -1747,20 +1792,12 @@ function HerdLengthSelector({ lobby, playerCount = 0, onChange, onRoundTarget })
 
   return (
     <section className="round-preset-selector" aria-label="Herd game length">
-      <span>Game length</span>
-      <div className="round-preset-options">
-        {options.map((option) =>
-        <button className={preset === option.id ? "is-selected" : ""} type="button" key={option.id} aria-pressed={preset === option.id} onClick={() => onChange?.(option.id)}>
-            <strong>{option.title}</strong>
-            <em>{option.detail}</em>
-          </button>
-        )}
-      </div>
+      <LengthPresetSegments label="Game length" options={options} value={preset} onChange={onChange} />
       {preset === "custom" ?
-      <label className="herd-round-target">
-          <span>Rounds</span>
-          <input type="number" min="1" max="20" value={target} onChange={(event) => onRoundTarget?.(Number(event.target.value))} />
-        </label> :
+      <div className="round-preset-custom herd-round-target">
+          <span id="herd-rounds-label">Rounds</span>
+          <NumberWheel value={target} min={1} max={HERD_CUSTOM_ROUNDS_MAX} labelledBy="herd-rounds-label" unit="round" onChange={(value) => onRoundTarget?.(value)} />
+        </div> :
       null}
       {/* Matched to the quiz totals block: one line of numbers, with the
           explanation behind the (i) instead of a three-line paragraph. */}
@@ -1784,8 +1821,10 @@ function GameFamilySelector({ value = "quiz", onChange, actions = null }) {
       <div className="mode-selector-options">
         {GAME_FAMILIES.map((family) =>
         <button className={value === family.id ? "is-selected" : ""} type="button" key={family.id} aria-pressed={value === family.id} onClick={() => onChange?.(family.id)}>
-            <ModeArt art={family.art} />
-            <strong>{family.title}</strong>
+            {/* Icon and a large title share the first row; the description
+                runs underneath across the whole card, so the card is two
+                short lines instead of an icon column beside three. */}
+            <span className="mode-option-title"><ModeArt art={family.art} /><strong>{family.title}</strong></span>
             <small>{family.subtitle}</small>
           </button>
         )}
@@ -1834,19 +1873,13 @@ function RoundPresetSelector({ lobby, value = "standard", playerCount = 0, custo
 
   return (
     <section className="round-preset-selector" aria-label="Game length">
-      <span>Game length</span>
-      <div className="round-preset-options">
-        {ROUND_PRESETS.map((preset) =>
-        <button className={value === preset.id ? "is-selected" : ""} type="button" key={preset.id} aria-pressed={value === preset.id} onClick={() => onChange?.(preset.id)}>
-            <strong>{preset.title}</strong>
-            <small>{preset.subtitle}</small>
-          </button>
-        )}
-      </div>
+      <LengthPresetSegments label="Game length" options={ROUND_PRESETS.map((preset) => ({ id: preset.id, title: preset.title, detail: preset.subtitle }))} value={value} onChange={onChange} />
+      {/* The same wheel as Herd's rounds, so both Custom panels look and work
+          alike. The server clamps this to 1-5 as well. */}
       {value === "custom" ?
-      <div className="round-preset-custom" role="group" aria-labelledby="custom-questions-label">
+      <div className="round-preset-custom">
           <span id="custom-questions-label">Questions per player</span>
-          <div className="question-count-picker party-question-picker">{[1, 2, 3, 4, 5].map((amount) => <button className={customLimit === amount ? "is-selected" : ""} type="button" aria-pressed={customLimit === amount} key={amount} onClick={() => onQuestionLimit?.(amount)}>{amount}</button>)}</div>
+          <NumberWheel value={Number(customLimit) || 1} min={1} max={5} labelledBy="custom-questions-label" unit="question" onChange={(amount) => onQuestionLimit?.(amount)} />
         </div> :
       null}
       {/* One line: how many questions, and how many players they come from.
@@ -3525,6 +3558,9 @@ function JoinQuickMenu() {
     </details>);
 }
 
+// The room code used to appear three times on this screen (top bar, this
+// line, and a pill beside it); the pill went, which gives a long funny name
+// the width to stay on one line.
 function JoinPlayerPreview({ name, avatarId, avatarImageDataUrl, code, editing = false }) {
   const previewPlayer = { name: name.trim() || "Your name", avatarId, avatarImageDataUrl };
   return (

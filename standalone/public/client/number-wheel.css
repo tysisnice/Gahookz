@@ -1,0 +1,125 @@
+/* Number wheel (client/number-wheel.jsx): a swipeable strip of numbers that
+   snaps under a highlighted lens, with - and + either side. Styled to sit in
+   the dark setup panels: a recessed pill track like the game-length segments,
+   and the same gradient-with-yellow-edge highlight as a selected segment, so
+   "the chosen one" looks identical everywhere in setup. */
+
+.number-wheel {
+  --wheel-cell: 46px;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 4px;
+  background: rgba(8, 14, 32, 0.34);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.22);
+}
+
+.number-wheel__step {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  font-size: 1.45rem;
+  font-weight: 1000;
+  line-height: 1;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.24);
+}
+
+.number-wheel__step:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.number-wheel__step:disabled {
+  opacity: 0.35;
+}
+
+.number-wheel__window {
+  position: relative;
+  min-width: 0;
+  height: 42px;
+  border-radius: 999px;
+  outline: none;
+}
+
+.number-wheel__window:focus-visible {
+  box-shadow: 0 0 0 3px #ffffff;
+}
+
+.number-wheel__lens {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: var(--wheel-cell);
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(150deg, #246bfe, #7c3aed 58%, #ff3d8b);
+  box-shadow: 0 0 0 2px #ffdf45, inset 0 -4px 0 rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+/* The padding lets the first and last numbers reach the centre, and the
+   fade at both ends shows there is more to swipe to. */
+.number-wheel__strip {
+  position: relative;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-inline: calc(50% - var(--wheel-cell) / 2);
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+}
+
+.number-wheel__strip::-webkit-scrollbar {
+  display: none;
+}
+
+.number-wheel__cell {
+  flex: 0 0 var(--wheel-cell);
+  height: 100%;
+  display: grid;
+  place-items: center;
+  scroll-snap-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 1.08rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 120ms ease-out, transform 120ms ease-out;
+}
+
+.number-wheel__cell.is-near {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.number-wheel__cell.is-selected {
+  color: #ffffff;
+  font-size: 1.32rem;
+  font-weight: 1000;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+}
+
+.number-wheel.is-disabled {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .number-wheel__cell {
+    transition: none;
+  }
+}
