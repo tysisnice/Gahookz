@@ -35,6 +35,7 @@ import { SimplePaintEditor } from "./client/drawing.jsx";
 import { LobbyPaintLayer, WaitingRoomSocial } from "./client/social.jsx";
 import { RoomQrCode } from "./client/qr.jsx";
 import { InfoTip, ToggleSwitch } from "./client/controls.jsx";
+import { LeaveGameGuard, useBackToClose, useScrollLock } from "./client/history.jsx";
 import { CustomGahookCreator } from "./client/custom-gahook.jsx";
 import { InformationHub } from "./client/information.jsx";
 import { LegalHub } from "./client/legal.jsx";
@@ -63,32 +64,11 @@ const STALE_GAHOOK_MS = 4500;
 const REVEAL_ANSWER_SPOTLIGHT_MS = 3500;
 const ANSWER_IDS = ["red", "blue", "yellow", "green"];
 
+// The body scroll lock now lives with the overlay stack (client/history.jsx)
+// and is reference-counted: a dialog opened from the phone menu sheet used to
+// take a second lock that read scrollY as 0 and jumped the page to the top.
 function useModalBodyLock(active) {
-  useEffect(() => {
-    if (!active) return undefined;
-    const scrollY = window.scrollY;
-    const root = document.documentElement;
-    const previous = {
-      rootOverflow: root.style.overflow,
-      overflow: document.body.style.overflow,
-      position: document.body.style.position,
-      top: document.body.style.top,
-      width: document.body.style.width
-    };
-    root.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    return () => {
-      root.style.overflow = previous.rootOverflow;
-      document.body.style.overflow = previous.overflow;
-      document.body.style.position = previous.position;
-      document.body.style.top = previous.top;
-      document.body.style.width = previous.width;
-      window.scrollTo(0, scrollY);
-    };
-  }, [active]);
+  useScrollLock(active);
 }
 
 function pokeOverlayDurationMs(poke) {
@@ -1197,16 +1177,25 @@ function App() {
     return () => window.removeEventListener("popstate", syncRoute);
   }, []);
 
+  // Back must not drop someone out of a room by accident (Tyson, 25 Sep). Once
+  // they are in it -- the host, or a player who has joined; not someone still
+  // on the join form -- Back with nothing open asks "Leave game?" first. The
+  // guard stays mounted through the offline and update screens so a brief
+  // outage does not cost the room its history entry.
+  const inRoom = mode === "room" && lobby.code === route.code && (Boolean(lobby.isHost) || Boolean(lobby.ownPlayer));
+  const leaveGuard = <LeaveGameGuard active={inRoom} onLeave={() => navigateTo("/")} />;
+
   if (serverConnection.offline && mode !== "information" && mode !== "legal") {
-    return <OfflineExperience recovered={serverConnection.recovered} onReturnOnline={serverConnection.returnOnline} />;
+    return <><OfflineExperience recovered={serverConnection.recovered} onReturnOnline={serverConnection.returnOnline} />{leaveGuard}</>;
   }
 
   if (serverConnection.protocolMismatch && mode !== "information" && mode !== "legal") {
-    return <ServerUpdateExperience mismatch={serverConnection.protocolMismatch} />;
+    return <><ServerUpdateExperience mismatch={serverConnection.protocolMismatch} />{leaveGuard}</>;
   }
 
   return (
     <>
+      {leaveGuard}
       {mode === "information" ? <InformationHub /> : mode === "legal" ? <LegalHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}
       {mode === "room" && lobby.code === route.code ? <GahookArenaCrowdControls duel={lobby.gahookDuel} ownPlayer={lobby.ownPlayer} playerKey={playerKey} /> : null}
       {error ?
@@ -1262,6 +1251,7 @@ function WelcomeScreen() {
   const [wrongPasswordPoke, setWrongPasswordPoke] = useState(null);
   const [creating, setCreating] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  useBackToClose(showTutorial, () => setShowTutorial(false));
 
   const togglePassword = (enabled) => {
     setPasswordEnabled(enabled);
@@ -1472,6 +1462,9 @@ function HostMode({ playerKey, code }) {
   const [rejoiningAsPlayer, setRejoiningAsPlayer] = useState(false);
   const lobby = useSelector((state) => state.lobby);
   const dispatch = useDispatch();
+  // "Join game as player" opens the join form over the host's lobby; Back
+  // returns the host to it. Joining closes it (the form is gone).
+  useBackToClose(joiningAsPlayer && !lobby.ownPlayer, () => setJoiningAsPlayer(false));
 
   const hostAction = async (path, payload = {}) => {
     const previousQuestionLimit = lobby.maxQuestionsPerPlayer;
@@ -1881,6 +1874,7 @@ function ModeTutorialLauncher({ mode = "quiz", autoOpen = false, autoOpenMode = 
   const storageKey = "gahookz-how-to-play-seen-v2-" + automaticMode;
   const [open, setOpen] = useState(false);
   const [tutorialMode, setTutorialMode] = useState(selectedMode);
+  useBackToClose(open, () => setOpen(false));
 
   useEffect(() => {
     if (!autoOpen) return;
@@ -2180,6 +2174,8 @@ function RuleToggleRow({ label, on, onChange, help = "" }) {
 function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
   const [draft, setDraft] = useState(() => ({ ...currentRules(lobby), settingsRevision: lobby.settingsRevision }));
   const dialogRef = useRef(null);
+  // Back cancels, like Escape: nothing in the dialog is saved by leaving it.
+  useBackToClose(open, () => onCancel?.());
 
   useEffect(() => {
     if (open) setDraft({ ...currentRules(lobby), settingsRevision: lobby.settingsRevision });
@@ -2710,6 +2706,7 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
 function ForceStartControl({ canStart, canForceStart, label = "Start game", onStart, onForceStart, forceTitle = "Players are not ready, start anyway with generated questions?", forceCopy = "Completed questions will stay. Missing questions will be filled with safe defaults for this game mode." }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [starting, setStarting] = useState(false);
+  useBackToClose(confirmOpen, () => setConfirmOpen(false));
 
   useEffect(() => {
     if (!confirmOpen) return undefined;
@@ -2988,6 +2985,10 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     setEditingLocalProfile(false);
     onProfileEditComplete?.();
   };
+  // The profile editor and the party view replace the room screen, so to a
+  // player they are screens: Back returns to the lobby or game underneath.
+  useBackToClose(Boolean(ownPlayer) && (editingProfile || editingLocalProfile), closeProfileEditor);
+  useBackToClose(Boolean(ownPlayer) && showPartyView, () => setShowPartyView(false));
   const playerMenu = hostMenu || (ownPlayer ? <PlayerQuickMenu ownPlayer={ownPlayer} mode={lobby.gameMode} customGahook={lobby.ownCustomGahook} customGahookOptions={lobby.customGahookOptions} allowCustomGahooks={lobby.allowCustomGahooks !== false} playerKey={playerKey} onEditProfile={() => setEditingLocalProfile(true)} onPartyView={() => setShowPartyView(true)} /> : null);
   const [activePoke, setActivePoke] = useState(null);
   const [pokeActionBusy, setPokeActionBusy] = useState(false);
@@ -3329,6 +3330,7 @@ function PlayerSettingsDialog({ open, onClose }) {
   const [reducedPreferred] = useReducedEffectsPreference();
   const systemReduced = systemPrefersReducedEffects();
   useModalBodyLock(open);
+  useBackToClose(open, onClose);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -3381,6 +3383,8 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
   const dispatch = useDispatch();
   const [editingCustom, setEditingCustom] = useState(false);
   useModalBodyLock(editingCustom);
+  // Back leaves the custom Gahook creator, not the room (Tyson, 25 Sep).
+  useBackToClose(editingCustom, () => setEditingCustom(false));
   const selectedForm = ownPlayer?.gahookForm || getStoredGahookForm();
   const slotCount = Math.max(1, Number(customGahookOptions?.slotCount) || 1);
   const selectedSlot = Math.max(0, Number(customGahookOptions?.selectedSlot) || 0);
@@ -3554,6 +3558,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
   const [wrongPasswordPoke, setWrongPasswordPoke] = useState(null);
   const [joining, setJoining] = useState(false);
   const [drawingAvatar, setDrawingAvatar] = useState(false);
+  useBackToClose(drawingAvatar && allowCustomProfiles, () => setDrawingAvatar(false));
 
   const chooseAvatar = (nextAvatarId) => {
     avatarIdRef.current = nextAvatarId;
@@ -4724,6 +4729,7 @@ function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image",
   const fileInputRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
   useModalBodyLock(drawing);
+  useBackToClose(drawing, () => setDrawing(false));
 
   const handleImage = async (event) => {
     const file = event.target.files?.[0];

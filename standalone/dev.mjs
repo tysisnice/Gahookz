@@ -29,7 +29,10 @@ const buildSources = new Set([
   "client/social.jsx",
   "client/qr.jsx",
   "client/custom-gahook.jsx",
-  "client/information.jsx"
+  "client/information.jsx",
+  "client/controls.jsx",
+  "client/history.jsx",
+  "client/back-stack.ts"
 ]);
 const shellSources = new Set([
   "index.html",

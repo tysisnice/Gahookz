@@ -10836,3 +10836,83 @@ button.answer-tile {
   .host-presence-notice,
   .host-presence-dot { animation: none; }
 }
+
+/* "Leave game?" (LeaveGameGuard in client/history.jsx).
+   Tyson (25 Sep): when Back is pressed in a room, "have a small overlay say
+   (Leave Game. Are you sure?) with a yes no boxes." Small and centred, in the
+   cream-and-pink of the room menus, so it reads as part of the same app. It
+   answers the Back button, so it sits at --z-confirm: above dialogs, Gahooks
+   and the 1v1 arena, below toasts. No is on the left and takes focus. */
+.leave-game-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-confirm);
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: rgba(4, 12, 20, 0.72);
+}
+
+.leave-game-dialog {
+  width: min(100%, 340px);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  border-radius: 16px;
+  border: 3px solid #ff3d8b;
+  padding: 22px 18px 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 223, 69, 0.48), rgba(255, 255, 255, 0) 42%),
+    #fff7ed;
+  color: #111214;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  animation: leave-game-in 160ms ease-out both;
+}
+
+.leave-game-dialog h2 {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.1;
+}
+
+.leave-game-dialog p {
+  margin: 0;
+  color: #475467;
+  font-weight: 800;
+}
+
+.leave-game-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.leave-game-actions button {
+  min-height: 50px;
+  border-radius: 12px;
+  font-size: 1.05rem;
+  font-weight: 1000;
+}
+
+.leave-game-actions .secondary-button {
+  border: 2px solid rgba(17, 18, 20, 0.14);
+}
+
+.leave-game-actions button:focus-visible {
+  outline: 3px solid #246bfe;
+  outline-offset: 2px;
+}
+
+@keyframes leave-game-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.gahookz-reduced-effects .leave-game-dialog { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .leave-game-dialog { animation: none; }
+}

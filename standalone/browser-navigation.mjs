@@ -226,6 +226,140 @@ try {
   }
   note('top-bar state and room-code pills are <=28px tall with 11-13px text at 360, 390 and 1280px');
 
+  // -------------------------------------------------------------------------
+  // S2 - Back closes the topmost overlay; with nothing open it asks first
+  // -------------------------------------------------------------------------
+  const roomPath = '/' + code;
+  const depth = (page) => page.evaluate(() => window.history.state?.gahookzBack?.depth || 0);
+  const guarded = (page) => until(page, 'the room guard entry', () => window.history.state?.gahookzBack?.depth === 1);
+  const inRoom = async (page, where) => {
+    assert.equal(await page.evaluate(() => location.pathname), roomPath, `${where}: Back must not leave the room`);
+    assert(await page.$('.host-topbar'), `${where}: the room screen should still be showing`);
+  };
+  const noConfirm = async (page, where) => assert.equal(await page.$('.leave-game-dialog'), null, `${where}: "Leave game?" must not appear`);
+  const back = async (page) => {
+    await page.goBack();
+    await wait(200);
+  };
+
+  {
+    const player = await pageFor(playerKeys[1], code, SIZES.phone);
+    await guarded(player);
+    note('joining a room (deep link /' + code + ') adds exactly one guard entry');
+
+    // Nothing open: Back asks.
+    await back(player);
+    await player.waitForSelector('.leave-game-dialog');
+    await inRoom(player, 'Back with nothing open');
+    const dialog = await player.evaluate(() => {
+      const box = document.querySelector('.leave-game-dialog');
+      const rect = box.getBoundingClientRect();
+      return {
+        title: box.querySelector('h2').textContent,
+        text: box.querySelector('p').textContent,
+        buttons: [...box.querySelectorAll('button')].map((button) => button.textContent),
+        focused: document.activeElement?.textContent,
+        onTop: box.contains(document.elementFromPoint(rect.left + rect.width / 2, rect.top + 20))
+      };
+    });
+    assert.deepEqual({ title: dialog.title, text: dialog.text, buttons: dialog.buttons }, { title: 'Leave game?', text: 'Are you sure?', buttons: ['No', 'Yes'] });
+    assert.equal(dialog.focused, 'No', 'No, the safe answer, takes focus');
+    assert(dialog.onTop, 'the confirmation is on top of everything');
+    await capture(player, 'leave-game-390');
+
+    await player.click('.leave-game-no');
+    await wait(200);
+    await noConfirm(player, 'after No');
+    await inRoom(player, 'after No');
+    assert.equal(await depth(player), 1, 'No restores the guard entry');
+    note('Back with nothing open shows "Leave game? / Are you sure?" with No/Yes; No stays and restores the entry');
+
+    // An overlay: How to play.
+    await player.click('.room-status-copy .how-to-play-button');
+    await player.waitForSelector('.tutorial-dialog');
+    assert.equal(await depth(player), 2, 'an open overlay owns one entry');
+    await back(player);
+    await until(player, 'the tutorial closes on Back', () => !document.querySelector('.tutorial-dialog'));
+    await noConfirm(player, 'Back from How to play');
+    await inRoom(player, 'Back from How to play');
+    assert.equal(await depth(player), 1);
+
+    // Closing the overlay by its own button consumes its entry.
+    await player.click('.room-status-copy .how-to-play-button');
+    await player.waitForSelector('.tutorial-dialog');
+    await player.click('.tutorial-dialog__close');
+    await until(player, 'the tutorial closes by its button', () => !document.querySelector('.tutorial-dialog'));
+    await until(player, 'its history entry is consumed', () => window.history.state?.gahookzBack?.depth === 1);
+    note('Back closes How to play and stays in the room; closing it by its button consumes its entry');
+
+    // Escape answers No; a reload keeps the guard (deep link / rejoin).
+    await back(player);
+    await player.waitForSelector('.leave-game-dialog');
+    await player.keyboard.press('Escape');
+    await wait(150);
+    await noConfirm(player, 'after Escape');
+    assert.equal(await depth(player), 1, 'Escape restores the guard entry like No');
+    await player.reload();
+    await player.waitForSelector('.host-topbar');
+    await guarded(player);
+    await back(player);
+    await player.waitForSelector('.leave-game-dialog');
+    await inRoom(player, 'Back after a reload');
+    note('Escape answers No; after a reload Back still asks');
+
+    // Yes leaves exactly as Exit Lobby does.
+    await player.click('.leave-game-yes');
+    await until(player, 'the welcome screen', () => location.pathname === '/' && Boolean(document.querySelector('.welcome-screen')));
+    note('Yes leaves to the welcome screen, like Exit Lobby');
+
+    // On the welcome screen Back is ordinary history again: it returns to the
+    // room entry (and the saved session rejoins), without asking anything.
+    await back(player);
+    await player.waitForFunction((path) => location.pathname === path, { timeout: 15_000 }, roomPath);
+    await player.waitForSelector('.host-topbar');
+    await noConfirm(player, 'Back on the welcome screen');
+    await player.browserContext().close();
+    note('on the welcome screen Back behaves normally');
+  }
+
+  {
+    // Someone still on the join form is not in the room yet: Back is normal.
+    const context = await browser.createBrowserContext();
+    const newcomer = await context.newPage();
+    await newcomer.setViewport({ ...SIZES.small, isMobile: true, hasTouch: true });
+    newcomer.on('pageerror', (error) => errors.push(error.message));
+    await newcomer.goto(base + '/information');
+    await newcomer.goto(base + roomPath);
+    await newcomer.waitForSelector('.party-join-form');
+    await wait(400);
+    assert.equal(await depth(newcomer), 0, 'the join form adds no guard entry');
+    await back(newcomer);
+    await until(newcomer, 'Back from the join form leaves normally', () => location.pathname === '/information');
+    await context.close();
+    note('Back from the join form (not yet in the room) leaves normally; /information is untouched');
+  }
+
+  {
+    // The host, on a desktop: Lobby rules closes on Back, focus returns.
+    const host = await pageFor('shell-host', code, SIZES.desktop, { phone: false });
+    await guarded(host);
+    await host.click('.rules-modal-trigger');
+    await host.waitForSelector('.rules-modal');
+    await back(host);
+    await until(host, 'Lobby rules closes on Back', () => !document.querySelector('.rules-modal'));
+    await noConfirm(host, 'Back from Lobby rules');
+    await inRoom(host, 'Back from Lobby rules');
+    assert(await host.evaluate(() => document.activeElement?.matches('.rules-modal-trigger')), 'focus returns to the Lobby rules button');
+    await back(host);
+    await host.waitForSelector('.leave-game-dialog');
+    await capture(host, 'leave-game-1280');
+    await host.click('.leave-game-no');
+    await wait(150);
+    await inRoom(host, 'host after No');
+    await host.browserContext().close();
+    note('host: Back closes Lobby rules (focus back on its button), then asks before leaving');
+  }
+
   assert.deepEqual(errors, [], 'the browser reported page errors: ' + errors.join(' | '));
   console.log(JSON.stringify({ ok: true, baseUrl: base, checked }, null, 2));
 } finally {

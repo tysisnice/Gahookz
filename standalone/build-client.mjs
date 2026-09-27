@@ -14,6 +14,8 @@ const generatedFiles = new Set([
   "client/net.js",
   "client/reveal.js",
   "client/host-presence.js",
+  "client/history.js",
+  "client/back-stack.js",
   "release.json",
   "client/audio.runtime.js",
   "client/controls.js",
@@ -125,6 +127,7 @@ await Promise.all([
     ["./client/social.jsx", versioned("./client/social.js")],
     ["./client/qr.jsx", versioned("./client/qr.js")],
     ["./client/controls.jsx", versioned("./client/controls.js")],
+    ["./client/history.jsx", versioned("./client/history.js")],
     ["./client/custom-gahook.jsx", versioned("./client/custom-gahook.js")],
     ["./client/information.jsx", versioned("./client/information.js")],
     ["./client/legal.jsx", versioned("./client/legal.js")]
@@ -147,7 +150,13 @@ await Promise.all([
   transformFile("client/presentation.jsx", "client/presentation.js", "jsx", [
     ["./gahook-forms.js", versioned("./gahook-forms.js")]
   ]),
-  transformFile("client/controls.jsx", "client/controls.js", "jsx"),
+  transformFile("client/controls.jsx", "client/controls.js", "jsx", [
+    ["./history.jsx", versioned("./history.js")]
+  ]),
+  transformFile("client/history.jsx", "client/history.js", "jsx", [
+    ["./back-stack.ts", versioned("./back-stack.js")]
+  ]),
+  transformFile("client/back-stack.ts", "client/back-stack.js", "ts"),
   transformFile("client/tutorial.jsx", "client/tutorial.js", "jsx"),
   transformFile("client/drawing.jsx", "client/drawing.js", "jsx"),
   transformFile("client/social.jsx", "client/social.js", "jsx"),
