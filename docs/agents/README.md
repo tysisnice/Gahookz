@@ -41,24 +41,30 @@ there decides which role edits which file.
 
 ## Where to work
 
-The main checkout lives in a Syncthing folder that is **bind-mounted into the
-development container**: saving a file there hot-reloads `dev.gahookz.com`.
-That is useful for the orchestrator and for Tyson's review, and dangerous for
-several agents at once.
+The working repository is `/mnt/storage/syncthing/Store/Projects/gahookz`.
+Syncthing syncs its source to Tyson's other machines; `.git`, `node_modules`
+and build output stay local to this laptop. The old checkout,
+`/mnt/storage/syncthing/codex/2026-07-01/Gahookz`, is a read-only backup —
+and the running dev, beta and production containers still come from it, so
+editing Store changes no running site until Tyson approves a redeploy from
+Store (see `CLAUDE.md`, "Where the repository lives").
 
 - When an orchestrator runs agents in parallel, each agent gets its own
-  worktree outside the Syncthing folder:
+  worktree outside the synced folder:
 
   ```bash
-  bash scripts/agent-worktree.sh <name>     # → ~/gahookz-worktrees/<name>, branch agent/<name>
+  bash scripts/agent-worktree.sh <name>            # → ~/gahookz-agent-worktrees/<name>, new branch agent/<name>
+  bash scripts/agent-worktree.sh --reuse <name>    # attach an existing agent/<name> branch
   ```
 
   Work only inside the path you were given. `node_modules` is a symlink to the
   main checkout; do not run `npm install` or `npm ci` in a worktree.
+  (`~/gahookz-worktrees/` holds the old checkout's worktrees; leave them.)
 - A single agent working alone may work in the main checkout on a feature
-  branch, knowing every save reloads dev.
+  branch. Every save syncs to Tyson's other machines.
 - Commit locally on your branch when a coherent slice is verified. **Never
-  push, never merge into `main`, never force-push.** The orchestrator merges.
+  push, never merge into `main`, never force-push.** The orchestrator merges
+  and pushes `main` once a batch is verified.
 
 ## Verifying — one heavy job at a time
 

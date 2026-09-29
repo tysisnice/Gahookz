@@ -8,9 +8,11 @@
 >   `nginx` service used below. Host `nginx` is not installed.
 > - There is **no `cloudflared`** and no Cloudflare Tunnel. Cloudflare provides
 >   authoritative DNS in DNS-only mode.
-> - The paths are `/srv/gahookz` (production clone, deploy from here) and
->   `/mnt/storage/syncthing/codex/2026-07-01/Gahookz` (Syncthing tree,
->   development only). `/mnt/gahookz/Gahookz` below is illustrative.
+> - The paths are `/srv/gahookz` (production clone) and the working
+>   repository `/mnt/storage/syncthing/Store/Projects/gahookz` (since
+>   2026-09-30; the old `/mnt/storage/syncthing/codex/2026-07-01/Gahookz` is a
+>   backup that the running containers still come from — see `CLAUDE.md`).
+>   `/mnt/gahookz/Gahookz` below is illustrative.
 >
 > For day-to-day operation of the live server use `SERVER-COMMANDS.md`.
 

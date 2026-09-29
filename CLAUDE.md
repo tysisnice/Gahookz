@@ -65,11 +65,27 @@ Browser ──HTTPS──> Cloudflare (DNS-only) ──> router ──> Nginx Pr
 
 | Environment | Port | Source | Notes |
 | --- | --- | --- | --- |
-| Development | `127.0.0.1:3101` | bind-mounted Syncthing tree, hot reload | `dev.gahookz.com`, behind an access list |
-| Production | `127.0.0.1:3102` | immutable image built from `/srv/gahookz` | `gahookz.com`, changed only by a deliberate deploy |
+| Development | `127.0.0.1:3101` | bind-mounted checkout, hot reload | `dev.gahookz.com`, behind an access list |
+| Beta | `127.0.0.1:3103` | image `gahookz:local` | `beta.gahookz.com`, deliberately capped small |
+| Production | `127.0.0.1:3102` | immutable image, Compose project `gahookz-prod` | `gahookz.com`, changed only by a deliberate deploy |
 
-Production is a **separate clean clone at `/srv/gahookz`**, not this Syncthing
-working tree. It runs under its own Compose project, `gahookz-prod`.
+### Where the repository lives (since 2026-09-30)
+
+- **Working repository:** `/mnt/storage/syncthing/Store/Projects/gahookz`.
+  Syncthing syncs its source only; `.git`, `node_modules` and build output
+  stay local to this laptop (see `Store/.stignore`). Its `origin` is GitHub;
+  a second remote, `codex`, points at the old checkout and has pushing
+  disabled.
+- **Old checkout, kept as a backup:** `/mnt/storage/syncthing/codex/2026-07-01/Gahookz`.
+  Do not edit or delete it.
+- **The running containers still come from the old checkout.** Dev, beta and
+  production were all started from `/mnt/storage/syncthing/codex/2026-07-01/Gahookz`
+  (Compose working directory, checked 2026-09-30); dev hot-reloads from that
+  folder, **not** from Store. They move to Store only when Tyson approves a
+  redeploy from there. Until then, editing Store does not change any running
+  site.
+- `/srv/gahookz`, which older documents call the production clone, is at
+  `81a70d2` and was not used for the last production build.
 
 ## Where the code lives
 
