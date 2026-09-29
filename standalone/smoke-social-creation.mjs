@@ -27,6 +27,7 @@ const stylesSource = readSource("./public/styles.css");
 const buildSource = readSource("./build-client.mjs");
 const devSource = readSource("./dev.mjs");
 const serviceWorkerSource = readSource("./public/service-worker.js");
+const historySource = readSource("./public/client/history.jsx");
 
 function readSource(relativePath) {
   return fs.readFileSync(new URL(relativePath, import.meta.url), "utf8");
@@ -181,7 +182,9 @@ function runStaticUiSmoke() {
   assert(presentationSource.includes("CustomGahookVisual") && presentationSource.includes("slice(0, 3)") && presentationSource.includes("custom-gahook-frame"), "Incoming custom Gahooks should render and animate up to three poses");
   assert(audioSource.includes("playCustomGahookSound") && audioSource.includes("maxDurationMs") && audioSource.includes("stopCustomGahookAudio"), "Incoming recorded sounds should stop with the Gahook overlay");
   assert(appSource.includes("customGahook: poke.customGahook || null"), "Optimistic self-Gahooks must preserve the selected custom animation and sound payload");
-  assert(appSource.includes('createPortal(<div className="creation-modal-backdrop"') && appSource.includes('document.body.style.position = "fixed"'), "The custom editor should be isolated from menu styling and lock background scrolling");
+  // The body scroll lock moved to the shared overlay stack (client/history.jsx,
+  // reference-counted so nested overlays do not fight); the editor still takes it.
+  assert(appSource.includes('createPortal(<div className="creation-modal-backdrop"') && appSource.includes("useModalBodyLock(editingCustom)") && appSource.includes("useScrollLock(active)") && historySource.includes('body.style.position = "fixed"'), "The custom editor should be isolated from menu styling and lock background scrolling");
 
   const avatarPicker = functionSection(appSource, "AvatarPicker");
   const joinScreen = functionSection(appSource, "JoinScreen");

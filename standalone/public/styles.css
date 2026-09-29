@@ -16,6 +16,39 @@
   --pink: #ff3d8b;
   --cyan: #00bfd8;
   --orange: #ff8a00;
+
+  /* One stacking scale for everything that floats over the page (2026-09-25).
+     Tyson's note: "the menu should be over the chat icon". Before this, the
+     layers were loose numbers (menu 30 under chat 40, toasts 20 under almost
+     everything, tutorial 100 over the arena). Use these tokens, never a bare
+     number, for anything fixed or portalled to <body>. Small local numbers
+     inside one component (1-5, e.g. a card's badge) stay local.
+
+       page content                     auto / 0-5 (local)
+       --z-chat            floating room chat: button, window, unread bubbles
+       --z-notice          host-presence notices (no pointer events)
+       --z-popover         InfoTip bubbles
+       --z-menu            host/player/join menus (dropdown and phone sheet),
+                           player-card action menus
+       --z-modal           dialogs: Lobby rules, Settings, force start, How to
+                           play, drawing and custom-Gahook editors
+       --z-gahook          jump scares, Counter Gahook prompt, host mini Gahooks
+       --z-arena-reactions 1v1 crowd reactions bar (client/arena.css)
+       --z-arena           1v1 arena overlay; its thrown minis and tap zone are
+                           local layers inside it (client/arena.css)
+       --z-confirm         "Leave game?" — answers the Back button, so it must
+                           be visible over whatever is on screen, arena included
+       --z-toast           error and status toasts */
+  --z-chat: 40;
+  --z-notice: 44;
+  --z-popover: 48;
+  --z-menu: 50;
+  --z-modal: 60;
+  --z-gahook: 70;
+  --z-arena-reactions: 88;
+  --z-arena: 94;
+  --z-confirm: 96;
+  --z-toast: 100;
 }
 
 html,
@@ -1270,7 +1303,7 @@ img {
 
 .host-quick-menu {
   position: relative;
-  z-index: 30;
+  z-index: var(--z-menu);
   color: #111214;
 }
 
@@ -1724,6 +1757,24 @@ img {
 .phase-pill.is-join {
   border-color: rgba(0, 191, 216, 0.55);
   background: rgba(0, 191, 216, 0.18);
+}
+
+/* The top bar's state and room-code pills are labels, not controls, so they
+   can be small. Tyson (25 Sep): "Decrease the size of the lobby and MOOP
+   (room code) text that's in the top right next to the menu button." They
+   were 34-36px tall at 1-1.05rem, heavier than the menu button beside them;
+   now they read as quiet status beside it. */
+.host-actions .phase-pill,
+.host-actions .topbar-room-code {
+  min-height: 26px;
+  gap: 5px;
+  padding: 0 9px;
+  font-size: 0.76rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  box-shadow: none;
 }
 
 .icon-button {
@@ -2418,7 +2469,7 @@ img {
 .player-action-menu > div {
   position: absolute;
   right: 0;
-  z-index: 20;
+  z-index: var(--z-menu);
   width: 210px;
   margin-top: 8px;
   display: grid;
@@ -3079,7 +3130,7 @@ img {
 .force-start-modal {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   padding: 18px;
@@ -5605,7 +5656,7 @@ button.answer-tile {
   color: #ffffff;
   padding: 12px 12px 12px 16px;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
-  z-index: 20;
+  z-index: var(--z-toast);
   overflow: hidden;
 }
 
@@ -5633,7 +5684,7 @@ button.answer-tile {
 .poke-overlay {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-gahook);
   display: grid;
   place-items: center;
   background:
@@ -6881,7 +6932,7 @@ button.answer-tile {
 .host-mini-gahook-layer {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  z-index: calc(var(--z-gahook) + 1);
   pointer-events: none;
   overflow: hidden;
 }
@@ -6929,7 +6980,7 @@ button.answer-tile {
 .tutorial-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   padding: 16px;
@@ -8148,11 +8199,12 @@ button.answer-tile {
     gap: 5px;
   }
 
-  .phase-pill,
-  .topbar-room-code {
-    min-height: 32px;
-    padding: 0 8px;
-    font-size: 0.82rem;
+  .host-actions .phase-pill,
+  .host-actions .topbar-room-code {
+    min-height: 24px;
+    padding: 0 7px;
+    font-size: 0.7rem;
+    letter-spacing: 0.03em;
   }
 
   .mode-selector > div {
@@ -8430,7 +8482,7 @@ button.answer-tile {
 .creation-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -9568,7 +9620,7 @@ button.answer-tile {
   position: fixed;
   right: max(16px, env(safe-area-inset-right));
   bottom: max(16px, env(safe-area-inset-bottom));
-  z-index: 40;
+  z-index: var(--z-chat);
   width: min(410px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   margin: 0 !important;
@@ -9761,7 +9813,7 @@ button.answer-tile {
   position: fixed;
   right: max(18px, env(safe-area-inset-right));
   bottom: max(18px, env(safe-area-inset-bottom));
-  z-index: 69;
+  z-index: var(--z-gahook);
   width: min(360px, calc(100vw - 36px));
   display: grid;
   gap: 5px;
@@ -10342,12 +10394,18 @@ button.answer-tile {
   border-color: rgba(255, 255, 255, 0.55);
 }
 
+/* Fixed and placed by placeTipBubble() in client/controls.jsx: above its (i)
+   when there is room, below when there is not, and clamped 8px inside the
+   viewport at any width. `fixed` also escapes a scrolling dialog body, which
+   used to clip tips near the top of Lobby rules. The width cap leaves the same
+   8px each side on a 320px phone. */
 .info-tip-bubble {
-  position: absolute;
-  z-index: 40;
-  bottom: calc(100% + 8px);
+  position: fixed;
+  z-index: var(--z-popover);
+  left: 0;
+  top: 0;
   width: max-content;
-  max-width: min(17rem, 68vw);
+  max-width: min(17rem, calc(100vw - 16px));
   padding: 9px 12px;
   border-radius: 12px;
   background: #101f2c;
@@ -10361,8 +10419,6 @@ button.answer-tile {
   white-space: normal;
 }
 
-.info-tip-bubble.is-end { right: -6px; }
-.info-tip-bubble.is-start { left: -6px; }
 .info-tip-bubble[hidden] { display: none; }
 
 
@@ -10396,7 +10452,7 @@ button.answer-tile {
 .rules-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-modal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -10707,7 +10763,7 @@ button.answer-tile {
   top: calc(env(safe-area-inset-top, 0px) + 72px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 60;
+  z-index: var(--z-notice);
   display: grid;
   gap: 8px;
   width: min(92vw, 460px);
@@ -10779,4 +10835,187 @@ button.answer-tile {
 @media (prefers-reduced-motion: reduce) {
   .host-presence-notice,
   .host-presence-dot { animation: none; }
+}
+
+/* "Leave game?" (LeaveGameGuard in client/history.jsx).
+   Tyson (25 Sep): when Back is pressed in a room, "have a small overlay say
+   (Leave Game. Are you sure?) with a yes no boxes." Small and centred, in the
+   cream-and-pink of the room menus, so it reads as part of the same app. It
+   answers the Back button, so it sits at --z-confirm: above dialogs, Gahooks
+   and the 1v1 arena, below toasts. No is on the left and takes focus. */
+.leave-game-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-confirm);
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: rgba(4, 12, 20, 0.72);
+}
+
+.leave-game-dialog {
+  width: min(100%, 340px);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  border-radius: 16px;
+  border: 3px solid #ff3d8b;
+  padding: 22px 18px 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 223, 69, 0.48), rgba(255, 255, 255, 0) 42%),
+    #fff7ed;
+  color: #111214;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  animation: leave-game-in 160ms ease-out both;
+}
+
+.leave-game-dialog h2 {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.1;
+}
+
+.leave-game-dialog p {
+  margin: 0;
+  color: #475467;
+  font-weight: 800;
+}
+
+.leave-game-actions {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.leave-game-actions button {
+  min-height: 50px;
+  border-radius: 12px;
+  font-size: 1.05rem;
+  font-weight: 1000;
+}
+
+.leave-game-actions .secondary-button {
+  border: 2px solid rgba(17, 18, 20, 0.14);
+}
+
+.leave-game-actions button:focus-visible {
+  outline: 3px solid #246bfe;
+  outline-offset: 2px;
+}
+
+@keyframes leave-game-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.gahookz-reduced-effects .leave-game-dialog { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .leave-game-dialog { animation: none; }
+}
+
+/* Room menus (QuickMenu in client/controls.jsx).
+   Wide screens keep the dropdown, now capped to the window so a long player
+   menu scrolls inside itself instead of running off the page. On a phone or a
+   short landscape window the same menu opens as a sheet over a backdrop, like
+   Lobby rules (Tyson, 25 Sep: "make this player menu appear as an overlay").
+   Both sit at --z-menu, above the floating chat button. */
+.host-quick-menu:not(.is-sheet) > div {
+  max-height: calc(100vh - 96px);
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.quick-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-menu);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  background: rgba(8, 8, 12, 0.72);
+  animation: quick-menu-in 140ms ease-out both;
+}
+
+.quick-menu-backdrop[hidden] { display: none; }
+
+.host-quick-menu.is-sheet {
+  width: min(440px, 100%);
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.host-quick-menu.is-sheet > div {
+  position: relative;
+  right: auto;
+  width: 100%;
+  min-height: 0;
+  max-height: 100%;
+  margin-top: 0;
+  padding-top: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 16px;
+  background: #fff7ed;
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.5);
+}
+
+/* Stays put while the menu scrolls, so the close button is always there. */
+.quick-menu-sheet-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 -12px;
+  padding: 12px 12px 10px 16px;
+  border-bottom: 1px solid rgba(17, 18, 20, 0.1);
+  background:
+    linear-gradient(135deg, rgba(255, 223, 69, 0.55), rgba(255, 255, 255, 0) 60%),
+    #fff7ed;
+}
+
+.quick-menu-sheet-header h2 {
+  margin: 0;
+  color: #111214;
+  font-size: 1.05rem;
+  font-weight: 1000;
+}
+
+.host-quick-menu .quick-menu-close {
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(17, 18, 20, 0.14);
+  background: #ffffff;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.host-quick-menu .quick-menu-close:focus-visible {
+  outline: 3px solid #246bfe;
+  outline-offset: 2px;
+}
+
+@keyframes quick-menu-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.gahookz-reduced-effects .quick-menu-backdrop { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .quick-menu-backdrop { animation: none; }
 }
