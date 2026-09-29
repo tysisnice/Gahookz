@@ -137,17 +137,28 @@ function runClientGahookContractSmoke() {
     assert(getFunctionSection(sectionName).includes("triggerClientOnlySelfGahook"), sectionName + " should avoid sending self Gahooks to the server");
   }
   assert(playerView.includes("<PokeJumpScare key={activePoke.renderId || activePoke.id}"), "Overlay key should use renderId so repeated Gahooks restart animations");
-  const formComponents = { gorilla: "GorillaFace", koala: "KoalaFace", croc: "CrocFace", capybara: "CapybaraFace", chicken: "ChickenFace" };
+  const formComponents = { gorilla: "GorillaFace", pig: "PigFace", koala: "KoalaFace", croc: "CrocFace", chicken: "ChickenFace" };
+  // The Sad Pig's cry is written in client/audio.js by the audio agent in the
+  // same update. Until that lands audio.js still carries the retired
+  // "capybara" branch; the moment that branch goes, the pig must have its own.
+  const pigCryPending = audioSource.includes('form === "capybara"') && !audioSource.includes('form === "pig"');
   for (const form of Object.keys(formComponents)) {
     assert(formsSource.includes(`id: "${form}"`), `Missing ${form} Gahook form`);
     assert(presentationSource.includes(`function ${formComponents[form]}`), `Missing inline ${form} Gahook art`);
+    assert(presentationSource.includes(`if (id === "${form}") return <${formComponents[form]}`), `The ${form} form should render its own art`);
+    if (form === "pig" && pigCryPending) continue;
     assert(audioSource.includes(`form === "${form}"`), `Missing distinct ${form} Gahook sound`);
   }
+  // Airhorn Capy became Sad Pig, placed with the monkeys; a saved "capybara"
+  // choice must become the pig, not fall back to the monkey.
+  assert(formsSource.indexOf('id: "gorilla"') < formsSource.indexOf('id: "pig"') && formsSource.indexOf('id: "pig"') < formsSource.indexOf('id: "koala"'), "Sad Pig should sit straight after Classic Monkey and Rage Gorilla in the picker");
+  assert(formsSource.includes('label: "Sad Pig"') && !formsSource.includes('id: "capybara"') && !presentationSource.includes("CapybaraFace"), "Airhorn Capy should be retired in favour of Sad Pig");
+  assert(formsSource.includes('LEGACY_GAHOOK_FORMS = Object.freeze({ capybara: "pig" })') && serverSource.includes('LEGACY_GAHOOK_FORMS = Object.freeze({ capybara: "pig" })'), "Client and server should both map the legacy capybara form to the pig");
   assert(presentationSource.includes("function PremiumFormEffects") && !presentationSource.includes("premium-form-name"), "Premium Gahooks should use themed background props without a character-name badge");
   assert(!presentationSource.includes("data-effect="), "Premium background props should be visual objects instead of floating sound-effect text");
   assert(presentationSource.includes('className="animal-pose animal-pose-a"') && presentationSource.includes('className="animal-pose animal-pose-b"'), "Premium animals should alternate between two character poses");
   assert(stylesSource.includes("premium-pose-a") && stylesSource.includes("premium-pose-b"), "Premium character poses need animated CSS transitions");
-  assert(stylesSource.includes(".premium-effects-chicken > span") && stylesSource.includes(".premium-effects-croc > span") && stylesSource.includes(".premium-effects-koala > span"), "Each premium form should have character-specific object effects");
+  assert(stylesSource.includes(".premium-effects-chicken > span") && stylesSource.includes(".premium-effects-croc > span") && stylesSource.includes(".premium-effects-koala > span") && stylesSource.includes(".premium-effects-pig > span") && stylesSource.includes(".poke-overlay.is-form-pig .poke-animal"), "Each premium form should have character-specific object effects");
   assert(stylesSource.includes(".poke-overlay.is-premium-form .poke-scare-card > p"), "Premium sender labels should use a high-contrast treatment");
   assert(audioSource.includes("playSweep") && audioSource.includes("GET_GOT_SOUND_DURATION_SECONDS = 2.85"), "Premium forms and GET GOT should use richer scheduled audio effects");
   assert(presentationSource.includes("bananaCount = isGetGot ? 24") && stylesSource.includes("banana-rain-loop"), "GET GOT should continuously rain bananas for its full duration");
@@ -215,9 +226,14 @@ async function runGahookSmoke() {
   await post("/api/room", { code: roomCode, playerKey: hostKey });
   await post("/api/host/settings", { code: roomCode, playerKey: hostKey, maxQuestionsPerPlayer: 1 });
   await post("/api/player/join", { code: roomCode, playerKey: target.key, name: target.name, avatarId: target.avatarId });
-  await post("/api/player/join", { code: roomCode, playerKey: secondTarget.key, name: secondTarget.name, avatarId: secondTarget.avatarId });
+  // A retired form id from an older client or a saved choice is honoured as
+  // the form that replaced it (Airhorn Capy -> Sad Pig), on join and on change.
+  await post("/api/player/join", { code: roomCode, playerKey: secondTarget.key, name: secondTarget.name, avatarId: secondTarget.avatarId, gahookForm: "Capybara" });
+  assert((await state(roomCode, "player", secondTarget.key)).ownPlayer.gahookForm === "pig", "Joining with the retired capybara form should join as the Sad Pig");
   await post("/api/player/join", { code: roomCode, playerKey: sender.key, name: sender.name, avatarId: sender.avatarId });
   await post("/api/player/gahook-form", { code: roomCode, playerKey: sender.key, gahookForm: "croc" });
+  const legacyForm = await post("/api/player/gahook-form", { code: roomCode, playerKey: secondTarget.key, gahookForm: "capybara" });
+  assert(legacyForm.gahookForm === "pig", "Selecting the retired capybara form should select the Sad Pig: " + legacyForm.gahookForm);
 
   let counterResult = null;
   for (let index = 1; index <= 10; index += 1) {

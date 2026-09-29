@@ -138,9 +138,9 @@ function PremiumFormEffects({ formId }) {
 export function GahookFormVisual({ form, small = false }) {
   const id = form?.id || "monkey";
   if (id === "gorilla") return <GorillaFace small={small} />;
+  if (id === "pig") return <PigFace small={small} />;
   if (id === "koala") return <KoalaFace small={small} />;
   if (id === "croc") return <CrocFace small={small} />;
-  if (id === "capybara") return <CapybaraFace small={small} />;
   if (id === "chicken") return <ChickenFace small={small} />;
   return <MonkeyFace small={small} />;
 }
@@ -236,31 +236,47 @@ export function CrocFace({ small = false }) {
   </svg>;
 }
 
-export function CapybaraFace({ small = false }) {
-  return <svg className={animalClass(small)} viewBox="0 0 220 220" aria-label="Airhorn Capybara Gahook" role="img">
-    <circle cx="66" cy="59" r="20" fill="#774319" stroke="#111214" strokeWidth="7" /><circle cx="154" cy="59" r="20" fill="#774319" stroke="#111214" strokeWidth="7" />
-    <ellipse cx="112" cy="119" rx="78" ry="84" fill="#a8662f" stroke="#111214" strokeWidth="9" />
-    <path d="M60 71q22-18 44-4M164 71q-22-18-44-4" fill="none" stroke="#d69a5f" strokeWidth="7" strokeLinecap="round" />
-    <path d="M22 112L72 96v48L22 128z" fill="#e3482f" stroke="#111214" strokeWidth="7" strokeLinejoin="round" />
-    <rect x="12" y="111" width="18" height="19" rx="5" fill="#facc15" stroke="#111214" strokeWidth="5" />
-    <path d="M30 87l-13-12M28 151l-14 12" stroke="#facc15" strokeWidth="8" strokeLinecap="round" />
-    <path d="M86 49l24-30 25 31" fill="#e5a720" stroke="#111214" strokeWidth="7" strokeLinejoin="round" />
-    <circle cx="110" cy="25" r="7" fill="#facc15" stroke="#111214" strokeWidth="4" />
+// Sad Pig replaced Airhorn Capy on 2026-09-25 ("a fat crying pig that makes
+// an annoying crying sound"). Pose A is the wail -- eyes screwed shut, tears
+// running, mouth wide open -- and is the only pose drawn at mini size, so it
+// has to carry the whole character on its own: pink, round, snout, blue
+// tears. Pose B is the sob between wails: wet puppy eyes, a wobbling lip,
+// tears spraying sideways and the snot bubble at full size.
+export function PigFace({ small = false }) {
+  return <svg className={animalClass(small)} viewBox="0 0 220 220" aria-label="Sad Pig Gahook" role="img">
+    <path d="M44 88Q22 46 32 14Q74 20 96 56Z" fill="#ff86b5" stroke="#111214" strokeWidth="8" strokeLinejoin="round" />
+    <path d="M176 88Q198 46 188 14Q146 20 124 56Z" fill="#ff86b5" stroke="#111214" strokeWidth="8" strokeLinejoin="round" />
+    <path d="M50 70Q40 44 44 30Q68 36 80 54ZM170 70Q180 44 176 30Q152 36 140 54Z" fill="#e2548e" />
+    <ellipse cx="110" cy="128" rx="98" ry="84" fill="#ff9dc3" stroke="#111214" strokeWidth="9" />
+    <path d="M60 196Q110 222 160 196" fill="none" stroke="#e2548e" strokeWidth="6" strokeLinecap="round" />
+    <ellipse cx="42" cy="150" rx="16" ry="11" fill="#ff5f9e" opacity=".55" /><ellipse cx="178" cy="150" rx="16" ry="11" fill="#ff5f9e" opacity=".55" />
     <g className="animal-pose animal-pose-a">
-      <circle cx="82" cy="100" r="21" fill="#ffffff" /><circle cx="142" cy="100" r="21" fill="#ffffff" />
-      <circle cx="88" cy="105" r="8" fill="#111214" /><circle cx="136" cy="105" r="8" fill="#111214" />
-      <ellipse cx="112" cy="139" rx="44" ry="34" fill="#c9894f" stroke="#111214" strokeWidth="6" />
-      <ellipse cx="99" cy="132" rx="6" ry="5" fill="#111214" /><ellipse cx="125" cy="132" rx="6" ry="5" fill="#111214" />
-      <path d="M93 157Q112 177 132 157" fill="#ffffff" stroke="#111214" strokeWidth="6" />
-      <path d="M18 94q-14-15 0-28M9 106q-27-27-1-51" fill="none" stroke="#facc15" strokeWidth="6" strokeLinecap="round" />
+      <path d="M50 92L92 72M170 92l-42-20" fill="none" stroke="#111214" strokeWidth="9" strokeLinecap="round" />
+      <path d="M56 108q19-18 38-2M126 106q19-16 38 2" fill="none" stroke="#111214" strokeWidth="9" strokeLinecap="round" />
+      <path d="M62 112q-10 30-4 66M158 112q10 30 4 66" fill="none" stroke="#111214" strokeWidth="19" strokeLinecap="round" />
+      <path d="M62 112q-10 30-4 66M158 112q10 30 4 66" fill="none" stroke="#6fd3ff" strokeWidth="10" strokeLinecap="round" />
+      <path d="M52 112q-26-8-38 10M168 112q26-8 38 10" fill="none" stroke="#111214" strokeWidth="15" strokeLinecap="round" />
+      <path d="M52 112q-26-8-38 10M168 112q26-8 38 10" fill="none" stroke="#6fd3ff" strokeWidth="7" strokeLinecap="round" />
+      <ellipse cx="110" cy="136" rx="38" ry="26" fill="#ff78ac" stroke="#111214" strokeWidth="8" />
+      <ellipse cx="97" cy="136" rx="7" ry="10" fill="#7c1d48" /><ellipse cx="123" cy="136" rx="7" ry="10" fill="#7c1d48" />
+      <path d="M76 190Q110 158 144 190Q140 208 110 208Q80 208 76 190Z" fill="#5b0f2a" stroke="#111214" strokeWidth="7" strokeLinejoin="round" />
+      <path d="M92 202Q110 190 128 202Q122 208 110 208Q98 208 92 202Z" fill="#ff5c8a" />
+      <circle cx="136" cy="166" r="9" fill="#c8f1ff" stroke="#111214" strokeWidth="4" opacity=".92" />
     </g>
     <g className="animal-pose animal-pose-b">
-      <path d="M63 102q19 16 38 0M123 102q19 16 38 0" fill="none" stroke="#111214" strokeWidth="8" strokeLinecap="round" />
-      <ellipse cx="112" cy="139" rx="47" ry="36" fill="#d5985a" stroke="#111214" strokeWidth="6" />
-      <ellipse cx="99" cy="130" rx="6" ry="5" fill="#111214" /><ellipse cx="125" cy="130" rx="6" ry="5" fill="#111214" />
-      <path d="M86 151Q112 190 139 151Z" fill="#3f170c" stroke="#111214" strokeWidth="7" />
-      <path d="M94 157h36l-5 10H99z" fill="#ffffff" />
-      <path d="M17 87q-22-23 1-42M8 104q-37-37-2-69M34 88q-10-10-1-21" fill="none" stroke="#ffdf45" strokeWidth="7" strokeLinecap="round" />
+      <path d="M46 84L92 64M174 84l-46-20" fill="none" stroke="#111214" strokeWidth="10" strokeLinecap="round" />
+      <ellipse cx="76" cy="102" rx="19" ry="21" fill="#ffffff" stroke="#111214" strokeWidth="6" /><ellipse cx="144" cy="102" rx="19" ry="21" fill="#ffffff" stroke="#111214" strokeWidth="6" />
+      <path d="M60 110q16 12 32 0M128 110q16 12 32 0" fill="#6fd3ff" stroke="#6fd3ff" strokeWidth="4" strokeLinejoin="round" />
+      <circle cx="78" cy="96" r="10" fill="#111214" /><circle cx="142" cy="96" r="10" fill="#111214" />
+      <circle cx="82" cy="92" r="4" fill="#ffffff" /><circle cx="146" cy="92" r="4" fill="#ffffff" />
+      <path d="M58 100Q24 74 6 98M162 100q34-26 52-2" fill="none" stroke="#111214" strokeWidth="17" strokeLinecap="round" />
+      <path d="M58 100Q24 74 6 98M162 100q34-26 52-2" fill="none" stroke="#6fd3ff" strokeWidth="9" strokeLinecap="round" />
+      <circle cx="10" cy="120" r="8" fill="#6fd3ff" stroke="#111214" strokeWidth="4" /><circle cx="210" cy="120" r="8" fill="#6fd3ff" stroke="#111214" strokeWidth="4" />
+      <ellipse cx="110" cy="140" rx="40" ry="27" fill="#ff78ac" stroke="#111214" strokeWidth="8" />
+      <ellipse cx="96" cy="140" rx="7" ry="10" fill="#7c1d48" /><ellipse cx="124" cy="140" rx="7" ry="10" fill="#7c1d48" />
+      <path d="M84 190q9-9 18 0t18 0t18 0" fill="none" stroke="#111214" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="146" cy="170" r="20" fill="#c8f1ff" stroke="#111214" strokeWidth="4" opacity=".9" />
+      <path d="M138 160q5-5 11-3" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
     </g>
   </svg>;
 }

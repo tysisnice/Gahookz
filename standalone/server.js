@@ -177,7 +177,10 @@ const QUICK_MAX_ROUNDS = 10;
 const STANDARD_MAX_ROUNDS = 18;
 const MAX_IMAGE_CHARS = 3000000;
 const MAX_AVATAR_IMAGE_CHARS = 1500000;
-const GAHOOK_FORMS = ["monkey", "gorilla", "koala", "croc", "capybara", "chicken", "custom"];
+const GAHOOK_FORMS = ["monkey", "gorilla", "pig", "koala", "croc", "chicken", "custom"];
+// Retired form ids still sent by older clients or saved choices, mapped to the
+// form that replaced them (mirrors LEGACY_GAHOOK_FORMS in client/gahook-forms.js).
+const LEGACY_GAHOOK_FORMS = Object.freeze({ capybara: "pig" });
 const DEFAULT_GAME_MODE = "quiz";
 
 const ANSWER_META = [
@@ -3520,7 +3523,8 @@ function normaliseAvatarId(value) {
 }
 
 function normaliseGahookForm(value) {
-  const form = cleanText(value, 20).toLowerCase();
+  const raw = cleanText(value, 20).toLowerCase();
+  const form = Object.prototype.hasOwnProperty.call(LEGACY_GAHOOK_FORMS, raw) ? LEGACY_GAHOOK_FORMS[raw] : raw;
   return GAHOOK_FORMS.includes(form) ? form : GAHOOK_FORMS[0];
 }
 
