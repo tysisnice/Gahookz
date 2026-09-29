@@ -322,6 +322,187 @@ try {
     note('on the welcome screen Back behaves normally');
   }
 
+  // -------------------------------------------------------------------------
+  // U10 + U12 - on a phone the menu is an overlay above the chat button, and
+  // Back walks out of it one layer at a time (Tyson's custom-Gahook case)
+  // -------------------------------------------------------------------------
+  const sheetOpen = (page) => page.evaluate(() => Boolean(document.querySelector('.quick-menu-backdrop:not([hidden]) .host-quick-menu.is-sheet')));
+  const clickMenuButton = (page, scope, text) => page.evaluate((selector, label) => {
+    const button = [...document.querySelectorAll(selector + ' button')].find((item) => item.textContent.trim() === label);
+    if (!button) throw new Error('no menu button ' + label);
+    button.click();
+  }, scope, text);
+  const openSheet = async (page, menu) => {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.click(menu + ' > summary');
+    await until(page, 'the menu sheet opens', () => Boolean(document.querySelector('.quick-menu-backdrop:not([hidden]) .host-quick-menu.is-sheet')));
+    await wait(200);
+  };
+
+  for (const size of [SIZES.small, SIZES.phone]) {
+    const player = await pageFor(playerKeys[2], code, size);
+    await guarded(player);
+    await openSheet(player, '.player-quick-menu');
+    const sheet = await player.evaluate(() => {
+      const panel = document.querySelector('.host-quick-menu.is-sheet');
+      const scroller = panel.firstElementChild;
+      const box = panel.getBoundingClientRect();
+      const fab = document.querySelector('.social-chat-fab').getBoundingClientRect();
+      const hit = document.elementFromPoint(fab.left + fab.width / 2, fab.top + fab.height / 2);
+      const labels = [...panel.querySelectorAll('button')].map((button) => button.textContent.trim());
+      return {
+        role: panel.getAttribute('role'),
+        modal: panel.getAttribute('aria-modal'),
+        inside: box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
+        scrollsInside: getComputedStyle(scroller).overflowY === 'auto',
+        pageLocked: document.body.style.position === 'fixed',
+        chatCovered: !document.querySelector('.social-chat-fab').contains(hit),
+        focus: document.activeElement?.className,
+        labels,
+        forms: panel.querySelectorAll('.gahook-form-picker button').length
+      };
+    });
+    assert.equal(sheet.role, 'dialog');
+    assert.equal(sheet.modal, 'true');
+    assert(sheet.inside, `the menu sheet must fit the ${size.width}x${size.height} screen`);
+    assert(sheet.scrollsInside, 'the sheet scrolls inside itself');
+    assert(sheet.pageLocked, 'the page behind the sheet does not scroll');
+    assert(sheet.chatCovered, 'the menu sits above the floating chat button');
+    assert.equal(sheet.focus, 'quick-menu-close', 'focus moves into the sheet');
+    for (const label of ['Share Link', 'How to play', 'Change name & profile', 'Settings', 'Exit Lobby']) {
+      assert(sheet.labels.includes(label), `the phone menu keeps "${label}": ${sheet.labels.join(', ')}`);
+    }
+    assert(sheet.forms >= 8, `the Gahook form picker grid is in the sheet (${sheet.forms} buttons)`);
+    await capture(player, `player-menu-sheet-${size.width}`);
+
+    // Back closes the sheet, focus returns to the menu button.
+    await back(player);
+    await until(player, 'Back closes the menu sheet', () => !document.querySelector('.quick-menu-backdrop:not([hidden])'));
+    await noConfirm(player, 'Back from the menu');
+    await inRoom(player, 'Back from the menu');
+    assert(await player.evaluate(() => document.activeElement?.matches('.player-quick-menu > summary')), 'focus returns to the menu button');
+    assert.equal(await player.evaluate(() => document.body.style.position), '', 'the page scrolls again');
+
+    // Escape, the backdrop and the close button each close it too, and each
+    // consumes the menu's history entry.
+    await openSheet(player, '.player-quick-menu');
+    await player.keyboard.press('Escape');
+    await until(player, 'Escape closes the sheet', () => !document.querySelector('.quick-menu-backdrop:not([hidden])'));
+    await openSheet(player, '.player-quick-menu');
+    await player.mouse.click(3, Math.round(size.height / 2));
+    await until(player, 'the backdrop closes the sheet', () => !document.querySelector('.quick-menu-backdrop:not([hidden])'));
+    await openSheet(player, '.player-quick-menu');
+    await player.click('.quick-menu-close');
+    await until(player, 'the close button closes the sheet', () => !document.querySelector('.quick-menu-backdrop:not([hidden])'));
+    await until(player, 'no history left behind', () => window.history.state?.gahookzBack?.depth === 1);
+    assert.equal(await player.$('.social-chat-fab') !== null, true, 'the chat button is still there');
+
+    if (size === SIZES.phone) {
+      // Tyson's case: menu -> custom Gahook -> Back, Back, Back.
+      await openSheet(player, '.player-quick-menu');
+      await player.click('.host-quick-menu.is-sheet .custom-gahook-picker-button');
+      await player.waitForSelector('.custom-gahook-modal');
+      assert.equal(await depth(player), 3, 'guard, menu and creator each own an entry');
+      await capture(player, 'custom-gahook-over-menu-390');
+      await back(player);
+      await until(player, 'Back closes the creator', () => !document.querySelector('.custom-gahook-modal'));
+      assert.equal(await sheetOpen(player), true, 'the menu is still open under it');
+      await noConfirm(player, 'Back from the custom Gahook creator');
+      await back(player);
+      await until(player, 'the next Back closes the menu', () => !document.querySelector('.quick-menu-backdrop:not([hidden])'));
+      await inRoom(player, 'Back from the creator, then the menu');
+      await back(player);
+      await player.waitForSelector('.leave-game-dialog');
+      await player.click('.leave-game-no');
+      await wait(150);
+      note('custom Gahook from the menu: Back closes the creator, then the menu, then asks "Leave game?"');
+
+      // Settings and How to play open above the menu and close back to it.
+      await openSheet(player, '.player-quick-menu');
+      await clickMenuButton(player, '.host-quick-menu.is-sheet', 'Settings');
+      await player.waitForSelector('.player-settings-modal');
+      await back(player);
+      await until(player, 'Back closes Settings', () => !document.querySelector('.player-settings-modal'));
+      assert.equal(await sheetOpen(player), true, 'Settings returns to the menu');
+      await clickMenuButton(player, '.host-quick-menu.is-sheet', 'How to play');
+      await player.waitForSelector('.tutorial-dialog');
+      await player.keyboard.press('Escape');
+      await until(player, 'Escape closes How to play', () => !document.querySelector('.tutorial-dialog'));
+      assert.equal(await sheetOpen(player), true, 'Escape closed only the tutorial, not the menu under it');
+      await player.keyboard.press('Escape');
+      await until(player, 'a second Escape closes the menu', () => !document.querySelector('.quick-menu-backdrop:not([hidden])'));
+      note('Settings and How to play open above the menu; Back and Escape close one layer at a time');
+
+      // Change name & profile is a screen: Back returns to the lobby.
+      await openSheet(player, '.player-quick-menu');
+      await clickMenuButton(player, '.host-quick-menu.is-sheet', 'Change name & profile');
+      await player.waitForSelector('.profile-edit-cancel');
+      assert.equal(await depth(player), 2, 'the menu handed its entry to the profile editor');
+      await back(player);
+      await until(player, 'Back leaves the profile editor', () => !document.querySelector('.profile-edit-cancel'));
+      await noConfirm(player, 'Back from the profile editor');
+      await inRoom(player, 'Back from the profile editor');
+      assert.equal(await depth(player), 1);
+      note('Change name & profile: Back returns to the lobby, not out of the room');
+    }
+    await player.browserContext().close();
+  }
+  note('phone menu (360x740, 390x844) is a modal sheet above the chat button: page locked, scrolls inside, focus in and back out, every action present; Back, Escape, backdrop and close button all close it');
+
+  {
+    // Desktop keeps the dropdown; it too sits above the chat and closes on Back.
+    const player = await pageFor(playerKeys[2], code, SIZES.desktop, { phone: false });
+    await guarded(player);
+    await player.click('.player-quick-menu > summary');
+    await until(player, 'the dropdown opens', () => document.querySelector('.player-quick-menu')?.open === true);
+    const dropdown = await player.evaluate(() => {
+      const panel = document.querySelector('.player-quick-menu > div').getBoundingClientRect();
+      // Put the chat button where the dropdown is, and hit-test the overlap.
+      const chat = document.querySelector('.waiting-room-social');
+      chat.style.top = Math.round(panel.top + 60) + 'px';
+      chat.style.bottom = 'auto';
+      chat.style.right = Math.round(window.innerWidth - panel.right + 40) + 'px';
+      const fab = document.querySelector('.social-chat-fab').getBoundingClientRect();
+      const hit = document.elementFromPoint(fab.left + fab.width / 2, fab.top + fab.height / 2);
+      const onMenu = document.querySelector('.player-quick-menu > div').contains(hit);
+      chat.removeAttribute('style');
+      return { sheet: Boolean(document.querySelector('.quick-menu-backdrop')), onMenu, bottom: panel.bottom, height: window.innerHeight };
+    });
+    assert.equal(dropdown.sheet, false, 'desktop keeps the dropdown, not a sheet');
+    assert(dropdown.onMenu, 'where the dropdown and the chat button overlap, the menu is on top');
+    assert(dropdown.bottom <= dropdown.height, 'the dropdown is capped to the window and scrolls inside');
+    await capture(player, 'player-menu-dropdown-1280');
+    await back(player);
+    await until(player, 'Back closes the dropdown', () => document.querySelector('.player-quick-menu')?.open === false);
+    await noConfirm(player, 'Back from the desktop menu');
+    await inRoom(player, 'Back from the desktop menu');
+    await player.click('.player-quick-menu > summary');
+    await until(player, 'the dropdown opens again', () => document.querySelector('.player-quick-menu')?.open === true);
+    await player.mouse.click(640, 24);
+    await until(player, 'a click elsewhere closes the dropdown', () => document.querySelector('.player-quick-menu')?.open === false);
+    await until(player, 'its entry is consumed', () => window.history.state?.gahookzBack?.depth === 1);
+    await player.browserContext().close();
+    note('desktop 1280x800 keeps the dropdown, above the chat button (hit-tested), capped to the window; Back and outside clicks close it');
+  }
+
+  {
+    // The host menu as a sheet, with the host playing (the 12:30 screenshot).
+    await post(code, '/api/player/join', { playerKey: 'shell-host', name: 'Host', avatarId: 'fox' });
+    const host = await pageFor('shell-host', code, SIZES.phone);
+    await guarded(host);
+    await openSheet(host, '.host-quick-menu');
+    const labels = await host.evaluate(() => [...document.querySelectorAll('.host-quick-menu.is-sheet button')].map((button) => button.textContent.trim()));
+    for (const label of ['Share Link', 'How to play', 'Change name & profile', 'Exit as Player', 'Reset Lobby', 'Exit Lobby']) {
+      assert(labels.includes(label), `the host's phone menu keeps "${label}"`);
+    }
+    await capture(host, 'host-menu-sheet-390');
+    await back(host);
+    await until(host, 'Back closes the host menu', () => !document.querySelector('.quick-menu-backdrop:not([hidden])'));
+    await inRoom(host, 'Back from the host menu');
+    await host.browserContext().close();
+    note('host menu on a phone is the same sheet, with every host action');
+  }
+
   {
     // Someone still on the join form is not in the room yet: Back is normal.
     const context = await browser.createBrowserContext();

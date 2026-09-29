@@ -34,7 +34,7 @@ import { GameTutorial } from "./client/tutorial.jsx";
 import { SimplePaintEditor } from "./client/drawing.jsx";
 import { LobbyPaintLayer, WaitingRoomSocial } from "./client/social.jsx";
 import { RoomQrCode } from "./client/qr.jsx";
-import { InfoTip, ToggleSwitch } from "./client/controls.jsx";
+import { InfoTip, QuickMenu, ToggleSwitch } from "./client/controls.jsx";
 import { LeaveGameGuard, useBackToClose, useScrollLock } from "./client/history.jsx";
 import { CustomGahookCreator } from "./client/custom-gahook.jsx";
 import { InformationHub } from "./client/information.jsx";
@@ -1957,8 +1957,10 @@ function EffectsPreferenceButtons() {
   return <button type="button" aria-pressed={reduced} onClick={() => setReduced(!reduced)}>{reduced ? "Use full Gahook effects" : "Reduce Gahook effects"}</button>;
 }
 
+// The three top-bar menus share one shell, QuickMenu (client/controls.jsx):
+// a dropdown on a wide screen, a modal sheet on a phone, closed by Back.
+// Actions that move to another screen close the menu first.
 function HostQuickMenu({ code, mode = "quiz", isPlayer, ownPlayer, customGahook, customGahookOptions, allowCustomGahooks = true, playerKey, onEditProfile, onExitAsPlayer, onReset }) {
-  const menuRef = useCloseMenuOnOutside();
   const [notice, setNotice] = useState("");
   const playerLink = buildRoomLink(code);
 
@@ -1969,21 +1971,20 @@ function HostQuickMenu({ code, mode = "quiz", isPlayer, ownPlayer, customGahook,
   };
 
   return (
-    <details className="host-quick-menu" ref={menuRef}>
-      <summary>Host menu</summary>
-      <div>
+    <QuickMenu className="host-quick-menu" label="Host menu">
+      {({ close }) => <>
         {notice ? <em>{notice}</em> : null}
         <button className="host-menu-primary" type="button" onClick={shareLink}>Share Link</button>
         <ModeTutorialLauncher mode={mode} includeHost />
-        {isPlayer ? <button type="button" onClick={onEditProfile}>Change name &amp; profile</button> : null}
+        {isPlayer ? <button type="button" onClick={() => { close({ restoreFocus: false }); onEditProfile(); }}>Change name &amp; profile</button> : null}
         {isPlayer ? <GahookFormPicker ownPlayer={ownPlayer} customGahook={customGahook} customGahookOptions={customGahookOptions} allowCustom={allowCustomGahooks} playerKey={playerKey} /> : null}
         {/* The host reaches this preference through Lobby rules, beside the
             room's own Gahook-effects setting, rather than from two places. */}
-        {isPlayer ? <button type="button" onClick={onExitAsPlayer}>Exit as Player</button> : null}
-        <button type="button" onClick={onReset}>Reset Lobby</button>
+        {isPlayer ? <button type="button" onClick={() => { close(); onExitAsPlayer(); }}>Exit as Player</button> : null}
+        <button type="button" onClick={() => { close(); onReset(); }}>Reset Lobby</button>
         <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
-      </div>
-    </details>);
+      </>}
+    </QuickMenu>);
 
 }
 
@@ -3290,7 +3291,6 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
 }
 
 function PlayerQuickMenu({ ownPlayer, mode = "quiz", customGahook, customGahookOptions, allowCustomGahooks = true, playerKey, onEditProfile }) {
-  const menuRef = useCloseMenuOnOutside();
   const [notice, setNotice] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const shareLink = async () => {
@@ -3300,21 +3300,21 @@ function PlayerQuickMenu({ ownPlayer, mode = "quiz", customGahook, customGahookO
   };
 
   return (
-    <details className="host-quick-menu player-quick-menu" ref={menuRef}>
-      <summary>Player menu</summary>
-      <div>
+    <QuickMenu className="host-quick-menu player-quick-menu" label="Player menu">
+      {({ close }) => <>
         {notice ? <em>{notice}</em> : null}
         <button className="host-menu-primary" type="button" onClick={shareLink}>Share Link</button>
         <ModeTutorialLauncher mode={mode} includeHost={false} />
-        <button type="button" onClick={onEditProfile}>Change name &amp; profile</button>
+        <button type="button" onClick={() => { close({ restoreFocus: false }); onEditProfile(); }}>Change name &amp; profile</button>
         <GahookFormPicker ownPlayer={ownPlayer} customGahook={customGahook} customGahookOptions={customGahookOptions} allowCustom={allowCustomGahooks} playerKey={playerKey} />
         {/* A player has no Lobby rules dialog, so the accessibility settings a
-            host reaches from there get their own door here. */}
+            host reaches from there get their own door here. It opens above
+            the menu; closing it (or Back) returns to the menu. */}
         <button type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
         <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
-      </div>
-      <PlayerSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-    </details>);
+        <PlayerSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      </>}
+    </QuickMenu>);
 
 }
 
@@ -3518,15 +3518,11 @@ function GahookFormPicker({ ownPlayer, customGahook = null, customGahookOptions 
 }
 
 function JoinQuickMenu() {
-  const menuRef = useCloseMenuOnOutside();
   return (
-    <details className="host-quick-menu join-quick-menu" ref={menuRef}>
-      <summary>Menu</summary>
-      <div>
-        <EffectsPreferenceButtons />
-        <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
-      </div>
-    </details>);
+    <QuickMenu className="host-quick-menu join-quick-menu" label="Menu">
+      <EffectsPreferenceButtons />
+      <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
+    </QuickMenu>);
 }
 
 function JoinPlayerPreview({ name, avatarId, avatarImageDataUrl, code, editing = false }) {
