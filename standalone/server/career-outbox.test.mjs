@@ -23,15 +23,25 @@ const sampleEvent = (over = {}) => ({
   ...over
 });
 
-/** Timers that fire only when the test says so. */
+/**
+ * Timers that fire only when the test says so, on a virtual clock.
+ *
+ * Pass `now: clock.now` to the outbox as well as `timers`. Running a timer
+ * first moves the clock to its due time; with the real clock instead, a retry
+ * due one millisecond after a failure was sometimes not yet due when the test
+ * fired it -- it depended on how long the journal's fsync took -- and the test
+ * failed on fast disks.
+ */
 function fakeTimers() {
   let next = 1;
+  let time = 1_000_000;
   const pending = new Map();
   return {
+    now: () => time,
     timers: {
-      setTimeout(handler) {
+      setTimeout(handler, delay = 0) {
         const id = next++;
-        pending.set(id, handler);
+        pending.set(id, { handler, due: time + Math.max(0, Number(delay) || 0) });
         return id;
       },
       clearTimeout(id) {
@@ -39,8 +49,9 @@ function fakeTimers() {
       }
     },
     async runAll() {
-      for (const [id, handler] of [...pending.entries()]) {
+      for (const [id, { handler, due }] of [...pending.entries()]) {
         pending.delete(id);
+        time = Math.max(time, due);
         await handler();
       }
     },
@@ -82,6 +93,7 @@ test("a database outage does not lose the result, and delivery resumes", async (
   const outbox = createCareerOutbox({
     journalPath: journal,
     timers: clock.timers,
+    now: clock.now,
     baseDelayMs: 1,
     deliver: async (event) => {
       if (!available) throw new Error("database is unavailable");
