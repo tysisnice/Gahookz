@@ -74,8 +74,17 @@ flock /tmp/gahookz-verify.lock npm test                                        #
 flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:browser # headless Chromium
 ```
 
+- **Use the project's Node 24.** Some shells on this machine put a newer
+  Node (the Hermes agent's `~/.hermes/tools/node-26…`) first on `PATH`. CI
+  and the Docker images run Node 24, and at least one timing-sensitive smoke
+  failed under Node 26 and passed under Node 24. Prefix verification with
+  `PATH=/usr/bin:$PATH` and check `node --version` reports v24.
 - Never start a server by hand for tests and never wrap `npm test` in
   `test:disposable`; it manages its own servers.
+- Browser checks re-capture their screenshots into `docs/verification/`.
+  Commit re-captures only in the current update's folder; restore dated
+  historical folders (`git checkout -- docs/verification/2026-09-19-*`),
+  because evidence records are append-only.
 - Never point a test at port 3101, 3102, 3103 or any public domain.
 - Run the focused suites for your area while iterating. Run `npm run check`
   and the smoke scripts for every file you touched before you hand off. The
