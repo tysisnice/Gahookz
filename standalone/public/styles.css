@@ -6213,8 +6213,8 @@ button.answer-tile {
 /* Sad Pig props: tears raining down the screen, tossed tissues and puddles.
    Longhand animation properties keep the shared per-prop delays. */
 .premium-effects-pig > span {
-  width: clamp(30px, 4vw, 52px);
-  height: clamp(30px, 4vw, 52px);
+  width: clamp(34px, 4.6vw, 60px);
+  height: clamp(34px, 4.6vw, 60px);
   animation-name: pig-tear-fall;
   animation-duration: 900ms;
   animation-timing-function: cubic-bezier(0.45, 0, 0.9, 0.6);

@@ -192,6 +192,7 @@ function runClientGahookContractSmoke() {
       "Ultimate overlay extension with extra feedback",
       "smooth Ultimate counter jumps",
       "six selectable sender-owned Gahook forms",
+      "Sad Pig replaces Airhorn Capy; a saved capybara choice becomes the pig",
       "five dark premium themes with object effects and animated animal poses",
       "three-second GET GOT sound and banana barrage",
       "interactive Counter Gahook offers and Gahook Arena challenge",
