@@ -168,6 +168,45 @@ try {
     await returning.browserContext().close();
     await host.browserContext().close();
   }
+  // Two join variants at a common phone size: a password room (the password
+  // field joins the sticky footer) and editing an existing profile (Cancel and
+  // Save side by side).
+  const phone = SIZES.find((size) => size.name === "360x740") || SIZES[0];
+  if (phone) {
+    const code = randomCode();
+    const hostKey = code + "-host-" + Date.now().toString(36);
+    await post("/api/room", { code, playerKey: hostKey, intent: "host", password: "moose123" });
+    const host = await open(hostKey, code, phone);
+    await host.waitForSelector(".host-control-panel");
+    const guarded = await open(code + "-pw-" + Date.now().toString(36), code, phone, { hideExplainers: true });
+    await guarded.waitForSelector('.party-join-form input[type="password"]');
+    await wait(300);
+    await shot(guarded, `join-password-${phone.name}`);
+    metrics.password = await joinMetrics(guarded);
+    await guarded.browserContext().close();
+
+    const playerKey = code + "-editor-" + Date.now().toString(36);
+    await post("/api/player/join", { code, playerKey, name: "Captain Llama", avatarId: "panda", password: "moose123" });
+    const editor = await open(playerKey, code, phone);
+    await editor.waitForSelector(".player-card");
+    await editor.click(".host-quick-menu summary").catch(() => {});
+    await wait(300);
+    const opened = await editor.evaluate(() => {
+      const button = [...document.querySelectorAll("button")].find((node) => node.textContent.includes("Change name"));
+      button?.click();
+      return Boolean(button);
+    });
+    if (opened) {
+      await editor.waitForSelector(".party-join-form .profile-edit-cancel");
+      await wait(300);
+      await shot(editor, `profile-edit-${phone.name}`);
+      metrics.profileEdit = await joinMetrics(editor);
+    } else {
+      metrics.profileEdit = "menu entry not found";
+    }
+    await editor.browserContext().close();
+    await host.browserContext().close();
+  }
   console.log(JSON.stringify({ ok: errors.length === 0, label, errors, metrics }, null, 2));
 } finally {
   await browser.close();
