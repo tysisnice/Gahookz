@@ -244,39 +244,40 @@ export function CrocFace({ small = false }) {
 // tears spraying sideways and the snot bubble at full size.
 export function PigFace({ small = false }) {
   return <svg className={animalClass(small)} viewBox="0 0 220 220" aria-label="Sad Pig Gahook" role="img">
-    <path d="M44 88Q22 46 32 14Q74 20 96 56Z" fill="#ff86b5" stroke="#111214" strokeWidth="8" strokeLinejoin="round" />
-    <path d="M176 88Q198 46 188 14Q146 20 124 56Z" fill="#ff86b5" stroke="#111214" strokeWidth="8" strokeLinejoin="round" />
-    <path d="M50 70Q40 44 44 30Q68 36 80 54ZM170 70Q180 44 176 30Q152 36 140 54Z" fill="#e2548e" />
-    <ellipse cx="110" cy="128" rx="98" ry="84" fill="#ff9dc3" stroke="#111214" strokeWidth="9" />
-    <path d="M60 196Q110 222 160 196" fill="none" stroke="#e2548e" strokeWidth="6" strokeLinecap="round" />
-    <ellipse cx="42" cy="150" rx="16" ry="11" fill="#ff5f9e" opacity=".55" /><ellipse cx="178" cy="150" rx="16" ry="11" fill="#ff5f9e" opacity=".55" />
+    <path d="M44 82Q20 42 30 10Q74 16 96 52Z" fill="#ff86b5" stroke="#111214" strokeWidth="8" strokeLinejoin="round" />
+    <path d="M176 82Q200 42 190 10Q146 16 124 52Z" fill="#ff86b5" stroke="#111214" strokeWidth="8" strokeLinejoin="round" />
+    <path d="M50 64Q38 40 42 26Q68 32 80 50ZM170 64Q182 40 178 26Q152 32 140 50Z" fill="#e2548e" />
+    <ellipse cx="110" cy="196" rx="58" ry="17" fill="#ff9dc3" stroke="#111214" strokeWidth="8" />
+    <ellipse cx="110" cy="122" rx="102" ry="80" fill="#ff9dc3" stroke="#111214" strokeWidth="9" />
+    <path d="M20 150q8 22 32 34M200 150q-8 22-32 34" fill="none" stroke="#e2548e" strokeWidth="6" strokeLinecap="round" />
+    <ellipse cx="44" cy="142" rx="16" ry="11" fill="#ff5f9e" opacity=".55" /><ellipse cx="176" cy="142" rx="16" ry="11" fill="#ff5f9e" opacity=".55" />
     <g className="animal-pose animal-pose-a">
-      <path d="M50 92L92 72M170 92l-42-20" fill="none" stroke="#111214" strokeWidth="9" strokeLinecap="round" />
-      <path d="M56 108q19-18 38-2M126 106q19-16 38 2" fill="none" stroke="#111214" strokeWidth="9" strokeLinecap="round" />
-      <path d="M62 112q-10 30-4 66M158 112q10 30 4 66" fill="none" stroke="#111214" strokeWidth="19" strokeLinecap="round" />
-      <path d="M62 112q-10 30-4 66M158 112q10 30 4 66" fill="none" stroke="#6fd3ff" strokeWidth="10" strokeLinecap="round" />
-      <path d="M52 112q-26-8-38 10M168 112q26-8 38 10" fill="none" stroke="#111214" strokeWidth="15" strokeLinecap="round" />
-      <path d="M52 112q-26-8-38 10M168 112q26-8 38 10" fill="none" stroke="#6fd3ff" strokeWidth="7" strokeLinecap="round" />
-      <ellipse cx="110" cy="136" rx="38" ry="26" fill="#ff78ac" stroke="#111214" strokeWidth="8" />
-      <ellipse cx="97" cy="136" rx="7" ry="10" fill="#7c1d48" /><ellipse cx="123" cy="136" rx="7" ry="10" fill="#7c1d48" />
-      <path d="M76 190Q110 158 144 190Q140 208 110 208Q80 208 76 190Z" fill="#5b0f2a" stroke="#111214" strokeWidth="7" strokeLinejoin="round" />
-      <path d="M92 202Q110 190 128 202Q122 208 110 208Q98 208 92 202Z" fill="#ff5c8a" />
-      <circle cx="136" cy="166" r="9" fill="#c8f1ff" stroke="#111214" strokeWidth="4" opacity=".92" />
+      <path d="M50 84L92 66M170 84l-42-18" fill="none" stroke="#111214" strokeWidth="9" strokeLinecap="round" />
+      <path d="M56 100q19-18 38-2M126 98q19-16 38 2" fill="none" stroke="#111214" strokeWidth="9" strokeLinecap="round" />
+      <path d="M62 104q-10 30-4 62M158 104q10 30 4 62" fill="none" stroke="#111214" strokeWidth="19" strokeLinecap="round" />
+      <path d="M62 104q-10 30-4 62M158 104q10 30 4 62" fill="none" stroke="#6fd3ff" strokeWidth="10" strokeLinecap="round" />
+      <path d="M52 104q-24-8-36 8M168 104q24-8 36 8" fill="none" stroke="#111214" strokeWidth="15" strokeLinecap="round" />
+      <path d="M52 104q-24-8-36 8M168 104q24-8 36 8" fill="none" stroke="#6fd3ff" strokeWidth="7" strokeLinecap="round" />
+      <ellipse cx="110" cy="128" rx="38" ry="26" fill="#ff78ac" stroke="#111214" strokeWidth="8" />
+      <ellipse cx="97" cy="128" rx="7" ry="10" fill="#7c1d48" /><ellipse cx="123" cy="128" rx="7" ry="10" fill="#7c1d48" />
+      <path d="M78 180Q110 150 142 180Q138 196 110 196Q82 196 78 180Z" fill="#5b0f2a" stroke="#111214" strokeWidth="7" strokeLinejoin="round" />
+      <path d="M93 190Q110 180 127 190Q121 196 110 196Q99 196 93 190Z" fill="#ff5c8a" />
+      <circle cx="136" cy="158" r="9" fill="#c8f1ff" stroke="#111214" strokeWidth="4" opacity=".92" />
     </g>
     <g className="animal-pose animal-pose-b">
-      <path d="M46 84L92 64M174 84l-46-20" fill="none" stroke="#111214" strokeWidth="10" strokeLinecap="round" />
-      <ellipse cx="76" cy="102" rx="19" ry="21" fill="#ffffff" stroke="#111214" strokeWidth="6" /><ellipse cx="144" cy="102" rx="19" ry="21" fill="#ffffff" stroke="#111214" strokeWidth="6" />
-      <path d="M60 110q16 12 32 0M128 110q16 12 32 0" fill="#6fd3ff" stroke="#6fd3ff" strokeWidth="4" strokeLinejoin="round" />
-      <circle cx="78" cy="96" r="10" fill="#111214" /><circle cx="142" cy="96" r="10" fill="#111214" />
-      <circle cx="82" cy="92" r="4" fill="#ffffff" /><circle cx="146" cy="92" r="4" fill="#ffffff" />
-      <path d="M58 100Q24 74 6 98M162 100q34-26 52-2" fill="none" stroke="#111214" strokeWidth="17" strokeLinecap="round" />
-      <path d="M58 100Q24 74 6 98M162 100q34-26 52-2" fill="none" stroke="#6fd3ff" strokeWidth="9" strokeLinecap="round" />
-      <circle cx="10" cy="120" r="8" fill="#6fd3ff" stroke="#111214" strokeWidth="4" /><circle cx="210" cy="120" r="8" fill="#6fd3ff" stroke="#111214" strokeWidth="4" />
-      <ellipse cx="110" cy="140" rx="40" ry="27" fill="#ff78ac" stroke="#111214" strokeWidth="8" />
-      <ellipse cx="96" cy="140" rx="7" ry="10" fill="#7c1d48" /><ellipse cx="124" cy="140" rx="7" ry="10" fill="#7c1d48" />
-      <path d="M84 190q9-9 18 0t18 0t18 0" fill="none" stroke="#111214" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="146" cy="170" r="20" fill="#c8f1ff" stroke="#111214" strokeWidth="4" opacity=".9" />
-      <path d="M138 160q5-5 11-3" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
+      <path d="M46 78L92 58M174 78l-46-20" fill="none" stroke="#111214" strokeWidth="10" strokeLinecap="round" />
+      <ellipse cx="76" cy="96" rx="19" ry="21" fill="#ffffff" stroke="#111214" strokeWidth="6" /><ellipse cx="144" cy="96" rx="19" ry="21" fill="#ffffff" stroke="#111214" strokeWidth="6" />
+      <path d="M60 104q16 12 32 0M128 104q16 12 32 0" fill="#6fd3ff" stroke="#6fd3ff" strokeWidth="4" strokeLinejoin="round" />
+      <circle cx="78" cy="90" r="10" fill="#111214" /><circle cx="142" cy="90" r="10" fill="#111214" />
+      <circle cx="82" cy="86" r="4" fill="#ffffff" /><circle cx="146" cy="86" r="4" fill="#ffffff" />
+      <path d="M58 94Q28 70 14 92M162 94q30-24 44-2" fill="none" stroke="#111214" strokeWidth="17" strokeLinecap="round" />
+      <path d="M58 94Q28 70 14 92M162 94q30-24 44-2" fill="none" stroke="#6fd3ff" strokeWidth="9" strokeLinecap="round" />
+      <circle cx="16" cy="114" r="8" fill="#6fd3ff" stroke="#111214" strokeWidth="4" /><circle cx="204" cy="114" r="8" fill="#6fd3ff" stroke="#111214" strokeWidth="4" />
+      <ellipse cx="110" cy="132" rx="40" ry="27" fill="#ff78ac" stroke="#111214" strokeWidth="8" />
+      <ellipse cx="96" cy="132" rx="7" ry="10" fill="#7c1d48" /><ellipse cx="124" cy="132" rx="7" ry="10" fill="#7c1d48" />
+      <path d="M84 180q9-9 18 0t18 0t18 0" fill="none" stroke="#111214" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="146" cy="162" r="20" fill="#c8f1ff" stroke="#111214" strokeWidth="4" opacity=".9" />
+      <path d="M138 152q5-5 11-3" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
     </g>
   </svg>;
 }
