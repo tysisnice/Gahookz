@@ -36,6 +36,7 @@ import { LobbyPaintLayer, WaitingRoomSocial } from "./client/social.jsx";
 import { RoomQrCode } from "./client/qr.jsx";
 import { InfoTip, QuickMenu, ToggleSwitch } from "./client/controls.jsx";
 import { LeaveGameGuard, useBackToClose, useScrollLock } from "./client/history.jsx";
+import { NumberWheel } from "./client/number-wheel.jsx";
 import { CustomGahookCreator } from "./client/custom-gahook.jsx";
 import { InformationHub } from "./client/information.jsx";
 import { LegalHub } from "./client/legal.jsx";
@@ -1434,7 +1435,7 @@ function LobbyCodeBand({ code, playerLink, shareNotice, onClick, className = "" 
     <button className={["code-band", className].filter(Boolean).join(" ")} type="button" aria-label="Share lobby link" onClick={onClick}>
       <span className="code-band__layout">
         <span className="code-band__text">
-          <span>Lobby code</span>
+          <span>Share Lobby Code</span>
           <strong>{code}</strong>
           <small>{playerLink}</small>
         </span>
@@ -1725,6 +1726,50 @@ function CounterGahookPrompt({ offer, busy = false, onCounter }) {
   </aside>;
 }
 
+// Quick / Standard / Custom as one segmented row (U2). Three stacked cards
+// took about 250px of a phone screen to offer one choice; the row takes one
+// line, and the selected option's description sits at the end of the heading
+// line, where it costs no height at all.
+//
+// A radio group, because exactly one length is always chosen: arrow keys move
+// between the options and select as they go, and only the selected option is
+// in the tab order.
+function LengthPresetSegments({ label, options, value, onChange }) {
+  const buttonsRef = useRef([]);
+  const selected = options.find((option) => option.id === value) || options[0];
+  const moveTo = (index) => {
+    const option = options[(index + options.length) % options.length];
+    buttonsRef.current[options.indexOf(option)]?.focus();
+    if (option.id !== value) onChange?.(option.id);
+  };
+  const onKeyDown = (event) => {
+    const from = Math.max(0, buttonsRef.current.indexOf(document.activeElement));
+    const steps = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    if (Object.prototype.hasOwnProperty.call(steps, event.key)) moveTo(from + steps[event.key]);
+    else if (event.key === "Home") moveTo(0);
+    else if (event.key === "End") moveTo(options.length - 1);
+    else return;
+    event.preventDefault();
+  };
+  return (
+    <>
+      <div className="round-preset-heading">
+        <span>{label}</span>
+        <em id="round-preset-detail">{selected.detail}</em>
+      </div>
+      <div className="round-preset-options" role="radiogroup" aria-label={label} onKeyDown={onKeyDown}>
+        {options.map((option, index) =>
+        <button className={value === option.id ? "is-selected" : ""} type="button" role="radio" aria-checked={value === option.id} aria-describedby={value === option.id ? "round-preset-detail" : undefined} tabIndex={value === option.id ? 0 : -1} key={option.id} ref={(node) => {buttonsRef.current[index] = node;}} onClick={() => onChange?.(option.id)}>
+            {option.title}
+          </button>
+        )}
+      </div>
+    </>);
+}
+
+// The server clamps a custom Herd game to 1-20 rounds (HERD_MAX_CUSTOM_ROUNDS).
+const HERD_CUSTOM_ROUNDS_MAX = 20;
+
 function HerdLengthSelector({ lobby, playerCount = 0, onChange, onRoundTarget }) {
   const preset = lobby.roundPreset === "standard" || lobby.roundPreset === "custom" ? lobby.roundPreset : "quick";
   const target = Number(lobby.herdRoundTarget || 8);
@@ -1740,20 +1785,12 @@ function HerdLengthSelector({ lobby, playerCount = 0, onChange, onRoundTarget })
 
   return (
     <section className="round-preset-selector" aria-label="Herd game length">
-      <span>Game length</span>
-      <div className="round-preset-options">
-        {options.map((option) =>
-        <button className={preset === option.id ? "is-selected" : ""} type="button" key={option.id} aria-pressed={preset === option.id} onClick={() => onChange?.(option.id)}>
-            <strong>{option.title}</strong>
-            <em>{option.detail}</em>
-          </button>
-        )}
-      </div>
+      <LengthPresetSegments label="Game length" options={options} value={preset} onChange={onChange} />
       {preset === "custom" ?
-      <label className="herd-round-target">
-          <span>Rounds</span>
-          <input type="number" min="1" max="20" value={target} onChange={(event) => onRoundTarget?.(Number(event.target.value))} />
-        </label> :
+      <div className="round-preset-custom herd-round-target">
+          <span id="herd-rounds-label">Rounds</span>
+          <NumberWheel value={target} min={1} max={HERD_CUSTOM_ROUNDS_MAX} labelledBy="herd-rounds-label" unit="round" onChange={(value) => onRoundTarget?.(value)} />
+        </div> :
       null}
       {/* Matched to the quiz totals block: one line of numbers, with the
           explanation behind the (i) instead of a three-line paragraph. */}
@@ -1777,8 +1814,10 @@ function GameFamilySelector({ value = "quiz", onChange, actions = null }) {
       <div className="mode-selector-options">
         {GAME_FAMILIES.map((family) =>
         <button className={value === family.id ? "is-selected" : ""} type="button" key={family.id} aria-pressed={value === family.id} onClick={() => onChange?.(family.id)}>
-            <ModeArt art={family.art} />
-            <strong>{family.title}</strong>
+            {/* Icon and a large title share the first row; the description
+                runs underneath across the whole card, so the card is two
+                short lines instead of an icon column beside three. */}
+            <span className="mode-option-title"><ModeArt art={family.art} /><strong>{family.title}</strong></span>
             <small>{family.subtitle}</small>
           </button>
         )}
@@ -1827,19 +1866,13 @@ function RoundPresetSelector({ lobby, value = "standard", playerCount = 0, custo
 
   return (
     <section className="round-preset-selector" aria-label="Game length">
-      <span>Game length</span>
-      <div className="round-preset-options">
-        {ROUND_PRESETS.map((preset) =>
-        <button className={value === preset.id ? "is-selected" : ""} type="button" key={preset.id} aria-pressed={value === preset.id} onClick={() => onChange?.(preset.id)}>
-            <strong>{preset.title}</strong>
-            <small>{preset.subtitle}</small>
-          </button>
-        )}
-      </div>
+      <LengthPresetSegments label="Game length" options={ROUND_PRESETS.map((preset) => ({ id: preset.id, title: preset.title, detail: preset.subtitle }))} value={value} onChange={onChange} />
+      {/* The same wheel as Herd's rounds, so both Custom panels look and work
+          alike. The server clamps this to 1-5 as well. */}
       {value === "custom" ?
-      <div className="round-preset-custom" role="group" aria-labelledby="custom-questions-label">
+      <div className="round-preset-custom">
           <span id="custom-questions-label">Questions per player</span>
-          <div className="question-count-picker party-question-picker">{[1, 2, 3, 4, 5].map((amount) => <button className={customLimit === amount ? "is-selected" : ""} type="button" aria-pressed={customLimit === amount} key={amount} onClick={() => onQuestionLimit?.(amount)}>{amount}</button>)}</div>
+          <NumberWheel value={Number(customLimit) || 1} min={1} max={5} labelledBy="custom-questions-label" unit="question" onChange={(amount) => onQuestionLimit?.(amount)} />
         </div> :
       null}
       {/* One line: how many questions, and how many players they come from.
@@ -3525,6 +3558,9 @@ function JoinQuickMenu() {
     </QuickMenu>);
 }
 
+// The room code used to appear three times on this screen (top bar, this
+// line, and a pill beside it); the pill went, which gives a long funny name
+// the width to stay on one line.
 function JoinPlayerPreview({ name, avatarId, avatarImageDataUrl, code, editing = false }) {
   const previewPlayer = { name: name.trim() || "Your name", avatarId, avatarImageDataUrl };
   return (
@@ -3532,10 +3568,34 @@ function JoinPlayerPreview({ name, avatarId, avatarImageDataUrl, code, editing =
       <AvatarBadge player={previewPlayer} />
       <div>
         <h2>{previewPlayer.name}</h2>
-        <p>{editing ? "Updating your player" : "Joining room " + (code || "----")}</p>
+        <p>{editing ? "Updating your player in room " + (code || "----") : "Joining room " + (code || "----")}</p>
       </div>
-      <strong>{code || "----"}</strong>
     </section>);
+}
+
+// How much of the page an on-screen keyboard is covering. Mobile browsers now
+// shrink only the visual viewport when the keyboard opens, so anything stuck
+// to the bottom of the page -- the Join footer -- ends up underneath it. The
+// footer is lifted by this much instead. Small differences (a browser toolbar
+// sliding away) and pinch-zoom are ignored.
+function useKeyboardInset() {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+    const update = () => {
+      const covered = window.innerHeight - viewport.height - viewport.offsetTop;
+      setInset(viewport.scale <= 1.01 && covered > 80 ? Math.round(covered) : 0);
+    };
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    return () => {
+      viewport.removeEventListener("resize", update);
+      viewport.removeEventListener("scroll", update);
+    };
+  }, []);
+  return inset;
 }
 
 function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = null, onEditComplete }) {
@@ -3555,6 +3615,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
   const [joining, setJoining] = useState(false);
   const [drawingAvatar, setDrawingAvatar] = useState(false);
   useBackToClose(drawingAvatar && allowCustomProfiles, () => setDrawingAvatar(false));
+  const keyboardInset = useKeyboardInset();
 
   const chooseAvatar = (nextAvatarId) => {
     avatarIdRef.current = nextAvatarId;
@@ -3623,7 +3684,11 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
       <div className="join-explainer-slot"><RoomStatusBanner code={routeCode || code} tone="is-join-status" eyebrow={isEditingProfile ? "Player profile" : "Joining the room"} title={isEditingProfile ? "Make your player look right" : "Choose your player"}>
           Pick your name and profile picture, then {isEditingProfile ? "save your changes." : "join the lobby."}
         </RoomStatusBanner></div>
-      <form className="join-form party-join-form" onSubmit={submitJoin}>
+      {/* One page that scrolls, not a fixed-height card with its own
+          scrolling picker: the whole flow reads top to bottom, and the Join
+          footer is sticky, so it is on screen at every size without being
+          able to push anything out of reach or be cut off itself. */}
+      <form className="join-form party-join-form" onSubmit={submitJoin} style={keyboardInset ? { "--join-keyboard-inset": keyboardInset + "px" } : undefined}>
         {routeCode || isEditingProfile ? <JoinPlayerPreview name={name} avatarId={avatarId} avatarImageDataUrl={avatarImageDataUrl} code={routeCode || code} editing={isEditingProfile} /> : <label><span>Code</span><input maxLength="4" value={code} onChange={(event) => setCode(normaliseRoomCode(event.target.value))} placeholder="GOOK" /></label>}
         <label><span>Your name</span><input maxLength="24" value={name} onChange={(event) => setName(event.target.value)} placeholder="Player" /></label>
         <AvatarPicker value={avatarId} customImage={avatarImageDataUrl} onChange={chooseAvatar} onDraw={allowCustomProfiles ? () => setDrawingAvatar(true) : null} />
@@ -4680,9 +4745,9 @@ function AvatarPicker({ value, customImage, onChange, onDraw }) {
 
   return (
     <fieldset className="avatar-picker">
-      <legend>Profile pick</legend>
+      <legend>Profile picture</legend>
       <div>
-        {onDraw ? <button className={customImage ? "avatar-choice is-selected draw-avatar-choice" : "avatar-choice draw-avatar-choice"} type="button" onClick={onDraw}>
+        {onDraw ? <button className={customImage ? "avatar-choice is-selected draw-avatar-choice" : "avatar-choice draw-avatar-choice"} type="button" aria-pressed={Boolean(customImage)} onClick={onDraw}>
           {customImage ? <AvatarBadge customImage={customImage} avatarId={value} /> : <DrawAvatarIcon />}
           <span>{customImage ? "Edit custom" : "Draw"}</span>
         </button> : null}
@@ -4690,8 +4755,11 @@ function AvatarPicker({ value, customImage, onChange, onDraw }) {
           <RandomAvatarIcon />
           <span>Random</span>
         </button>
+        {/* A drawn picture keeps the first preset's id underneath it, so a
+            preset only counts as chosen when there is no drawing; otherwise
+            two tiles showed as selected at once. */}
         {AVATAR_PRESETS.map((avatar) =>
-        <button className={value === avatar.id ? "avatar-choice is-selected" : "avatar-choice"} type="button" key={avatar.id} onClick={() => onChange(avatar.id)}>
+        <button className={!customImage && value === avatar.id ? "avatar-choice is-selected" : "avatar-choice"} type="button" key={avatar.id} aria-pressed={!customImage && value === avatar.id} onClick={() => onChange(avatar.id)}>
             <AvatarBadge avatarId={avatar.id} />
             <span>{avatar.label}</span>
           </button>

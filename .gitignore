@@ -16,6 +16,7 @@ standalone/public/client/reveal.js
 standalone/public/client/host-presence.js
 standalone/public/client/history.js
 standalone/public/client/back-stack.js
+standalone/public/client/number-wheel.js
 standalone/public/client/custom-gahook.js
 standalone/public/client/drawing.js
 standalone/public/client/information.js

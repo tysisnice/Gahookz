@@ -96,11 +96,21 @@ function runLayoutSmoke() {
   const pressedButton = mergedBlock("button:not(:disabled):active");
   assert(hasDecl(pressedButton, "transform", "translateY(2px)"), "Every enabled button should show immediate pressed feedback");
 
+  // Join (2026-09-25, U4): the page scrolls and the Join footer is sticky.
+  // The old fixed-height card with an inner-scrolling picker clipped its own
+  // Join button whenever the viewport guess was wrong, so the checks are now
+  // that nothing on this screen has a fixed height, clips, or scrolls inside
+  // the page -- and that the footer sticks, above an open keyboard.
+  const declares = (block, property) => new RegExp("(^|[;{\\s])" + property.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*:").test(block);
+  const joinPage = mergedBlock(".player-party-join");
   const joinForm = mergedBlock(".party-join-form");
-  const joinAvatarGrid = mergedBlock(".party-join-form .avatar-picker > div");
-  assert(hasDecl(joinForm, "grid-template-rows", "minmax(0, 1fr)") && hasDecl(joinForm, "overflow", "hidden"), "Join form should reserve a fixed action footer");
-  assert(hasDecl(joinAvatarGrid, "overflow-y", "auto"), "Avatar choices should scroll instead of pushing Join off screen");
-  assert(app.includes('className="join-form-actions"'), "Password and Join controls should share the always-visible join footer");
+  const joinActions = mergedBlock(".join-form-actions");
+  const avatarGrid = mergedBlock(".avatar-picker > div") + "\n" + mergedBlock(".party-join-form .avatar-picker > div");
+  assert(hasDecl(joinActions, "position", "sticky") && hasDecl(joinActions, "bottom", "--join-keyboard-inset"), "The Join footer should stick to the bottom of the screen and lift above an open keyboard");
+  assert(!declares(joinForm, "height") && !declares(joinForm, "max-height") && !declares(joinForm, "overflow"), "The join form must size to its content and never clip its own Join button");
+  assert(!declares(joinPage, "overflow-y") && !declares(joinPage, "overflow"), "The join page must not become its own scroll box, or the sticky Join footer never sticks");
+  assert(!declares(avatarGrid, "overflow-y") && !declares(avatarGrid, "overflow") && !declares(avatarGrid, "max-height"), "Profile pictures should be one grid in the page, not a nested scroll box that cuts tiles off");
+  assert(app.includes('className="join-form-actions"') && app.includes("useKeyboardInset()"), "Password and Join controls should share the always-visible join footer");
 
   const mobile = findMediaBlock("(max-width: 640px)");
   const medium = findMediaBlock("(max-width: 1250px)");
@@ -275,6 +285,15 @@ function runLayoutSmoke() {
   assert(hasDecl(codeBandText, "justify-items", "center") && hasDecl(codeBandText, "text-align", "center"), "Lobby label, code and link should share centered alignment");
   assert(hasDecl(roomQrCode, "width", "118px") && hasDecl(roomQrCode, "height", "118px"), "Lobby QR should use the enlarged desktop size");
   assert(app.includes("function LobbyCodeBand") && app.includes('className="code-band__text"'), "Every lobby-code variant should use the shared aligned QR layout");
+  assert(getFunctionSection("LobbyCodeBand").includes("<span>Share Lobby Code</span>"), "The share band should invite players to share the lobby code");
+
+  // Game setup (2026-09-25, U2/U6): game length is one segmented row at every
+  // width, and Custom uses the shared number wheel for Quiz and Herd alike.
+  const lengthRow = mergedBlock(".round-preset-options");
+  assert(hasDecl(lengthRow, "grid-template-columns", "repeat(3, minmax(0, 1fr))") && !/grid-template-columns:\s*1fr/.test(lengthRow + mergedBlock(".round-preset-options", mobile)), "Quick, Standard and Custom should stay one horizontal row, never a stack of cards");
+  const segments = getFunctionSection("LengthPresetSegments");
+  assert(segments.includes('role="radiogroup"') && segments.includes('role="radio"') && segments.includes("aria-checked") && segments.includes("ArrowRight"), "Game length should be a keyboard-operable radio group");
+  assert(getFunctionSection("RoundPresetSelector").includes("<NumberWheel") && getFunctionSection("HerdLengthSelector").includes("<NumberWheel") && !getFunctionSection("HerdLengthSelector").includes('type="number"'), "Custom game length should use the number wheel, not a raw number input");
 
   return {
     checked: [
@@ -286,7 +305,8 @@ function runLayoutSmoke() {
       "burger vote-kick menu",
       "routine Gahook labels hide counters",
       "mobile player action widths",
-      "always-visible join action footer",
+      "always-visible sticky join footer, no nested picker scroll",
+      "one-row game length segments and number wheel",
       "mobile Gahook button width",
       "mobile answer stacking",
       "mobile in-game roster button column",

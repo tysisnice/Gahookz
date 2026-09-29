@@ -32,7 +32,8 @@ const buildSources = new Set([
   "client/information.jsx",
   "client/controls.jsx",
   "client/history.jsx",
-  "client/back-stack.ts"
+  "client/back-stack.ts",
+  "client/number-wheel.jsx"
 ]);
 const shellSources = new Set([
   "index.html",
@@ -40,6 +41,7 @@ const shellSources = new Set([
   "service-worker.js",
   "styles.css",
   "client/arena.css",
+  "client/number-wheel.css",
   "vendor-bootstrap.js",
   "client/gahook-forms.js"
 ]);
