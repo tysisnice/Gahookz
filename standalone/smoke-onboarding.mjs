@@ -2,6 +2,8 @@ import fs from "node:fs";
 
 const app = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");
 const tutorial = fs.readFileSync(new URL("./public/client/tutorial.jsx", import.meta.url), "utf8");
+// The illustrations moved to their own module on 2026-09-25 (audio-art).
+const tutorialArt = fs.readFileSync(new URL("./public/client/tutorial-art.jsx", import.meta.url), "utf8");
 const social = fs.readFileSync(new URL("./public/client/social.jsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("./public/styles.css", import.meta.url), "utf8");
 const serviceWorker = fs.readFileSync(new URL("./public/service-worker.js", import.meta.url), "utf8");
@@ -75,15 +77,21 @@ assert(tutorial.includes("Write the questions together, race to answer them") &&
 assert(tutorial.includes('label: "Gahookz"') && tutorial.includes('"Join your friends"') && tutorial.includes('"Make the game together"') && tutorial.includes('"Gahook for glory"'), "The welcome-only overview should explain joining, making games, and Gahooking");
 assert(tutorial.includes('"Sabotage your friends!"'), "Quiz tutorial should use the requested third-step heading");
 assert(tutorial.includes('"Make your own questions"') && tutorial.includes("believable wrong ones"), "Quiz step one should clearly explain creating or generating questions");
-assert(tutorial.includes("OverviewTutorialArtwork") && tutorial.includes("QuizTutorialArtwork") && tutorial.includes("MajorityTutorialArtwork") && tutorial.includes("HerdTutorialArtwork") && tutorial.includes("HostTutorialArtwork"), "Every guide should have one combined three-stage illustration");
-assert(!tutorial.includes("QuizBuildArtwork") && !tutorial.includes("HostInviteArtwork"), "Quiz and Host should no longer split their flow across separate illustrations");
+assert(tutorialArt.includes("OverviewTutorialArtwork") && tutorialArt.includes("QuizTutorialArtwork") && tutorialArt.includes("MajorityTutorialArtwork") && tutorialArt.includes("HerdTutorialArtwork") && tutorialArt.includes("HostTutorialArtwork"), "Every guide should have one combined three-stage illustration");
+assert(tutorial.includes('import { TutorialArtwork } from "./tutorial-art.jsx"') && tutorial.includes("<TutorialArtwork mode={selectedMode} label={content.artworkLabel} />"), "The dialog should draw its artwork from the tutorial-art module");
+assert(!tutorialArt.includes("QuizBuildArtwork") && !tutorialArt.includes("HostInviteArtwork"), "Quiz and Host should no longer split their flow across separate illustrations");
+// The redrawn art (2026-09-25) keeps every readable word at 40 units or more:
+// about 13px when a phone shows the 900-unit picture 300px wide. Only the
+// Majority illustration, retired with its tab, still has the old small text.
+const redrawnArt = tutorialArt.slice(0, tutorialArt.indexOf("function LegacyArtworkFrame"));
+assert(redrawnArt.includes("<Beats>") && !/fontSize="(?:[0-9]|[1-3][0-9])"/.test(redrawnArt) && !/<(?:Label|Pill)\b[^>]*\bsize=(?:"|\{)(?:[0-9]|[1-3][0-9])(?:"|\})/.test(redrawnArt), "Redrawn tutorial art should not use text smaller than 40 units");
 assert(tutorial.includes('className="tutorial-dialog__art"') && tutorial.includes('className="tutorial-dialog__steps"'), "Every tutorial should share one-artwork/three-explanation layout");
 assert(tutorial.includes("<h3>{content.stepTitles[index]}</h3>") && tutorial.includes("<p>{sentence}</p>"), "Every explanation should have a heading and supporting paragraph");
 assert(tutorial.includes("onClick={onClose}>Let's Go!</button>") && tutorial.includes('aria-label="Close how to play"'), "Quiz X and Let's Go controls should both close the tutorial");
 assert(styles.includes(".tutorial-dialog__steps") && styles.includes("grid-template-columns: repeat(3, minmax(0, 1fr))"), "Desktop tutorials should place the three explanations beneath their combined artwork");
 assert(styles.includes(".tutorial-dialog__step-copy h3") && styles.includes(".tutorial-dialog__step-copy p"), "Tutorial explanation headings and paragraphs should have dedicated styling");
 assert(tutorial.includes('"Ask for an opinion"') && tutorial.includes('"Predict the room"') && tutorial.includes('"Join the majority"'), "Majority Rulz tutorial should clearly name all three stages");
-assert(tutorial.includes("<svg") && tutorial.includes('role="img"'), "Each tutorial should include accessible Gahook-style artwork");
+assert(tutorialArt.includes("<svg") && tutorialArt.includes('role="img" aria-label={label}'), "Each tutorial should include accessible Gahook-style artwork");
 assert(tutorial.includes('role="dialog"') && tutorial.includes('aria-modal="true"'), "How to play should be an accessible modal dialog");
 assert(app.includes("gahookz-how-to-play-seen-v2-") && app.includes('autoOpenMode="host"') && app.includes("showButton={false}"), "Host and selected game tutorials should have separate first-time triggers, including late joins");
 assert(app.includes('className="question-creation-heading"') && !app.slice(app.indexOf("function PlayerLobby"), app.indexOf("function SubmittedQuestionList")).includes('className={ownPlayer.ready ? "player-summary'), "Question creation should use a simple heading instead of the old white player banner");
@@ -91,7 +99,7 @@ assert(app.includes("actions={<ModeTutorialLauncher mode={lobby.gameMode} autoOp
 assert(app.includes("keepActionsWhenHidden") && app.includes("actions && keepActionsWhenHidden"), "Player lobbies should be able to hide standalone help with a dismissed explainer");
 assert(app.includes("explainerScope"), "Lobby and question-phase explainers should have separate dismissal scopes");
 assert(styles.includes(".room-status-banner > span") && !styles.includes(".room-status-banner span {"), "Room banner typography must not leak into the tutorial modal");
-assert(/"\/client\/tutorial\.js\?v=[^"]+"/.test(serviceWorker), "The versioned tutorial module should be cached for offline play");
+assert(/"\/client\/tutorial\.js\?v=[^"]+"/.test(serviceWorker) && /"\/client\/tutorial-art\.js\?v=[^"]+"/.test(serviceWorker), "The versioned tutorial modules should be cached for offline play");
 
 console.log(JSON.stringify({
   ok: true,
@@ -106,6 +114,7 @@ console.log(JSON.stringify({
     "chat-only player-banner lobby social UI",
     "single custom profile-picture editor entry",
     "five single-artwork tutorials with three headed explanations each",
+    "redrawn tutorial art in its own module, no text under 40 units",
     "first-time and persistent tutorial access",
     "tutorial style isolation and offline cache"
   ]

@@ -41,10 +41,11 @@ const appSource = ["./public/app.jsx", ...fs.
   map((relative) => fs.readFileSync(new URL(relative, import.meta.url), "utf8")).
   join("\n");
 const tutorialSource = fs.readFileSync(new URL("./public/client/tutorial.jsx", import.meta.url), "utf8");
+const tutorialArtSource = fs.readFileSync(new URL("./public/client/tutorial-art.jsx", import.meta.url), "utf8");
 assert(appSource.includes('available: true }];') && appSource.includes('id: "herd"'), "Herd should be selectable");
 assert(appSource.includes("function PlayerHerdPreparation") && appSource.includes("/api/herd/answer"), "Herd needs a private answer-writing workspace");
 assert(appSource.includes("function HerdRevealBreakdown") && appSource.includes("authoredPoints"), "Herd needs a dual-score reveal");
-assert(tutorialSource.includes("herd: Object.freeze") && tutorialSource.includes("function HerdTutorialArtwork"), "Herd needs its own concise tutorial");
+assert(tutorialSource.includes("herd: Object.freeze") && tutorialArtSource.includes("function HerdTutorialArtwork"), "Herd needs its own concise tutorial");
 
 await post("/api/room", { code, playerKey: hostKey, intent: "host" });
 await post("/api/host/settings", { code, playerKey: hostKey, gameMode: "herd", roundPreset: "custom", maxQuestionsPerPlayer: 5 });

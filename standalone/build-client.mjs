@@ -29,7 +29,8 @@ const generatedFiles = new Set([
   "client/presentation.js",
   "client/qr.js",
   "client/social.js",
-  "client/tutorial.js"
+  "client/tutorial.js",
+  "client/tutorial-art.js"
 ]);
 const assetVersion = await sourceAssetVersion();
 const versioned = (value) => value + "?v=" + assetVersion;
@@ -160,7 +161,10 @@ await Promise.all([
     ["./back-stack.ts", versioned("./back-stack.js")]
   ]),
   transformFile("client/back-stack.ts", "client/back-stack.js", "ts"),
-  transformFile("client/tutorial.jsx", "client/tutorial.js", "jsx"),
+  transformFile("client/tutorial.jsx", "client/tutorial.js", "jsx", [
+    ["./tutorial-art.jsx", versioned("./tutorial-art.js")]
+  ]),
+  transformFile("client/tutorial-art.jsx", "client/tutorial-art.js", "jsx"),
   transformFile("client/drawing.jsx", "client/drawing.js", "jsx"),
   transformFile("client/social.jsx", "client/social.js", "jsx"),
   transformFile("client/qr.jsx", "client/qr.js", "jsx"),

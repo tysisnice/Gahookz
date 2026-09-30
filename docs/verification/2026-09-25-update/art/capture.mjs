@@ -109,6 +109,35 @@ try {
     }
     await pigPage.browserContext().close();
   }
+
+  if (sections.has("tutorials")) {
+    // 3. Every redrawn tutorial in the real dialog, opened from Welcome (the
+    // only launcher that offers all of them), at phone and desktop sizes.
+    const TINY_PHONE = { width: 320, height: 568, mobile: true, scale: 1 };
+    for (const size of [SMALL_PHONE, DESKTOP, TINY_PHONE]) {
+      const page = await open("tutorial-viewer-" + size.width, "", size, { path: "/" });
+      await page.waitForSelector(".welcome-tutorial-link");
+      await page.click(".welcome-tutorial-link");
+      await page.waitForSelector(".tutorial-dialog .tutorial-art");
+      for (const mode of ["overview", "quiz", "herd", "host"]) {
+        await page.click(`[data-tutorial-mode="${mode}"]`);
+        await page.waitForSelector(`.tutorial-art--${mode}`);
+        await page.evaluate(() => document.querySelector(".tutorial-dialog")?.scrollTo(0, 0));
+        const art = await page.$eval(".tutorial-art", (svg) => {
+          const box = svg.getBoundingClientRect();
+          const texts = [...svg.querySelectorAll("text")].map((text) => text.getBoundingClientRect().height);
+          return { label: svg.getAttribute("aria-label"), width: Math.round(box.width), height: Math.round(box.height), smallestTextPx: Math.round(Math.min(...texts) * 10) / 10 };
+        });
+        assert(art.label && art.label.startsWith("Three steps:"), mode + " artwork needs its description");
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        assert(overflow <= 1, `${mode} at ${size.width}px overflows by ${overflow}px`);
+        if (size === TINY_PHONE) await shot(page, `tutorial-art-${mode}-${size.width}`, { selector: ".tutorial-dialog__art", quality: 82 });
+        else await shot(page, `tutorial-${mode}-${size.width}`);
+        report[`tutorial-${mode}-${size.width}`] = art;
+      }
+      await page.browserContext().close();
+    }
+  }
 } finally {
   await browser.close();
 }

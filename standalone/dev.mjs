@@ -25,6 +25,7 @@ const buildSources = new Set([
   "client/preferences.jsx",
   "client/presentation.jsx",
   "client/tutorial.jsx",
+  "client/tutorial-art.jsx",
   "client/drawing.jsx",
   "client/social.jsx",
   "client/qr.jsx",
