@@ -13,7 +13,7 @@ import {
   parseChord,
   stepOffset,
   voiceChord
-} from "./music.ts";
+} from "./music-composer.ts";
 
 function bars(state: (typeof MUSIC_STATES)[number], count: number, seed = 1234): BarPlan[] {
   const composer = new Composer(MUSIC_STYLES[state], createRng(seed));

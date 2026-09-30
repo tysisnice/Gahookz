@@ -22,6 +22,7 @@ const buildSources = new Set([
   "client/reveal.jsx",
   "client/audio.js",
   "client/music.ts",
+  "client/music-composer.ts",
   "client/offline.jsx",
   "client/preferences.jsx",
   "client/presentation.jsx",
