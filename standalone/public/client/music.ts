@@ -695,12 +695,21 @@ export function stepOffset(step: number, stepSeconds: number, swing: number): nu
 // Player (Web Audio)
 // ---------------------------------------------------------------------------
 
+/**
+ * Output level of the music bus. Chosen by measurement: the lobby groove
+ * averages about -31 dBFS RMS with peaks near -17 dBFS, so the music sits
+ * well under the sound effects (whose peaks are around -10 to -4 dBFS).
+ */
+export const DEFAULT_MUSIC_LEVEL = 0.155;
+
 export interface MusicPlayerOptions {
   readonly seed?: number;
   /** Output level of the whole music bus. */
   readonly level?: number;
   /** Used to disconnect finished songs; offline renders can omit it. */
   readonly setTimeout?: (handler: () => void, ms: number) => unknown;
+  /** Play only these instruments. For mix analysis (the sample renderer's stems). */
+  readonly solo?: readonly Instrument[];
 }
 
 const noiseBuffers = new WeakMap<BaseAudioContext, AudioBuffer>();
@@ -803,8 +812,11 @@ class Song {
   private readonly padFilter: BiquadFilterNode;
   private readonly leadPan: AudioNode & { pan?: AudioParam };
 
-  constructor(ctx: BaseAudioContext, player: { input: AudioNode; reverb: AudioNode; delay: AudioNode }, state: MusicState, startTime: number, seed: number, fadeIn: number) {
+  private readonly solo: ReadonlySet<Instrument> | null;
+
+  constructor(ctx: BaseAudioContext, player: { input: AudioNode; reverb: AudioNode; delay: AudioNode; solo: ReadonlySet<Instrument> | null }, state: MusicState, startTime: number, seed: number, fadeIn: number) {
     this.ctx = ctx;
+    this.solo = player.solo;
     this.state = state;
     this.style = MUSIC_STYLES[state];
     this.startTime = startTime;
@@ -828,7 +840,7 @@ class Song {
 
     this.hatFilter = filter(ctx, "highpass", 7400, 0.6);
     this.shakerFilter = filter(ctx, "bandpass", 5600, 1.3);
-    this.clapFilter = filter(ctx, "bandpass", 1250, 0.9);
+    this.clapFilter = filter(ctx, "bandpass", 1300, 0.6);
     this.snareFilter = filter(ctx, "bandpass", 1900, 0.65);
     this.clickFilter = filter(ctx, "highpass", 2600, 0.7);
     this.crashFilter = filter(ctx, "highpass", 5200, 0.5);
@@ -939,15 +951,16 @@ class Song {
   }
 
   private render(time: number, event: MusicEvent): void {
+    if (this.solo && !this.solo.has(event.instrument)) return;
     const duration = event.steps * this.stepSeconds;
     switch (event.instrument) {
       case "kick": this.kick(time, event.velocity); break;
       case "snare": this.snare(time, event.velocity); break;
       case "clap": this.clap(time, event.velocity); break;
-      case "hat": this.noiseHit(this.hatFilter, time, 0.08, 0.12 * event.velocity, 0.001, 0.014); break;
-      case "open": this.noiseHit(this.hatFilter, time, 0.45, 0.075 * event.velocity, 0.002, 0.075); break;
-      case "shaker": this.noiseHit(this.shakerFilter, time, 0.12, 0.09 * event.velocity, 0.012, 0.022); break;
-      case "crash": this.noiseHit(this.crashFilter, time, 2.6, 0.08 * event.velocity, 0.003, 0.55); break;
+      case "hat": this.noiseHit(this.hatFilter, time, 0.12, 0.4 * event.velocity, 0.001, 0.026); break;
+      case "open": this.noiseHit(this.hatFilter, time, 0.5, 0.22 * event.velocity, 0.002, 0.09); break;
+      case "shaker": this.noiseHit(this.shakerFilter, time, 0.14, 0.28 * event.velocity, 0.012, 0.03); break;
+      case "crash": this.noiseHit(this.crashFilter, time, 2.6, 0.11 * event.velocity, 0.003, 0.55); break;
       case "riser": this.riser(time, duration, event.velocity); break;
       case "bass": this.bass(time, duration, event.notes, event.velocity); break;
       case "keys": this.keys(time, duration, event.notes, event.velocity); break;
@@ -966,13 +979,21 @@ class Song {
   private noiseHit(destination: AudioNode, time: number, seconds: number, peak: number, attack: number, decay: number): void {
     const ctx = this.ctx;
     const source = ctx.createBufferSource();
-    source.buffer = sharedNoiseBuffer(ctx);
+    const buffer = sharedNoiseBuffer(ctx);
+    source.buffer = buffer;
     const envelope = ctx.createGain();
     envelope.gain.setValueAtTime(0, time);
     envelope.gain.linearRampToValueAtTime(peak, time + attack);
     envelope.gain.setTargetAtTime(0, time + attack, decay);
     source.connect(envelope).connect(destination);
-    source.start(time, this.rng() * (1.5 - seconds - 0.01), seconds);
+    if (seconds < buffer.duration - 0.02) {
+      // A random slice of the shared buffer, so no two hits are identical.
+      source.start(time, this.rng() * (buffer.duration - seconds - 0.01), seconds);
+    } else {
+      source.loop = true;
+      source.start(time, this.rng() * buffer.duration * 0.5);
+      source.stop(time + seconds);
+    }
   }
 
   private kick(time: number, velocity: number): void {
@@ -983,12 +1004,12 @@ class Song {
     osc.frequency.exponentialRampToValueAtTime(54, time + 0.08);
     osc.frequency.exponentialRampToValueAtTime(44, time + 0.3);
     envelope.gain.setValueAtTime(0, time);
-    envelope.gain.linearRampToValueAtTime(0.9 * velocity, time + 0.003);
+    envelope.gain.linearRampToValueAtTime(0.42 * velocity, time + 0.003);
     envelope.gain.setTargetAtTime(0, time + 0.03, 0.085);
     osc.connect(envelope).connect(this.drums);
     osc.start(time);
     osc.stop(time + 0.55);
-    this.noiseHit(this.clickFilter, time, 0.02, 0.1 * velocity, 0.0008, 0.004);
+    this.noiseHit(this.clickFilter, time, 0.02, 0.07 * velocity, 0.0008, 0.004);
     this.duckOnKick(time, velocity);
   }
 
@@ -1008,8 +1029,8 @@ class Song {
   }
 
   private snare(time: number, velocity: number): void {
-    this.noiseHit(this.snareFilter, time, 0.35, 0.34 * velocity, 0.001, 0.06);
-    this.body(time, 200, 168, 0.2 * velocity, 0.045);
+    this.noiseHit(this.snareFilter, time, 0.45, 0.75 * velocity, 0.001, 0.085);
+    this.body(time, 200, 168, 0.26 * velocity, 0.045);
   }
 
   private clap(time: number, velocity: number): void {
@@ -1017,7 +1038,7 @@ class Song {
     const source = ctx.createBufferSource();
     source.buffer = sharedNoiseBuffer(ctx);
     const envelope = ctx.createGain();
-    const peak = 0.42 * velocity;
+    const peak = 1.1 * velocity;
     envelope.gain.setValueAtTime(0, time);
     // Three quick slaps then a short tail: what makes a clap read as hands.
     [0, 0.011, 0.023].forEach((offset, index) => {
@@ -1025,10 +1046,10 @@ class Song {
       envelope.gain.setTargetAtTime(peak * 0.12, time + offset + 0.001, 0.0035);
     });
     envelope.gain.setValueAtTime(peak * 0.6, time + 0.034);
-    envelope.gain.setTargetAtTime(0, time + 0.035, 0.05);
+    envelope.gain.setTargetAtTime(0, time + 0.035, 0.09);
     source.connect(envelope).connect(this.clapFilter);
     source.start(time, this.rng() * 1.1, 0.34);
-    this.body(time, 210, 180, 0.08 * velocity, 0.03);
+    this.body(time, 210, 180, 0.12 * velocity, 0.03);
   }
 
   private riser(time: number, seconds: number, velocity: number): void {
@@ -1058,23 +1079,23 @@ class Song {
     const end = time + Math.max(0.08, seconds * 0.92);
     const envelope = ctx.createGain();
     envelope.gain.setValueAtTime(0, time);
-    envelope.gain.linearRampToValueAtTime(0.5 * velocity, time + 0.006);
-    envelope.gain.setTargetAtTime(0.38 * velocity, time + 0.01, 0.25);
+    envelope.gain.linearRampToValueAtTime(0.24 * velocity, time + 0.006);
+    envelope.gain.setTargetAtTime(0.18 * velocity, time + 0.01, 0.25);
     envelope.gain.setTargetAtTime(0, end, 0.03);
     envelope.connect(this.pump);
     // A pure sine for the weight, and a filtered saw so phone speakers, which
     // cannot reproduce the fundamental, still hear the bass line.
     const sub = ctx.createOscillator();
     sub.frequency.value = frequency;
-    const subLevel = gain(ctx, 0.62);
+    const subLevel = gain(ctx, 0.45);
     sub.connect(subLevel).connect(envelope);
     const saw = ctx.createOscillator();
     saw.type = "sawtooth";
     saw.frequency.value = frequency;
     const tone = filter(ctx, "lowpass", 900, 2.5);
-    tone.frequency.setValueAtTime(700 + 800 * velocity, time);
-    tone.frequency.setTargetAtTime(240, time + 0.005, 0.07);
-    const sawLevel = gain(ctx, 0.32);
+    tone.frequency.setValueAtTime(900 + 900 * velocity, time);
+    tone.frequency.setTargetAtTime(420, time + 0.005, 0.08);
+    const sawLevel = gain(ctx, 0.55);
     saw.connect(tone).connect(sawLevel).connect(envelope);
     sub.start(time);
     saw.start(time);
@@ -1087,7 +1108,7 @@ class Song {
     const ctx = this.ctx;
     const stab = seconds <= this.stepSeconds * 1.5;
     const end = time + (stab ? Math.max(0.1, seconds) : seconds);
-    const level = 0.1 * this.style.keysLevel * velocity / Math.sqrt(Math.max(1, notes.length / 2));
+    const level = 0.2 * this.style.keysLevel * velocity / Math.sqrt(Math.max(1, notes.length / 2));
     const brightness = this.style.brightness * (0.75 + 0.6 * velocity);
     for (const midi of notes) {
       const frequency = midiToHz(midi) * Math.pow(2, (this.rng() - 0.5) * 0.004);
@@ -1096,8 +1117,8 @@ class Song {
       const modulator = ctx.createOscillator();
       modulator.frequency.value = frequency;
       const depth = ctx.createGain();
-      depth.gain.setValueAtTime(frequency * 1.3 * brightness, time);
-      depth.gain.setTargetAtTime(frequency * 0.16 * brightness, time, 0.2);
+      depth.gain.setValueAtTime(frequency * 1.8 * brightness, time);
+      depth.gain.setTargetAtTime(frequency * 0.32 * brightness, time, 0.18);
       modulator.connect(depth).connect(carrier.frequency);
       const envelope = ctx.createGain();
       envelope.gain.setValueAtTime(0, time);
@@ -1116,7 +1137,7 @@ class Song {
   /** Warm pad: two detuned saws per note through the shared drifting low-pass. */
   private pad(time: number, seconds: number, notes: readonly number[], velocity: number): void {
     const ctx = this.ctx;
-    const level = 0.03 * this.style.padLevel * velocity;
+    const level = 0.045 * this.style.padLevel * velocity;
     const end = time + seconds;
     for (const midi of notes) {
       const envelope = ctx.createGain();
@@ -1142,11 +1163,11 @@ class Song {
     if (midi === undefined) return;
     const frequency = midiToHz(midi);
     this.leadSide = -this.leadSide;
-    if (this.leadPan.pan) this.leadPan.pan.setValueAtTime(0.22 * this.leadSide, time);
+    if (this.leadPan.pan) this.leadPan.pan.setTargetAtTime(0.22 * this.leadSide, time - 0.03, 0.01);
     if (this.style.lead.timbre === "marimba") {
       // A marimba bar: the fundamental plus its bright fourth partial, which
       // dies away almost at once.
-      const partials: [number, number, number][] = [[1, 0.15, 0.32], [3.93, 0.045, 0.03]];
+      const partials: [number, number, number][] = [[1, 0.27, 0.32], [3.93, 0.08, 0.03]];
       for (const [ratio, peak, decay] of partials) {
         const osc = ctx.createOscillator();
         osc.frequency.value = frequency * ratio;
@@ -1169,8 +1190,8 @@ class Song {
     const envelope = ctx.createGain();
     const end = time + Math.max(0.12, seconds);
     envelope.gain.setValueAtTime(0, time);
-    envelope.gain.linearRampToValueAtTime(0.07 * velocity, time + 0.004);
-    envelope.gain.setTargetAtTime(0.025 * velocity, time + 0.006, 0.18);
+    envelope.gain.linearRampToValueAtTime(0.1 * velocity, time + 0.004);
+    envelope.gain.setTargetAtTime(0.035 * velocity, time + 0.006, 0.18);
     envelope.gain.setTargetAtTime(0, end, 0.08);
     osc.connect(tone).connect(envelope).connect(this.leadPan);
     osc.start(time);
@@ -1199,9 +1220,11 @@ export class MusicPlayer {
   private scheduled = 0;
   private seed: number;
   private focused = false;
+  readonly solo: ReadonlySet<Instrument> | null;
 
   constructor(ctx: BaseAudioContext, destination: AudioNode, options: MusicPlayerOptions = {}) {
     this.ctx = ctx;
+    this.solo = options.solo ? new Set(options.solo) : null;
     this.timers = options.setTimeout;
     this.seed = (options.seed ?? Math.floor(Math.random() * 0xffffffff)) >>> 0;
 
@@ -1216,7 +1239,7 @@ export class MusicPlayer {
     this.focusFilter = filter(ctx, "lowpass", 16000, 0.5);
     this.focusGain = gain(ctx, 1);
     this.duckGain = gain(ctx, 1);
-    this.output = gain(ctx, options.level ?? 0.3);
+    this.output = gain(ctx, options.level ?? DEFAULT_MUSIC_LEVEL);
     this.input.connect(rumble).connect(glue).connect(this.focusFilter).connect(this.focusGain).connect(this.duckGain).connect(this.output);
     this.output.connect(destination);
 

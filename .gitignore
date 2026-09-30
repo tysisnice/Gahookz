@@ -11,6 +11,7 @@ node_modules/
 standalone/public/app.js
 standalone/public/release.json
 standalone/public/client/audio.runtime.js
+standalone/public/client/music.js
 standalone/public/client/net.js
 standalone/public/client/reveal.js
 standalone/public/client/host-presence.js
