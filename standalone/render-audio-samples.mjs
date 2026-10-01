@@ -92,7 +92,7 @@ const CLIPS = [
       window.gahookzMusicPlayer = player;
       player.play("live");
       player.scheduleUntil(seconds);
-      const at = (time, action) => ctx.suspend(time).then(() => { action(); ctx.resume(); });
+      const at = (time, action) => ctx.suspend(time).then(() => { action(); resumeRendering(); });
       let ticks = [];
       at(0.2, () => player.setFocus(true));
       at(3.2, () => player.setFocus(false));
@@ -116,7 +116,7 @@ const CLIPS = [
         player.play("finale");
         audio.playGameWinCheer(channel);
         player.scheduleUntil(seconds);
-        ctx.resume();
+        resumeRendering();
       });`
   },
   {
@@ -133,7 +133,7 @@ const CLIPS = [
 ];
 
 async function main() {
-  const launch = () => puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
+  const launch = () => puppeteer.launch({ headless: true, protocolTimeout: 600000, args: ["--no-sandbox", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
   let browser;
   try {
     browser = await launch();
@@ -208,9 +208,14 @@ async function renderInPage({ program, seconds, sampleRate }) {
   const { music, audio } = window.gahookzRenderModules;
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);
   const channel = { ctx, destination: ctx.destination };
+  // The game's sound functions call ctx.resume() to wake a real context; an
+  // offline context rejects that before rendering starts. Scenes that pause
+  // the render with ctx.suspend(time) continue it with resumeRendering().
+  const resumeRendering = ctx.resume.bind(ctx);
+  ctx.resume = () => Promise.resolve();
   // eslint-disable-next-line no-new-func
-  const run = new Function("music", "audio", "ctx", "channel", "seconds", program);
-  run(music, audio, ctx, channel, seconds);
+  const run = new Function("music", "audio", "ctx", "channel", "seconds", "resumeRendering", program);
+  run(music, audio, ctx, channel, seconds, resumeRendering);
   const buffer = await ctx.startRendering();
   const left = buffer.getChannelData(0);
   const right = buffer.getChannelData(1);
