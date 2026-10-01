@@ -31,6 +31,11 @@ including every screenshot it references.
    component go to the same agent, or run in sequence. Keep at most a handful
    of implementation agents alive at once: verification is serialised by the
    lock, so more agents mostly means a longer queue.
+   **Choose each agent's model to fit its task** (the Agent tool's `model`
+   setting): Opus for cross-area design, game rules, tricky bugs and
+   reviews; Sonnet for routine implementation, tests and documentation;
+   Haiku for quick searches, audits and mechanical edits. Use the stronger
+   model only where the task needs it, to save usage.
 5. **Integrate.** Merge each finished branch into the work branch in the
    main checkout, one at a time. Resolve conflicts in the three stamped shell
    files by rebuilding. After each merge run `npm run check` and the smoke
