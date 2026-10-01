@@ -65,6 +65,60 @@ const CLIPS = [
       player.play(${JSON.stringify(process.env.GAHOOKZ_AUDIO_STEMS)});
       player.scheduleUntil(seconds);`
   })) : []),
+  ...[
+    ["sfx-answer-locked", 1, "your answer locks in (new)", "audio.playAnswerLockedSound(channel);"],
+    ["sfx-answer-pops", 1.2, "other players answering: one bubble per answer, climbing (replaces the vocal ooh)", "audio.playAnswerOohSound(4, channel);"],
+    ["sfx-countdown-ticks", 3.2, "the last three seconds of answering (new)", "[3, 2, 1].forEach((left, index) => audio.playCountdownTick(left, channel, 0.1 + index));"],
+    ["sfx-reveal-correct", 1.4, "reveal, you picked the winning answer (new)", 'audio.playRevealSound("correct", channel);'],
+    ["sfx-reveal-wrong", 1.2, "reveal, you did not (new)", 'audio.playRevealSound("wrong", channel);'],
+    ["sfx-reveal-neutral", 1.2, "reveal on the host screen or when you did not answer (new)", 'audio.playRevealSound("neutral", channel);'],
+    ["sfx-congrats", 1.6, "congratulations (redesigned)", "audio.playCongratsSound(channel);"],
+    ["sfx-ultimate-congrats", 2.6, "ultimate congratulations (redesigned)", "audio.playUltimateCongratsSound(channel);"],
+    ["sfx-ultimate-congrats-extra", 0.8, "each extra ultimate congratulations tap (redesigned)", "audio.playUltimateCongratsExtraSound(channel);"],
+    ["sfx-boo", 1.6, "boo (redesigned)", "audio.playBooSound(channel);"],
+    ["sfx-arena-victory", 2.4, "1v1 arena winner: fanfare and a small crowd (redesigned)", "audio.playVictoryPartySound(channel);"],
+    ["cheer-game-win", 3.8, "end of the game, everyone: fanfare and crowd cheer (new)", "audio.playGameWinCheer(channel);"],
+    ["gahook-pig-cry", 1.1, "Sad Pig Gahook: the crying pig (new, replaces the Airhorn Capy)", 'audio.playGahookFormSound("pig", channel);'],
+    ["gahook-capybara-legacy", 1.1, "a legacy capybara Gahook now cries like the pig", 'audio.playGahookFormSound("capybara", channel);'],
+    ["gahook-monkey-reference", 1.2, "Classic Monkey Gahook, unchanged, for level comparison", "audio.playMonkeyPokeSound(channel); audio.playGahookVoiceCue(channel);"],
+    ["gahook-gorilla-reference", 1.2, "Rage Gorilla Gahook, unchanged, for level comparison", 'audio.playGahookFormSound("gorilla", channel);']
+  ].map(([name, seconds, description, program]) => ({ name, group: name.split("-")[0], seconds, description, program })),
+  {
+    name: "mix-live-round",
+    group: "mix",
+    seconds: 13,
+    description: "a player's round over the live music: reading (music steps back), answers arriving, countdown, answer locked (cancels the last tick), correct reveal, a congratulation",
+    program: `const player = new music.MusicPlayer(ctx, ctx.destination, { seed: 11 });
+      window.gahookzMusicPlayer = player;
+      player.play("live");
+      player.scheduleUntil(seconds);
+      const at = (time, action) => ctx.suspend(time).then(() => { action(); ctx.resume(); });
+      let ticks = [];
+      at(0.2, () => player.setFocus(true));
+      at(3.2, () => player.setFocus(false));
+      at(4.0, () => audio.playAnswerOohSound(2, channel));
+      at(5.1, () => audio.playAnswerOohSound(1, channel));
+      at(5.5, () => { ticks = [3, 2, 1].flatMap((left, index) => audio.playCountdownTick(left, channel, 6 + index)); });
+      at(7.4, () => { ticks.forEach((source) => { try { source.stop(0); } catch (_error) {} }); audio.playAnswerLockedSound(channel); });
+      at(9.2, () => audio.playRevealSound("correct", channel));
+      at(10.8, () => audio.playCongratsSound(channel));`
+  },
+  {
+    name: "mix-game-finish",
+    group: "mix",
+    seconds: 14,
+    description: "the last reveal ends the game: live music crossfades into the finale while the fanfare and crowd cheer play",
+    program: `const player = new music.MusicPlayer(ctx, ctx.destination, { seed: 5 });
+      window.gahookzMusicPlayer = player;
+      player.play("live");
+      player.scheduleUntil(4.3);
+      ctx.suspend(4).then(() => {
+        player.play("finale");
+        audio.playGameWinCheer(channel);
+        player.scheduleUntil(seconds);
+        ctx.resume();
+      });`
+  },
   {
     name: "music-transition-lobby-to-live",
     group: "music",
@@ -79,7 +133,15 @@ const CLIPS = [
 ];
 
 async function main() {
-  const browser = await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
+  const launch = () => puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
+  let browser;
+  try {
+    browser = await launch();
+  } catch (error) {
+    // A busy machine sometimes misses the launch timeout once.
+    console.log("browser launch failed once (" + String(error?.message || error).slice(0, 60) + "), retrying");
+    browser = await launch();
+  }
   try {
     const page = await browser.newPage();
     await page.setRequestInterception(true);
