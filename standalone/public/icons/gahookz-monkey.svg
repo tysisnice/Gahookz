@@ -11,9 +11,6 @@
   </defs>
 
   <rect width="512" height="512" fill="url(#icon-background)"/>
-  <circle cx="256" cy="254" r="194" fill="none" stroke="#06b6d4" stroke-width="25"/>
-  <path d="M89 165A194 194 0 0 1 418 126" fill="none" stroke="#facc15" stroke-width="25" stroke-linecap="round"/>
-  <path d="M104 377A194 194 0 0 0 427 348" fill="none" stroke="#ec4899" stroke-width="25" stroke-linecap="round"/>
 
   <g transform="translate(36 38) scale(2)" filter="url(#monkey-shadow)">
     <circle cx="65" cy="88" r="42" fill="#6b3b16" stroke="#111214" stroke-width="6"/>
