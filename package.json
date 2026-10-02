@@ -64,7 +64,8 @@
     "standalone:smoke:host-controls": "node standalone/smoke-host-controls.mjs",
     "standalone:smoke:desktop-ui": "node standalone/smoke-desktop-ui.mjs",
     "docs:check": "node scripts/check-docs.mjs",
-    "audio:samples": "node standalone/render-audio-samples.mjs"
+    "audio:samples": "node standalone/render-audio-samples.mjs",
+    "test:browser:audio": "node standalone/browser-audio-cues.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

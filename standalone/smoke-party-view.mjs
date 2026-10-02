@@ -222,6 +222,8 @@ function runPartyViewSmoke() {
   assertIncludes(playerSettingsDialog, "setEffectsReducedPreference", "The reduction control should reduce motion and flashes");
   assertIncludes(playerSettingsDialog, "Mute sound effects", "Player settings should expose the audio control");
   assertIncludes(playerSettingsDialog, "useMutePreference", "The audio control should be bound to the mute preference");
+  assertIncludes(playerSettingsDialog, "useMusicPreference", "Player settings should offer a Music switch separate from mute");
+  assert(preferences.includes('localStorage.setItem(MUSIC_OFF_KEY, next ? "0" : "1")'), "The Music switch should persist locally and default to on");
   assertIncludes(playerQuickMenu, "Exit Lobby", "Player menu should keep Exit Lobby");
   assertIncludes(playerQuickMenu, "Change name &amp; profile", "Player menu should expose the profile editor");
   assertNotIncludes(playerQuickMenu, "Save name", "Player menu should not include save name controls");
