@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Provider, useDispatch, useSelector } from "react-redux";
 import { createStore } from "redux";
-import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, systemPrefersReducedEffects, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
+import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, systemPrefersReducedEffects, useMusicPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
 import { OfflineExperience, ServerUpdateExperience, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
 import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
@@ -22,9 +22,9 @@ import {
   playUltimateCongratsExtraSound,
   playUltimateCongratsSound,
   playUltimateGahookSound,
-  playVictoryPartySound,
   resetPokeSoundChannel,
   setGameMusicState,
+  syncGameSoundCues,
   stopCustomGahookAudio,
   speakText
 } from "./client/audio.js";
@@ -1153,6 +1153,12 @@ function App() {
     else setGameMusicState("live");
   }, [mode, lobby.phase, serverConnection.offline]);
 
+  // Answer-locked, countdown, reveal and finale-cheer sounds follow the room
+  // state (client/audio.js); the first snapshot of a room never replays them.
+  useEffect(() => {
+    syncGameSoundCues(mode === "room" && !serverConnection.offline && lobby.code === route.code ? lobby : null);
+  }, [mode, route.code, lobby, serverConnection.offline]);
+
   useEffect(() => {
     if (!error) {
       return undefined;
@@ -1990,6 +1996,18 @@ function EffectsPreferenceButtons() {
   return <button type="button" aria-pressed={reduced} onClick={() => setReduced(!reduced)}>{reduced ? "Use full Gahook effects" : "Reduce Gahook effects"}</button>;
 }
 
+// Background music has its own switch, so a player can keep the sound effects
+// and lose the music. Muting sound still silences both.
+function MusicPreferenceToggle() {
+  const [musicOn, setMusicOn] = useMusicPreference();
+  return <ToggleSwitch on={musicOn} label="Music" size="compact" onChange={setMusicOn} />;
+}
+
+function MusicPreferenceButton() {
+  const [musicOn, setMusicOn] = useMusicPreference();
+  return <button type="button" aria-pressed={!musicOn} onClick={() => setMusicOn(!musicOn)}>{musicOn ? "Turn music off" : "Turn music on"}</button>;
+}
+
 // The three top-bar menus share one shell, QuickMenu (client/controls.jsx):
 // a dropdown on a wide screen, a modal sheet on a phone, closed by Back.
 // Actions that move to another screen close the menu first.
@@ -2292,6 +2310,10 @@ function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
             <div className="rules-personal-row">
               <span>Reduce Gahook effects on this device</span>
               <EffectsPreferenceToggle />
+            </div>
+            <div className="rules-personal-row">
+              <span>Music on this device</span>
+              <MusicPreferenceToggle />
             </div>
             <RuleToggleRow label="Allow 1v1 duels in the lobby" on={draft.lobbyArenaEnabled} onChange={(next) => set({ lobbyArenaEnabled: next })} />
             {!draft.lobbyArenaEnabled && lobby.lobbyArenaEnabled !== false ?
@@ -2976,7 +2998,7 @@ function FinishedScreen({ lobby, connected, hostMenu, onReset, onNewGame }) {
       return;
     }
     playedRef.current = true;
-    playVictoryPartySound();
+    // The fanfare and crowd cheer play for everyone from syncGameSoundCues.
     const winnerNames = finals.winners.map((winner) => winner.name).join(", ");
     speakText((finals.winners.length > 1 ? "Joint winners " : "Winner ") + winnerNames, { rate: 0.98, pitch: 1.08, volume: 0.9 });
   }, [winnerIds]);
@@ -3360,6 +3382,7 @@ function PlayerQuickMenu({ ownPlayer, mode = "quiz", customGahook, customGahookO
 function PlayerSettingsDialog({ open, onClose }) {
   const dialogRef = useRef(null);
   const [muted, toggleMuted] = useMutePreference();
+  const [musicOn, setMusicOn] = useMusicPreference();
   const [reducedPreferred] = useReducedEffectsPreference();
   const systemReduced = systemPrefersReducedEffects();
   useModalBodyLock(open);
@@ -3399,6 +3422,11 @@ function PlayerSettingsDialog({ open, onClose }) {
               on={muted}
               onChange={() => toggleMuted()}
               help="Silences Gahook noises, music and spoken cues. Nothing in the game needs sound to play." />
+            <RuleToggleRow
+              label="Music"
+              on={musicOn}
+              onChange={(next) => setMusicOn(next)}
+              help="The background music. Turn it off to keep the sound effects without it." />
             {systemReduced ?
             <p className="rules-consequence">This device already asks for reduced motion, so effects are toned down whatever these switches say.</p> :
             null}
@@ -3554,6 +3582,7 @@ function JoinQuickMenu() {
   return (
     <QuickMenu className="host-quick-menu join-quick-menu" label="Menu">
       <EffectsPreferenceButtons />
+      <MusicPreferenceButton />
       <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
     </QuickMenu>);
 }
@@ -4685,17 +4714,8 @@ function QuestionAuthorLine({ result }) {
 }
 
 function PartyFinalScoreboard({ lobby, ownPlayer, playerKey, finished }) {
-  const playedRef = useRef(false);
   const dispatch = useDispatch();
   const finals = getFinalSpotlights(lobby);
-
-  useEffect(() => {
-    if (!finished || playedRef.current) {
-      return;
-    }
-    playedRef.current = true;
-    playVictoryPartySound();
-  }, [finished]);
 
   const resetGame = async () => {
     const result = await api("/api/host/reset");

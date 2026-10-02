@@ -1,0 +1,242 @@
+{
+  "music-welcome": {
+    "group": "music",
+    "description": "welcome music, 20 s from a cold start (seed 2026)",
+    "seconds": 20,
+    "peakDb": -17.7,
+    "rmsDb": -31.5,
+    "maxShortRmsDb": -28.7,
+    "clippedSamples": 0,
+    "bytes": 167634
+  },
+  "music-lobby": {
+    "group": "music",
+    "description": "lobby music, 20 s from a cold start (seed 2026)",
+    "seconds": 20,
+    "peakDb": -17.3,
+    "rmsDb": -31.1,
+    "maxShortRmsDb": -28.9,
+    "clippedSamples": 0,
+    "bytes": 170596
+  },
+  "music-prep": {
+    "group": "music",
+    "description": "prep music, 20 s from a cold start (seed 2026)",
+    "seconds": 20,
+    "peakDb": -19,
+    "rmsDb": -33.1,
+    "maxShortRmsDb": -30.1,
+    "clippedSamples": 0,
+    "bytes": 170445
+  },
+  "music-live": {
+    "group": "music",
+    "description": "live music, 20 s from a cold start (seed 2026)",
+    "seconds": 20,
+    "peakDb": -18.2,
+    "rmsDb": -32.9,
+    "maxShortRmsDb": -30.7,
+    "clippedSamples": 0,
+    "bytes": 172689
+  },
+  "music-finale": {
+    "group": "music",
+    "description": "finale music, 20 s from a cold start (seed 2026)",
+    "seconds": 20,
+    "peakDb": -16.5,
+    "rmsDb": -31,
+    "maxShortRmsDb": -29.1,
+    "clippedSamples": 0,
+    "bytes": 176149
+  },
+  "sfx-answer-locked": {
+    "group": "sfx",
+    "description": "your answer locks in (new)",
+    "seconds": 1,
+    "peakDb": -11.2,
+    "rmsDb": -25.7,
+    "maxShortRmsDb": -22.1,
+    "clippedSamples": 0,
+    "bytes": 11752
+  },
+  "sfx-answer-pops": {
+    "group": "sfx",
+    "description": "other players answering: one bubble per answer, climbing (replaces the vocal ooh)",
+    "seconds": 1.2,
+    "peakDb": -18.2,
+    "rmsDb": -33.3,
+    "maxShortRmsDb": -28.6,
+    "clippedSamples": 0,
+    "bytes": 4595
+  },
+  "sfx-countdown-ticks": {
+    "group": "sfx",
+    "description": "the last three seconds of answering (new)",
+    "seconds": 3.2,
+    "peakDb": -13.2,
+    "rmsDb": -38.9,
+    "maxShortRmsDb": -33.6,
+    "clippedSamples": 0,
+    "bytes": 7091
+  },
+  "sfx-reveal-correct": {
+    "group": "sfx",
+    "description": "reveal, you picked the winning answer (new)",
+    "seconds": 1.4,
+    "peakDb": -9.2,
+    "rmsDb": -24.6,
+    "maxShortRmsDb": -19.9,
+    "clippedSamples": 0,
+    "bytes": 15861
+  },
+  "sfx-reveal-wrong": {
+    "group": "sfx",
+    "description": "reveal, you did not (new)",
+    "seconds": 1.2,
+    "peakDb": -14,
+    "rmsDb": -24.8,
+    "maxShortRmsDb": -21.6,
+    "clippedSamples": 0,
+    "bytes": 8475
+  },
+  "sfx-reveal-neutral": {
+    "group": "sfx",
+    "description": "reveal on the host screen or when you did not answer (new)",
+    "seconds": 1.2,
+    "peakDb": -10.7,
+    "rmsDb": -27.9,
+    "maxShortRmsDb": -23.6,
+    "clippedSamples": 0,
+    "bytes": 13942
+  },
+  "sfx-congrats": {
+    "group": "sfx",
+    "description": "congratulations (redesigned)",
+    "seconds": 1.6,
+    "peakDb": -7.5,
+    "rmsDb": -23.8,
+    "maxShortRmsDb": -18.8,
+    "clippedSamples": 0,
+    "bytes": 17984
+  },
+  "sfx-ultimate-congrats": {
+    "group": "sfx",
+    "description": "ultimate congratulations (redesigned)",
+    "seconds": 2.6,
+    "peakDb": -5,
+    "rmsDb": -21.7,
+    "maxShortRmsDb": -17.6,
+    "clippedSamples": 0,
+    "bytes": 23995
+  },
+  "sfx-ultimate-congrats-extra": {
+    "group": "sfx",
+    "description": "each extra ultimate congratulations tap (redesigned)",
+    "seconds": 0.8,
+    "peakDb": -17.6,
+    "rmsDb": -31.9,
+    "maxShortRmsDb": -29.1,
+    "clippedSamples": 0,
+    "bytes": 10143
+  },
+  "sfx-boo": {
+    "group": "sfx",
+    "description": "boo (redesigned)",
+    "seconds": 1.6,
+    "peakDb": -15.1,
+    "rmsDb": -29,
+    "maxShortRmsDb": -25.9,
+    "clippedSamples": 0,
+    "bytes": 11668
+  },
+  "sfx-arena-victory": {
+    "group": "sfx",
+    "description": "1v1 arena winner: fanfare and a small crowd (redesigned)",
+    "seconds": 2.4,
+    "peakDb": -9.7,
+    "rmsDb": -25.1,
+    "maxShortRmsDb": -21.1,
+    "clippedSamples": 0,
+    "bytes": 19354
+  },
+  "cheer-game-win": {
+    "group": "cheer",
+    "description": "end of the game, everyone: fanfare and crowd cheer (new)",
+    "seconds": 3.8,
+    "peakDb": -6,
+    "rmsDb": -22.2,
+    "maxShortRmsDb": -18.5,
+    "clippedSamples": 0,
+    "bytes": 26074
+  },
+  "gahook-pig-cry": {
+    "group": "gahook",
+    "description": "Sad Pig Gahook: the crying pig (new, replaces the Airhorn Capy)",
+    "seconds": 1.1,
+    "peakDb": -13.6,
+    "rmsDb": -27.6,
+    "maxShortRmsDb": -24.7,
+    "clippedSamples": 0,
+    "bytes": 9498
+  },
+  "gahook-capybara-legacy": {
+    "group": "gahook",
+    "description": "a legacy capybara Gahook now cries like the pig",
+    "seconds": 1.1,
+    "peakDb": -13.6,
+    "rmsDb": -27.6,
+    "maxShortRmsDb": -24.7,
+    "clippedSamples": 0,
+    "bytes": 9498
+  },
+  "gahook-monkey-reference": {
+    "group": "gahook",
+    "description": "Classic Monkey Gahook, unchanged, for level comparison",
+    "seconds": 1.2,
+    "peakDb": -14.6,
+    "rmsDb": -34.2,
+    "maxShortRmsDb": -30.9,
+    "clippedSamples": 0,
+    "bytes": 13812
+  },
+  "gahook-gorilla-reference": {
+    "group": "gahook",
+    "description": "Rage Gorilla Gahook, unchanged, for level comparison",
+    "seconds": 1.2,
+    "peakDb": -0.1,
+    "rmsDb": -31,
+    "maxShortRmsDb": -26.9,
+    "clippedSamples": 0,
+    "bytes": 9062
+  },
+  "mix-live-round": {
+    "group": "mix",
+    "description": "a player's round over the live music: reading (music steps back), answers arriving, countdown, answer locked (cancels the last tick), correct reveal, a congratulation",
+    "seconds": 13,
+    "peakDb": -7.3,
+    "rmsDb": -28.3,
+    "maxShortRmsDb": -18.8,
+    "clippedSamples": 0,
+    "bytes": 117505
+  },
+  "mix-game-finish": {
+    "group": "mix",
+    "description": "the last reveal ends the game: live music crossfades into the finale while the fanfare and crowd cheer play",
+    "seconds": 14,
+    "peakDb": -7.6,
+    "rmsDb": -26.9,
+    "maxShortRmsDb": -18.9,
+    "clippedSamples": 0,
+    "bytes": 119577
+  },
+  "music-transition-lobby-to-live": {
+    "group": "music",
+    "description": "lobby music, then the game starts: crossfade into live on the next bar line",
+    "seconds": 16,
+    "peakDb": -18.6,
+    "rmsDb": -33.7,
+    "maxShortRmsDb": -29.6,
+    "clippedSamples": 0,
+    "bytes": 143389
+  }
+}

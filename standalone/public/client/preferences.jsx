@@ -5,6 +5,10 @@ const MUTE_EVENT = "gahookz-mute-change";
 const REDUCED_EFFECTS_KEY = "gahookz-effects-reduced";
 const REDUCED_EFFECTS_EVENT = "gahookz-reduced-effects-change";
 const REDUCED_EFFECTS_QUERY = "(prefers-reduced-motion: reduce)";
+// Music has its own switch so a player can drop the background music and keep
+// the game's sound effects. Stored as "off" so that music is on by default.
+const MUSIC_OFF_KEY = "gahookz-music-off";
+export const MUSIC_EVENT = "gahookz-music-change";
 
 export function effectsMuted() {
   try {
@@ -92,6 +96,33 @@ export function setEffectsReducedPreference(reduced) {
   } catch (_error) {}
   applyEffectsReduced(effectsMuted() || next || systemPrefersReducedEffects());
   dispatchReducedEffectsChange();
+}
+
+export function musicEnabled() {
+  try {
+    return localStorage.getItem(MUSIC_OFF_KEY) !== "1";
+  } catch (_error) {
+    return true;
+  }
+}
+
+export function setMusicEnabled(enabled) {
+  const next = Boolean(enabled);
+  try {
+    localStorage.setItem(MUSIC_OFF_KEY, next ? "0" : "1");
+  } catch (_error) {}
+  // client/audio.js listens for this and starts or fades out the music.
+  window.dispatchEvent(new CustomEvent(MUSIC_EVENT, { detail: next }));
+}
+
+export function useMusicPreference() {
+  const [enabled, setEnabled] = useState(musicEnabled);
+  useEffect(() => {
+    const sync = (event) => setEnabled(Boolean(event.detail));
+    window.addEventListener(MUSIC_EVENT, sync);
+    return () => window.removeEventListener(MUSIC_EVENT, sync);
+  }, []);
+  return [enabled, (next) => setMusicEnabled(next)];
 }
 
 export function useMutePreference() {
