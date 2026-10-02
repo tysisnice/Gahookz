@@ -63,7 +63,8 @@
     "test:disposable": "node standalone/test-disposable.mjs",
     "standalone:smoke:host-controls": "node standalone/smoke-host-controls.mjs",
     "standalone:smoke:desktop-ui": "node standalone/smoke-desktop-ui.mjs",
-    "docs:check": "node scripts/check-docs.mjs"
+    "docs:check": "node scripts/check-docs.mjs",
+    "icons:render": "node scripts/render-icons.mjs"
   },
   "engines": {
     "node": ">=20.0.0"

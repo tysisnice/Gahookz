@@ -33,6 +33,9 @@ assert(indexSource.includes('rel="manifest"') && indexSource.includes('rel="appl
 assert(indexSource.includes('rel="icon" type="image/svg+xml" href="/icons/gahookz-monkey.svg"'));
 assert(iconSource.includes('aria-label="Gahookz monkey"'));
 assert(iconSource.includes('fill="#8a4f21"') && !iconSource.includes(">G<"));
+// Tyson, 2026-09-25: the monkey and its background stay, the four-colour ring
+// around the face goes. The PNGs are rendered from this SVG (npm run icons:render).
+assert(!iconSource.includes('stroke="#06b6d4"') && !/A194 194/.test(iconSource), "The app icon should have no coloured ring around the monkey");
 assert(bootstrapSource.includes('serviceWorker.register("/service-worker.js"'));
 assert(bootstrapSource.includes("beforeinstallprompt"));
 assert.match(release.version, /^release-[a-f0-9]{16}$/);

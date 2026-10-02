@@ -637,13 +637,13 @@ function shuffleDashForms(values) {
 }
 
 function createDashObstacleSequence(cycle = 0) {
-  const all = ["monkey", "capybara", "bird", "koala", "gorilla", "chicken", "croc"];
+  const all = ["monkey", "pig", "bird", "koala", "gorilla", "chicken", "croc"];
   if (cycle > 0) {
     return shuffleDashForms([...all, ...Array.from({ length: 5 }, () => all[Math.floor(Math.random() * all.length)])]);
   }
 
   const sequence = Array(12).fill("");
-  sequence[0] = Math.random() > 0.5 ? "monkey" : "capybara";
+  sequence[0] = Math.random() > 0.5 ? "monkey" : "pig";
   sequence[1] = Math.random() > 0.5 ? "bird" : "koala";
   sequence[5] = "chicken";
   sequence[9] = "croc";
@@ -817,7 +817,7 @@ function drawDashCharacter(context, formId, x, y, time, airborne, scale = 1) {
   if (formId === "gorilla") drawDashGorilla(context);
   else if (formId === "koala") drawDashKoala(context);
   else if (formId === "croc") drawDashCroc(context);
-  else if (formId === "capybara") drawDashCapybara(context);
+  else if (formId === "pig") drawDashPig(context);
   else if (formId === "chicken") drawDashChicken(context, time);
   else drawDashMonkey(context);
   context.restore();
@@ -959,37 +959,60 @@ function drawDashCroc(context) {
   context.stroke();
 }
 
-function drawDashCapybara(context) {
-  context.fillStyle = "#a66b3f";
-  context.strokeStyle = "#21150e";
+// Same 58 x 56 box and hitbox as the Airhorn Capy it replaced: the Sad Pig
+// changes how the obstacle looks, not how hard it is to jump.
+function drawDashPig(context) {
+  context.fillStyle = "#ff86b5";
+  context.strokeStyle = "#171019";
   context.lineWidth = 4;
   context.beginPath();
-  context.arc(12, 13, 7, 0, Math.PI * 2);
-  context.arc(44, 13, 7, 0, Math.PI * 2);
-  context.fill();
-  context.stroke();
-  roundedRect(context, 5, 7, 49, 42, 16);
-  context.fill();
-  context.stroke();
-  context.fillStyle = "#d99a66";
-  roundedRect(context, 25, 28, 34, 17, 8);
-  context.fill();
-  context.stroke();
-  drawDashEyes(context, 20, 39, 22);
-  context.fillStyle = "#21150e";
-  context.beginPath();
-  context.arc(51, 35, 4, 0, Math.PI * 2);
-  context.fill();
-  context.fillStyle = "#ffdf45";
-  context.strokeStyle = "#21150e";
-  context.lineWidth = 3;
-  context.beginPath();
-  context.moveTo(1, 28);
-  context.lineTo(-10, 23);
-  context.lineTo(-10, 37);
+  context.moveTo(9, 16);
+  context.lineTo(6, -2);
+  context.lineTo(22, 7);
+  context.closePath();
+  context.moveTo(49, 16);
+  context.lineTo(52, -2);
+  context.lineTo(36, 7);
   context.closePath();
   context.fill();
   context.stroke();
+  context.fillStyle = "#ff9dc3";
+  roundedRect(context, 3, 5, 52, 45, 21);
+  context.fill();
+  context.stroke();
+  context.strokeStyle = "#171019";
+  context.lineWidth = 3;
+  context.beginPath();
+  context.arc(19, 21, 5, Math.PI * 1.15, Math.PI * 1.85);
+  context.moveTo(44, 21);
+  context.arc(39, 21, 5, Math.PI * 1.15, Math.PI * 1.85);
+  context.stroke();
+  context.strokeStyle = "#39b8f0";
+  context.lineWidth = 4;
+  context.beginPath();
+  context.moveTo(16, 23);
+  context.lineTo(14, 40);
+  context.moveTo(42, 23);
+  context.lineTo(44, 40);
+  context.stroke();
+  context.fillStyle = "#ff78ac";
+  context.strokeStyle = "#171019";
+  context.lineWidth = 3;
+  context.beginPath();
+  context.ellipse(29, 30, 11, 8, 0, 0, Math.PI * 2);
+  context.fill();
+  context.stroke();
+  context.fillStyle = "#7c1d48";
+  context.beginPath();
+  context.ellipse(25, 30, 2.4, 3.4, 0, 0, Math.PI * 2);
+  context.ellipse(33, 30, 2.4, 3.4, 0, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#5b0f2a";
+  context.beginPath();
+  context.moveTo(21, 45);
+  context.quadraticCurveTo(29, 36, 37, 45);
+  context.closePath();
+  context.fill();
 }
 
 function drawDashChicken(context, time) {

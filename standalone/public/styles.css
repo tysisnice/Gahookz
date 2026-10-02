@@ -5830,11 +5830,12 @@ button.answer-tile {
   animation: premium-croc-bg 180ms steps(2) infinite;
 }
 
-.poke-overlay.is-form-capybara:not(.is-ultimate):not(.is-get-got) {
+/* Sad Pig: a pink glow behind the pig in a storm of blue rain streaks. */
+.poke-overlay.is-form-pig:not(.is-ultimate):not(.is-get-got) {
   background:
-    radial-gradient(circle at 50% 42%, rgba(205, 145, 29, 0.55) 0 13%, transparent 36%),
-    repeating-linear-gradient(-35deg, #201207 0 28px, #57310d 28px 50px, #8b5a12 50px 58px);
-  animation: premium-capy-bg 180ms steps(2) infinite;
+    radial-gradient(circle at 50% 42%, rgba(255, 120, 172, 0.62) 0 13%, transparent 36%),
+    repeating-linear-gradient(100deg, #081530 0 24px, #10284f 24px 44px, #2b6aa8 44px 48px);
+  animation: premium-pig-bg 200ms steps(2) infinite;
 }
 
 .poke-overlay.is-form-chicken:not(.is-ultimate):not(.is-get-got) {
@@ -6209,47 +6210,80 @@ button.answer-tile {
   background: transparent;
 }
 
-.premium-effects-capybara > span {
-  width: clamp(76px, 9vw, 122px);
-  height: clamp(46px, 5vw, 68px);
-  border: 5px solid #241408;
-  background: #d69a1c;
-  clip-path: polygon(0 34%, 78% 0, 78% 100%, 0 66%);
+/* Sad Pig props: tears raining down the screen, tossed tissues and puddles.
+   Longhand animation properties keep the shared per-prop delays. */
+.premium-effects-pig > span {
+  width: clamp(34px, 4.6vw, 60px);
+  height: clamp(34px, 4.6vw, 60px);
+  animation-name: pig-tear-fall;
+  animation-duration: 900ms;
+  animation-timing-function: cubic-bezier(0.45, 0, 0.9, 0.6);
+  animation-direction: normal;
 }
 
-.premium-effects-capybara > span::before {
-  right: 0;
-  top: 6%;
-  width: 31%;
-  height: 88%;
-  border: 5px solid #241408;
+.premium-effects-pig > span::before {
+  inset: 0;
+  border: 5px solid #0b2a4a;
+  border-radius: 0 50% 50% 50%;
+  background: #6fd3ff;
+  transform: rotate(45deg);
+}
+
+.premium-effects-pig > span i {
+  left: 28%;
+  top: 34%;
+  width: 18%;
+  height: 26%;
   border-radius: 50%;
-  background: #f4c84d;
+  background: rgba(255, 255, 255, 0.85);
 }
 
-.premium-effects-capybara > span i {
-  left: 5%;
-  top: 38%;
-  width: 34%;
-  height: 24%;
-  border-radius: 6px;
-  background: #6f3510;
+.premium-effects-pig > span:nth-child(3n) {
+  width: clamp(48px, 6vw, 82px);
+  height: clamp(40px, 5vw, 68px);
+  border: 5px solid #111214;
+  border-radius: 38% 62% 45% 55% / 52% 40% 60% 48%;
+  background: #ffffff;
+  box-shadow: inset -8px -6px 0 rgba(148, 163, 184, 0.45);
+  animation-name: premium-prop-burst;
+  animation-duration: 760ms;
+  animation-timing-function: cubic-bezier(0.2, 1.4, 0.2, 1);
+  animation-direction: alternate;
 }
 
-.premium-effects-capybara > span:nth-child(4n) {
-  width: clamp(44px, 5vw, 68px);
-  height: clamp(44px, 5vw, 68px);
+.premium-effects-pig > span:nth-child(3n)::before {
+  inset: 28% 22% auto 26%;
+  height: 5px;
+  border: 0;
+  border-radius: 999px;
+  background: #94a3b8;
+  transform: rotate(-16deg);
+}
+
+.premium-effects-pig > span:nth-child(3n) i {
+  display: none;
+}
+
+.premium-effects-pig > span:nth-child(4n) {
+  width: clamp(70px, 9vw, 120px);
+  height: clamp(24px, 3vw, 40px);
+  border: 5px solid #0b2a4a;
   border-radius: 50%;
-  clip-path: none;
-  background: #7f4b18;
+  background: #6fd3ff;
+  box-shadow: none;
+  animation-name: premium-prop-burst;
+  animation-duration: 760ms;
+  animation-timing-function: cubic-bezier(0.2, 1.4, 0.2, 1);
+  animation-direction: alternate;
 }
 
-.premium-effects-capybara > span:nth-child(4n)::before {
-  inset: 20%;
-  width: auto;
+.premium-effects-pig > span:nth-child(4n)::before {
+  inset: 22% 18%;
   height: auto;
-  border: 4px dashed #f4c84d;
-  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  background: #c8f1ff;
+  transform: none;
 }
 
 .premium-effects-chicken > span {
@@ -6412,7 +6446,7 @@ button.answer-tile {
 .poke-overlay.is-form-gorilla .poke-animal { --premium-pose-speed: 380ms; animation: gorilla-rattle 105ms steps(2) infinite; }
 .poke-overlay.is-form-koala .poke-animal { --premium-pose-speed: 820ms; animation: koala-wobble 260ms ease-in-out infinite alternate; }
 .poke-overlay.is-form-croc .poke-animal { --premium-pose-speed: 440ms; animation: croc-swag 360ms steps(2) infinite; }
-.poke-overlay.is-form-capybara .poke-animal { --premium-pose-speed: 420ms; animation: capy-blast 180ms ease-out infinite alternate; }
+.poke-overlay.is-form-pig .poke-animal { --premium-pose-speed: 520ms; transform-origin: 50% 88%; animation: pig-sob 260ms ease-in-out infinite alternate; }
 .poke-overlay.is-form-chicken .poke-animal { --premium-pose-speed: 320ms; animation: chicken-crash 120ms steps(2) infinite; }
 
 .monkey-stack {
@@ -6505,9 +6539,9 @@ button.answer-tile {
   to { filter: saturate(1.45) brightness(1.02); background-position: 20px -14px; }
 }
 
-@keyframes premium-capy-bg {
-  from { filter: contrast(1.08) saturate(0.95) brightness(0.8); background-position: 0 0; }
-  to { filter: contrast(1.34) saturate(1.25) brightness(1.02); background-position: 30px -20px; }
+@keyframes premium-pig-bg {
+  from { filter: saturate(1) brightness(0.8); background-position: 0 0; }
+  to { filter: saturate(1.32) brightness(1.02); background-position: -8px 34px; }
 }
 
 @keyframes premium-chicken-bg {
@@ -6525,9 +6559,16 @@ button.answer-tile {
   to { transform: translateX(5px) skewX(3deg); filter: saturate(1.6); }
 }
 
-@keyframes capy-blast {
-  from { transform: scale(0.98); filter: brightness(1); }
-  to { transform: scale(1.07); filter: brightness(1.24); }
+/* One sob per pose change: squashed on the wail, stretched on the gulp. */
+@keyframes pig-sob {
+  from { transform: translateY(3px) scale(1.06, 0.94) rotate(-1.5deg); }
+  to { transform: translateY(-7px) scale(0.97, 1.05) rotate(1.5deg); }
+}
+
+@keyframes pig-tear-fall {
+  0% { transform: translateY(-16vh) rotate(var(--premium-rotate)) scale(0.8); opacity: 0; }
+  18% { opacity: 1; }
+  100% { transform: translateY(30vh) rotate(var(--premium-rotate)) scale(1.08); opacity: 0; }
 }
 
 @keyframes chicken-crash {
