@@ -3,8 +3,17 @@
 Agent branch `agent/art` (audio-art agent; the form registration is the
 social area's, done here as the brief asked). Commits: `8e40c7a`, `8372931`
 (orchestrator checkpoints of unfinished work), `77534e0` (Sad Pig, verified),
-`6a2ee17`, `5f28cb1` (tutorial artwork checkpoint and precache entry) and
-the commits after them on this branch.
+`6a2ee17`, `5f28cb1` (tutorial artwork checkpoint and precache entry),
+`88723ec` (tutorial artwork, verified), `88758d5`, `03039be` (icon
+checkpoints) and the final icon commit that adds the icon section below.
+
+## Summary
+
+| Item | Tyson's request | Outcome | Evidence |
+| --- | --- | --- | --- |
+| U11 Sad Pig | Replace the Airhorn Capy with a fat crying pig called Sad Pig, next to the monkeys | Done and verified: new `PigFace`, full-screen rain-of-tears effect, picker order, `capybara` maps to `pig`, Dash obstacle swapped. The cry sound is the audio agent's | [Sad Pig](#u11--sad-pig-replaces-airhorn-capy), evidence below |
+| U7 art Tutorial pictures | Redo every tutorial image: higher quality, clear, personality, simple | Done and verified: new `client/tutorial-art.jsx` pictures for Gahookz, Quiz, Herd and Host; Majority Rulz keeps its old picture until its tab is removed | [Tutorials](#u7-art--tutorial-illustrations), evidence below |
+| U5 Site icon | Remove the four-colour ring around the monkey's face; keep the monkey and the background as they are | Done and verified: the ring is gone from `gahookz-monkey.svg`; the four PNGs are re-rendered from it by `npm run icons:render` and are reproducible | [Icon (U5)](#icon-u5--no-ring-around-the-monkey), evidence below |
 
 ## What changed
 
@@ -75,6 +84,74 @@ quality, make them clear, have personality, and simple."*
     switch an option on → the crowned monkey runs the room with Pause and
     Skip.
 
+### Icon (U5) — no ring around the monkey
+
+Tyson: *"remove the 4 color ring around the monkey's face. Keep the monkey's
+face and background as is."*
+
+- **What changed** — `standalone/public/icons/gahookz-monkey.svg` no longer
+  draws the cyan circle (`#06b6d4`) and the yellow and pink arcs
+  (`#facc15`, `#ec4899`) that formed the ring around the face. Nothing else
+  in the SVG moved: the dark blue-to-green gradient background, the monkey
+  (ears, head, face, eyes, nose, smile, yellow headband) and its soft drop
+  shadow are byte-for-byte the same markup as before. The change is three
+  deleted lines.
+- **How the PNGs are produced** — they are never edited by hand. The new
+  `scripts/render-icons.mjs` (`npm run icons:render`) loads the SVG into the
+  headless Chromium that Puppeteer already installs and screenshots it at each
+  size, writing `gahookz-180.png` (apple-touch-icon), `gahookz-192.png` and
+  `gahookz-512.png` (manifest, purpose `any`) and `gahookz-maskable-512.png`
+  (manifest, purpose `maskable`) into `standalone/public/icons/`.
+  - `npm run icons:render -- --check` re-renders in memory and fails if a
+    committed PNG differs, so a stale icon is detectable. Chromium's
+    rasteriser can differ by a pixel between versions, so a failure means
+    "re-render and look".
+  - `npm run icons:render -- --preview <dir>` also writes the 512 px and 48 px
+    previews and the safe-zone picture used as evidence below.
+- **Maskable safe zone** — the maskable icon is the same picture as the 512 px
+  one, on purpose: the gradient is full-bleed and the monkey already sits
+  inside the safe zone (the central circle of radius 40% of the icon, 204.8 of
+  512 units), so a launcher may crop to a circle, squircle or rounded square
+  without cutting the face. The ring that was removed sat at radius 194 with
+  a 25 unit stroke (outer edge about 206 from its own centre), that is on the
+  edge of the safe zone, so a tight crop would have trimmed it; removing it
+  also makes the icon safer to crop. This was checked three ways:
+  1. by geometry from the SVG: the farthest solid edge is the monkey's ears at
+     about 189 units from the centre, 15 units inside the zone (headband end
+     caps 162, headband top 170, head 168);
+  2. by measurement: the script finds the farthest `#111214` outline pixel in
+     the rendered maskable PNG and **fails the render if it reaches the safe
+     zone**. Result: 189.0 of 204.8 units. A one-off measurement of all four
+     PNGs gave 189.0 (512 and maskable), 188.0 (192 px) and 187.9 (180 px,
+     scaled to 512 units);
+  3. by eye: `art/icon-maskable-safe-zone.png`, left the maskable icon with the
+     safe-zone circle drawn on, right the worst crop (the safe-zone circle
+     alone). Both ears, the headband and the smile are inside it, nothing is
+     clipped.
+  The script's old note said to add maskable padding if the monkey ever left
+  the zone; it did not, so the maskable PNG needed no padding.
+- **Legibility at small sizes** — at 48 px (tab and home-screen size) the
+  monkey reads cleanly on the gradient; at 192 px the face, eyes and headband
+  are crisp. Without the ring the monkey could be a little larger in the
+  frame, but Tyson asked for the monkey and the background to stay as they
+  are, so the scale is unchanged.
+- **Where the icon is used** — the SVG is the browser-tab icon
+  (`<link rel="icon">`), the 180 px PNG is the iOS apple-touch-icon, and the
+  manifest uses the 192, 512 and maskable PNGs. The service worker precaches
+  all five files in the release cache, so the release hash changes with them;
+  the stamped `index.html`, `service-worker.js` and `vendor-bootstrap.js` are
+  committed from the final build.
+- **Regression guard** — `smoke-pwa` asserts the ring is gone (no `#06b6d4`
+  stroke, no `A194 194` arc) in addition to the existing checks that the
+  monkey and its brown fill are present and the four PNGs are valid PNGs of
+  the right size.
+- **Reproducibility check** — after the final commit's re-render, `git status`
+  shows no change to any of the four PNGs, and `--check` reports they match
+  a fresh render (see Verification). The previews `icon-512.png` and
+  `icon-48.png` were also byte-identical to the committed ones; only the
+  safe-zone picture changed, because it is now drawn by the script instead of
+  by hand.
+
 ## Art style rules followed
 
 - House style from `docs/agents/audio-art.md`: `#111214` outlines, flat
@@ -113,6 +190,21 @@ disposable servers only.
 | `npm run test:disposable -- node docs/verification/2026-09-25-update/art/capture.mjs pig` | exit 0: picker order and selection asserted at 390 and 360 px; a pig Gahook asserted (`aria-label="Sad Pig Gahook"`, 15 props) at 390 and 1280 px; a `capybara` selection answered `pig` |
 | `… capture.mjs tutorials` | exit 0: every redrawn tutorial opened from Welcome at 360, 1280 and 320 px, labelled, no horizontal overflow, no page errors |
 
+Icon (U5), run on 2026-10-02 with Node v24.13.1, each under
+`flock /tmp/gahookz-verify.lock`:
+
+| Command | Result |
+| --- | --- |
+| `npm run icons:render` (first attempt) | Chromium timed out launching ("Timed out after 30000 ms while waiting for the WS endpoint URL"; load average 11 and 125 MB free memory on the shared host). Not a code fault; no file was written |
+| `npm run icons:render` (retry) | wrote all four PNGs (20892, 21789, 98837 and 98837 bytes). `git status` afterwards: **no change** to any PNG, so the committed PNGs are reproducible from the SVG |
+| `npm run icons:render -- --preview docs/verification/2026-09-25-update/art` | same four PNGs, again unchanged; `icon-512.png` and `icon-48.png` byte-identical to the committed previews; prints `maskable safe zone: monkey outline reaches 189.0 of 204.8 units from the centre`; rewrote `icon-maskable-safe-zone.png` (now drawn by the script) |
+| `npm run icons:render -- --check` | exit 0: `Icons match a fresh render of gahookz-monkey.svg.` |
+| `npm run check` | exit 0: typecheck, 210 of 210 unit tests pass, build `release-c61f95b87b5834c5` |
+| `npm run test:disposable -- bash -c "npm run standalone:smoke:pwa && npm run standalone:smoke:onboarding && npm run standalone:smoke:information && npm run standalone:smoke:gahooks && npm run standalone:smoke:dash"` | exit 0: all five report `"ok": true` (pwa includes the new no-ring assertion); disposable server on 3199 started and stopped by its owned PID |
+
+No browser check re-captured anything under `docs/verification/2026-09-19-*`
+(`git status` showed no change there), so nothing needed restoring.
+
 New or changed assertions:
 
 - `smoke-gahooks`: forms map uses `pig: "PigFace"` and checks each form's
@@ -128,6 +220,10 @@ New or changed assertions:
   precache it; the redrawn art must have no text under 40 units.
 - `client/gahook-forms.test.ts` (new): order, legacy mapping, stored-choice
   rewrite, unreadable storage.
+- `smoke-pwa` (U5): `gahookz-monkey.svg` has no `#06b6d4` stroke and no
+  `A194 194` arc, so the ring cannot return unnoticed.
+- `scripts/render-icons.mjs` (U5): every render of the maskable PNG fails if
+  the monkey's outline reaches the safe zone (radius 204.8 of 512 units).
 
 ## Evidence
 
@@ -148,8 +244,16 @@ artwork alone at 320 px:
 [Gahookz](art/tutorial-art-overview-320.jpg), [Quiz](art/tutorial-art-quiz-320.jpg),
 [Herd](art/tutorial-art-herd-320.jpg), [Host](art/tutorial-art-host-320.jpg).
 
+Icon (U5): [512 px](art/icon-512.png), [48 px](art/icon-48.png) and
+[maskable safe zone](art/icon-maskable-safe-zone.png) (left: the icon with the
+safe-zone circle drawn on; right: the worst-case crop). The shipped files are
+`standalone/public/icons/gahookz-{180,192,512,maskable-512}.png` and
+`gahookz-monkey.svg`.
+
 Re-run the captures with
-`flock /tmp/gahookz-verify.lock npm run test:disposable -- node docs/verification/2026-09-25-update/art/capture.mjs [pig,tutorials]`.
+`flock /tmp/gahookz-verify.lock npm run test:disposable -- node docs/verification/2026-09-25-update/art/capture.mjs [pig,tutorials]`
+and the icon evidence with
+`flock /tmp/gahookz-verify.lock npm run icons:render -- --preview docs/verification/2026-09-25-update/art`.
 
 ## Known issues
 
@@ -157,3 +261,18 @@ Re-run the captures with
 - The Majority Rulz tutorial still shows its old small-text picture; it goes
   with the tab in wave 2.
 - `test:browser:desktop-ui` is load-sensitive on this host (see above).
+- Installed copies of the app may keep the old icon until the browser or
+  launcher refreshes it. The service worker precaches the icons in the
+  release cache, so a new release refetches them, but that is the web cache
+  only: what an installed home-screen or app-drawer icon shows is up to the
+  operating system (an iOS home-screen icon is fixed when the app was added),
+  and was not tested here. Removing and re-adding the app gets the new icon.
+  The icon URLs themselves are not content-hashed; only the manifest link is.
+- The icon script launches Chromium and can time out on a busy host (see the
+  Verification table); rerun it when the load drops.
+- Area guide, wiki and `docs/CHANGELOG.md` lines for U5 were not written by
+  this agent: `docs/areas/audio-art.md` does not exist on this branch and the
+  brief limited the documentation to this record. Suggested changelog line
+  under Players: "The app icon no longer has the four-colour ring around the
+  monkey's face." Under Developer: "App icons are rendered from
+  `gahookz-monkey.svg` by `npm run icons:render`."
