@@ -4,8 +4,11 @@ Agent branch `agent/art` (audio-art agent; the form registration is the
 social area's, done here as the brief asked). Commits: `8e40c7a`, `8372931`
 (orchestrator checkpoints of unfinished work), `77534e0` (Sad Pig, verified),
 `6a2ee17`, `5f28cb1` (tutorial artwork checkpoint and precache entry),
-`88723ec` (tutorial artwork, verified), `88758d5`, `03039be` (icon
-checkpoints) and the final icon commit that adds the icon section below.
+`88723ec` (tutorial artwork, verified), `88758d5`, `03039be`, `e13dd46`
+(icon checkpoints) and the final commit on this branch, which verifies the
+icon (U5) and closes this record. On 2026-10-02 a final `npm run build`
+reproduced release `release-c61f95b87b5834c5` and left the stamped
+`index.html`, `service-worker.js` and `vendor-bootstrap.js` unchanged.
 
 ## Summary
 
