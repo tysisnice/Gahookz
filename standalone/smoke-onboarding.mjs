@@ -5,6 +5,7 @@ const tutorial = fs.readFileSync(new URL("./public/client/tutorial.jsx", import.
 const social = fs.readFileSync(new URL("./public/client/social.jsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("./public/styles.css", import.meta.url), "utf8");
 const serviceWorker = fs.readFileSync(new URL("./public/service-worker.js", import.meta.url), "utf8");
+const accountPanel = fs.readFileSync(new URL("./public/client/account.jsx", import.meta.url), "utf8");
 
 function assert(value, message) {
   if (!value) throw new Error(message);
@@ -64,7 +65,11 @@ assert(joinScreen.includes("<SimplePaintEditor") && joinScreen.includes("upload 
 assert(joinScreen.includes("<AccountPanel"), "Account sign-in should be available while choosing a player name");
 assert(hostLobby.includes("<AccountPanel"), "Account sign-in should be available in the host lobby");
 assert(playerWaitingLobby.includes("<AccountPanel"), "Account sign-in should be available in the player lobby");
-assert(app.includes("returnTo") && app.includes("/auth/google/start"), "Account sign-in should preserve the current room through the Google redirect");
+// The panel moved to client/account.jsx; app.jsx keeps the three placements.
+assert(app.includes('from "./client/account.jsx"') && accountPanel.includes("export function AccountPanelView"), "The account panel should come from client/account.jsx");
+assert(accountPanel.includes("returnTo") && accountPanel.includes("/auth/google/start"), "Account sign-in should preserve the current room through the Google redirect");
+assert(accountPanel.includes("if (!status.googleAvailable && !status.devLoginAvailable) return null;"), "The panel must stay hidden when no sign-in is offered, so guests see nothing new");
+assert(accountPanel.includes("useBackToClose(true, onCancel)"), "Back must close the delete-account confirmation, not leave the room");
 
 const sentenceGroups = [...tutorial.matchAll(/sentences:\s*Object\.freeze\(\[([\s\S]*?)\]\)/g)].map((match) => stringValues(match[1]));
 assert(sentenceGroups.length === 5 && sentenceGroups.every((sentences) => sentences.length === 3), "Gahookz, Quiz, Majority Rulz, Herd, and Host tutorials should each contain exactly three explanations");

@@ -7641,6 +7641,189 @@ button.answer-tile {
   font-size: 0.85rem;
 }
 
+/* Sign-in choices. The developer sign-in only renders on a local server
+   started with GAHOOKZ_DEV_LOGIN=1, and says so in its own label. */
+.account-sign-in-options {
+  display: grid;
+  flex: 0 1 320px;
+  gap: 10px;
+  justify-items: end;
+}
+
+.account-dev-login {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  width: 100%;
+  padding: 10px;
+  border: 2px dashed #6d28d9;
+  border-radius: 14px;
+  background: #f7f3ff;
+}
+
+.account-dev-login label {
+  display: grid;
+  gap: 4px;
+}
+
+.account-dev-login label span {
+  color: #6d28d9;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.account-dev-login input {
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 2px solid #111214;
+  border-radius: 10px;
+  font: inherit;
+}
+
+.account-dev-login button {
+  align-self: end;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 2px solid #111214;
+  border-radius: 12px;
+  background: #fff;
+  color: #111214;
+  font-weight: 900;
+  box-shadow: 3px 3px 0 #111214;
+}
+
+.account-dev-login small {
+  grid-column: 1 / -1;
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.account-avatar .avatar-badge {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.account-avatar .avatar-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* What the account keeps: the saved look and the saved custom Gahooks. */
+.account-saved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.account-saved-look p {
+  font-weight: 700;
+}
+
+.account-saved-look p span {
+  color: #667085;
+}
+
+.account-saved-gahooks {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-saved-gahooks li {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 78px;
+}
+
+.account-saved-gahooks img,
+.account-saved-gahooks span {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 2px solid #111214;
+  border-radius: 12px;
+  background: #ffdf45;
+  object-fit: cover;
+  font-weight: 900;
+}
+
+.account-saved-gahooks .is-empty span {
+  border-style: dashed;
+  background: #fff;
+  color: #98a2b3;
+}
+
+.account-saved-gahooks em {
+  max-width: 100%;
+  overflow: hidden;
+  color: #475467;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-panel-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.account-delete-button {
+  margin-top: 13px;
+  padding: 8px 12px;
+  border: 2px solid #b42318;
+  border-radius: 12px;
+  background: #fff;
+  color: #b42318;
+  font-weight: 900;
+}
+
+.account-delete-button:hover,
+.account-delete-button:focus-visible {
+  background: #fef3f2;
+}
+
+/* The confirmation reuses the "Leave game?" dialog; it only needs room for
+   one more sentence and a red final button. */
+.account-delete-backdrop {
+  z-index: var(--z-modal);
+}
+
+.account-delete-dialog {
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.account-delete-dialog p {
+  line-height: 1.45;
+}
+
+.account-delete-dialog .account-delete-confirm {
+  border-color: #7a271a;
+  background: #d92d20;
+  color: #fff;
+}
+
 
 /* Last game played.
    This card is light, and it sits inside a screen whose inherited colour is
@@ -7750,6 +7933,20 @@ button.answer-tile {
 
   .account-panel-guest > div {
     flex-basis: 100%;
+  }
+
+  .account-sign-in-options {
+    flex-basis: 100%;
+    justify-items: stretch;
+  }
+
+  .account-panel-signed-in > header > div:nth-child(2) {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .account-saved-gahooks {
+    flex-wrap: wrap;
   }
 
   .account-unavailable {

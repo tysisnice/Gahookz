@@ -29,6 +29,7 @@ const buildSources = new Set([
   "client/social.jsx",
   "client/qr.jsx",
   "client/custom-gahook.jsx",
+  "client/account.jsx",
   "client/information.jsx",
   "client/controls.jsx",
   "client/history.jsx",
