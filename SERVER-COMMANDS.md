@@ -12,16 +12,19 @@ behind any of it, see `OPERATIONS-AND-ROADMAP.md`; for the standing rules, see
 
 ## The trees
 
-> **Updated 2026-09-30.** The working repository moved to
-> `/mnt/storage/syncthing/Store/Projects/gahookz`. The running containers were
-> not redeployed and still come from the old checkout; see `CLAUDE.md`,
-> "Where the repository lives".
+> **Updated 2026-10-02.** The working repository is
+> `/mnt/storage/syncthing/Store/Projects/gahookz`, and since a Tyson-approved
+> redeploy on 2026-10-02 (revision `f15af0b`) production, beta and dev all
+> run from it. See `CLAUDE.md`, "Where the repository lives".
 
 | Path | What it is | Deploy from here? |
 | --- | --- | --- |
-| `/mnt/storage/syncthing/Store/Projects/gahookz` | The working repository (source synced by Syncthing; `.git` local). Not yet connected to any container. | **Not until Tyson approves a redeploy from Store.** |
-| `/mnt/storage/syncthing/codex/2026-07-01/Gahookz` | The old working tree, kept as a backup. Dev, beta and production were started from here and still run from here. | **No new work here.** |
-| `/srv/gahookz` | Clean Git clone intended as the production release source; at `81a70d2`, not used for the last production build. | Reconcile with Tyson first. |
+| `/mnt/storage/syncthing/Store/Projects/gahookz` | The working repository (source synced by Syncthing; `.git` local). Production (`gahookz-prod`), beta and dev (`gahookz`) run from here; dev bind-mounts this tree. | **Yes — but only when Tyson asks for a deploy.** |
+| `/mnt/storage/syncthing/codex/2026-07-01/Gahookz` | The old working tree, kept as an untouched backup. | **No.** |
+| `/srv/gahookz` | Older clean clone, at `81a70d2`; not the production source. | **No.** |
+
+Rollback images from the 2026-10-02 move: `gahookz:rollback-prod-20261002`,
+`gahookz:rollback-beta-20261002`, `gahookz:rollback-dev-20261002`.
 
 Production runs under the Compose project `gahookz-prod`; development runs
 under `gahookz`. `/srv/gahookz/.env` sets `COMPOSE_PROJECT_NAME=gahookz-prod`,
@@ -76,15 +79,13 @@ curl -fsS http://127.0.0.1:3102/api/ready; echo     # look at activeRooms
 ## Development
 
 ```bash
-# The running dev container belongs to the old checkout (until a redeploy from Store).
-cd /mnt/storage/syncthing/codex/2026-07-01/Gahookz
+cd /mnt/storage/syncthing/Store/Projects/gahookz
 docker compose logs -f --tail=100 gahookz-dev
 ```
 
-The development container bind-mounts the checkout it was started from and
-rebuilds on change. Moving it to Store (`cd` to the Store repo, then
-`docker compose up -d --build gahookz-dev`) replaces the running dev
-container, so it needs Tyson's approval like any redeploy. It reports `revision: "unknown"` on purpose: the tree changes
+The development container bind-mounts the Store working tree and rebuilds on
+change, so every save there reloads `dev.gahookz.com`. Agents work in their
+worktrees and the orchestrator merges verified work into Store. It reports `revision: "unknown"` on purpose: the tree changes
 continuously, so no single commit describes it.
 
 `dev.gahookz.com` is behind an Nginx Proxy Manager access list and prompts for

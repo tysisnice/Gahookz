@@ -10,8 +10,8 @@
 >   authoritative DNS in DNS-only mode.
 > - The paths are `/srv/gahookz` (production clone) and the working
 >   repository `/mnt/storage/syncthing/Store/Projects/gahookz` (since
->   2026-09-30; the old `/mnt/storage/syncthing/codex/2026-07-01/Gahookz` is a
->   backup that the running containers still come from — see `CLAUDE.md`).
+>   2026-09-30; production, beta and dev run from it since 2026-10-02; the old
+>   `/mnt/storage/syncthing/codex/2026-07-01/Gahookz` is a backup — see `CLAUDE.md`).
 >   `/mnt/gahookz/Gahookz` below is illustrative.
 >
 > For day-to-day operation of the live server use `SERVER-COMMANDS.md`.

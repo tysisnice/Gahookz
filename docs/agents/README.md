@@ -44,10 +44,11 @@ there decides which role edits which file.
 The working repository is `/mnt/storage/syncthing/Store/Projects/gahookz`.
 Syncthing syncs its source to Tyson's other machines; `.git`, `node_modules`
 and build output stay local to this laptop. The old checkout,
-`/mnt/storage/syncthing/codex/2026-07-01/Gahookz`, is a read-only backup —
-and the running dev, beta and production containers still come from it, so
-editing Store changes no running site until Tyson approves a redeploy from
-Store (see `CLAUDE.md`, "Where the repository lives").
+`/mnt/storage/syncthing/codex/2026-07-01/Gahookz`, is a read-only backup.
+Since 2026-10-02 production, beta and dev run from the Store repository, and
+**dev bind-mounts the Store working tree**: every save there reloads
+`dev.gahookz.com` (see `CLAUDE.md`, "Where the repository lives"). That is
+another reason to do agent work in a worktree.
 
 - When an orchestrator runs agents in parallel, each agent gets its own
   worktree outside the synced folder:

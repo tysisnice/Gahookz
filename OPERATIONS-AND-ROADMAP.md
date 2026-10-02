@@ -59,8 +59,8 @@ The most important operational fact is this:
 The routine commands on the Fedora server are:
 
 ```bash
-# Development: the working repository (since 2026-09-30). The running dev
-# container still comes from /mnt/storage/syncthing/codex/2026-07-01/Gahookz.
+# Development: the working repository (since 2026-09-30); dev, beta and
+# production run from it since 2026-10-02.
 cd /mnt/storage/syncthing/Store/Projects/gahookz
 
 # Inspect everything without changing it.
@@ -393,9 +393,8 @@ docker network create gahookz-proxy
 Nginx Proxy Manager must also be attached through its persistent Compose or
 Portainer definition. A one-off `docker network connect` is not durable.
 
-Start or recreate development (from the working repository since 2026-09-30;
-recreating the dev container from here replaces the one running from the old
-checkout, so do it only with Tyson's approval):
+Start or recreate development (from the working repository; recreating the
+running dev container needs Tyson's approval):
 
 ```bash
 cd /mnt/storage/syncthing/Store/Projects/gahookz

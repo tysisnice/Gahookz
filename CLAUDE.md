@@ -78,14 +78,16 @@ Browser ──HTTPS──> Cloudflare (DNS-only) ──> router ──> Nginx Pr
   disabled.
 - **Old checkout, kept as a backup:** `/mnt/storage/syncthing/codex/2026-07-01/Gahookz`.
   Do not edit or delete it.
-- **The running containers still come from the old checkout.** Dev, beta and
-  production were all started from `/mnt/storage/syncthing/codex/2026-07-01/Gahookz`
-  (Compose working directory, checked 2026-09-30); dev hot-reloads from that
-  folder, **not** from Store. They move to Store only when Tyson approves a
-  redeploy from there. Until then, editing Store does not change any running
-  site.
+- **The running containers come from the Store repository** (since
+  2026-10-02, Tyson-approved redeploy at revision `f15af0b`): production
+  (Compose project `gahookz-prod`), beta and dev (project `gahookz`).
+  Rollback images: `gahookz:rollback-prod-20261002`,
+  `gahookz:rollback-beta-20261002`, `gahookz:rollback-dev-20261002`.
+- **Dev bind-mounts the Store working tree**, so saving a file in the Store
+  checkout reloads `dev.gahookz.com` at once. Do agent work in the worktrees
+  (`~/gahookz-agent-worktrees/`) and merge into Store only when verified.
 - `/srv/gahookz`, which older documents call the production clone, is at
-  `81a70d2` and was not used for the last production build.
+  `81a70d2` and is not the production source.
 
 ## Where the code lives
 
