@@ -147,6 +147,37 @@ try {
     assert.notEqual(counts[0], counts[2], "the pig should not fall back to the monkey");
   });
 
+  // Optional realtime soak: GAHOOKZ_AUDIO_SOAK_SECONDS=180 plays the music
+  // through every state (a transition every 20 s) and samples the JS heap
+  // after a forced garbage collection, to show the engine does not grow.
+  const soakSeconds = Number(process.env.GAHOOKZ_AUDIO_SOAK_SECONDS || 0);
+  if (soakSeconds > 0) {
+    const cdp = await page.createCDPSession();
+    const heap = async () => {
+      await cdp.send("HeapProfiler.collectGarbage");
+      return page.evaluate(() => performance.memory.usedJSHeapSize);
+    };
+    await page.evaluate(() => { window.prefs.setMusicEnabled(true); return window.audio.getAudioContext().resume(); });
+    const states = ["lobby", "prep", "live", "finale", "welcome"];
+    const samples = [];
+    for (let second = 0; second < soakSeconds; second += 20) {
+      const state = states[(second / 20) % states.length];
+      const voices = await page.evaluate(async (next) => {
+        window.audio.setGameMusicState(next);
+        const before = window.soundCount;
+        await new Promise((resolve) => setTimeout(resolve, 20000));
+        return window.soundCount - before;
+      }, state);
+      samples.push({ second: second + 20, state, voicesPer20s: voices, heapMb: Math.round((await heap()) / 1e5) / 10 });
+      console.log("  ..  " + JSON.stringify(samples[samples.length - 1]));
+    }
+    const settled = samples.slice(Math.min(5, samples.length - 1));
+    const growth = settled[settled.length - 1].heapMb - settled[0].heapMb;
+    assert.ok(growth < 2, "JS heap grew by " + growth.toFixed(1) + " MB while the music played");
+    results.push("soak " + soakSeconds + " s: heap growth " + growth.toFixed(1) + " MB");
+    console.log("  ok  realtime soak, " + soakSeconds + " s through every state: heap growth after warm-up " + growth.toFixed(1) + " MB");
+  }
+
   assert.deepEqual(pageErrors, []);
 } finally {
   await browser.close();
