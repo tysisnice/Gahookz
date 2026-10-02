@@ -25,6 +25,7 @@ import { createCareerOutbox } from "./server/career-outbox.mjs";
 import { isSyncArtifact } from "./sync-artifacts.mjs";
 import { createAdmissionController, requestAddress } from "./server/admission.mjs";
 import { accountResultLocation, createAccountService } from "./server/accounts.mjs";
+import { createAccountRoomBridge } from "./server/account-room.mjs";
 import { allActivePlayersAnswered as roomAllActivePlayersAnswered, allActivePlayersProgressReady as roomAllActivePlayersProgressReady, phaseProgressKey as roomPhaseProgressKey } from "./server/gameplay.mjs";
 import { LOCAL_CUSTOM_GAHOOK_SLOTS, customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "./server/custom-gahook.mjs";
 import { MAJORITY_AUTHOR_BONUS, buildMajorityResults } from "./server/majority.mjs";
@@ -82,7 +83,16 @@ const HOST = cleanHost(process.env.HOST) || "0.0.0.0";
 const DEV_RELOAD_ENABLED = process.env.GAHOOKZ_DEV_RELOAD === "1";
 const TRUST_PROXY = process.env.GAHOOKZ_TRUST_PROXY === "1";
 const admission = createAdmissionController({ relaxed: process.env.NODE_ENV !== "production" });
-const accountService = await createAccountService();
+// The account layer stores form and avatar ids through these, so a retired id
+// (a renamed Gahook form) maps forward on read as well as on write.
+const accountService = await createAccountService({ normaliseGahookForm, normaliseAvatarId });
+const accountRoom = createAccountRoomBridge({
+  accountService,
+  portableCustomGahook,
+  rememberCustomGahookSlot,
+  customGahookForSlot,
+  customGahookSlotCount
+});
 const INSTANCE_ID = cleanInstanceId(process.env.GAHOOKZ_INSTANCE_ID) || crypto.randomBytes(6).toString("hex");
 // The browser release hash covers files under standalone/public only, so a
 // server-only change keeps the same value. This is the separate identifier that
@@ -365,7 +375,7 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/account") {
       const account = await accountService.authenticate(req);
-      sendJson(res, 200, accountService.publicStatus(account));
+      sendJson(res, 200, accountService.clientStatus(account));
       return;
     }
 
@@ -452,6 +462,31 @@ const server = http.createServer(async (req, res) => {
         const cookie = await accountService.logout(req);
         res.setHeader("Set-Cookie", cookie);
         sendJson(res, 200, { ok: true });
+        return;
+      }
+      if (url.pathname === "/api/account/dev-login") {
+        // Answers 404 unless GAHOOKZ_DEV_LOGIN=1 in a development process.
+        await accountService.logout(req);
+        const login = await accountService.devLogin(payload?.displayName);
+        res.setHeader("Set-Cookie", login.cookie);
+        sendJson(res, 200, accountService.clientStatus(login.account));
+        return;
+      }
+      if (url.pathname === "/api/account/delete") {
+        if (!account) {
+          sendJson(res, 401, { ok: false, error: "Sign in before deleting your account.", code: "account_required" });
+          return;
+        }
+        // An explicit typed confirmation, so no stray or replayed request can
+        // delete an account by accident.
+        if (payload?.confirm !== "DELETE") {
+          sendJson(res, 400, { ok: false, error: "Confirm that you want to delete your account.", code: "confirmation_required" });
+          return;
+        }
+        const deletion = await accountService.deleteAccount(account.id);
+        for (const room of accountRoom.detachAccount(lobbies.values(), account.id)) broadcastState(room, { immediate: true });
+        res.setHeader("Set-Cookie", deletion.cookie);
+        sendJson(res, 200, { ok: true, deleted: deletion.deleted });
         return;
       }
       if (url.pathname === "/api/state") {
@@ -767,7 +802,10 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
     return updatePlayerName(room, payload);
   }
   if (pathname === "/api/player/profile") {
-    return updatePlayerProfile(room, payload);
+    return updatePlayerProfile(room, payload, context);
+  }
+  if (pathname === "/api/account/link") {
+    return linkPlayerAccount(room, payload, context);
   }
   if (pathname === "/api/player/custom-gahook") {
     return updatePlayerCustomGahook(room, payload, context);
@@ -776,7 +814,7 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
     return selectPlayerCustomGahookSlot(room, payload, context);
   }
   if (pathname === "/api/player/gahook-form") {
-    return updatePlayerGahookForm(room, payload);
+    return updatePlayerGahookForm(room, payload, context);
   }
   if (pathname === "/api/room/chat") {
     return postRoomChat(room, payload);
@@ -1207,6 +1245,7 @@ async function joinPlayer(room, payload, context = {}) {
     player.gahookForm = gahookForm;
   }
 
+  const linkingExistingGuest = Boolean(existing && account && !player.accountId);
   if (account && (!player.accountId || ["lobby", "building", "herd-writing"].includes(room.phase))) {
     player.accountId = account.id;
   }
@@ -1216,6 +1255,10 @@ async function joinPlayer(room, payload, context = {}) {
 
   player.customGahook = publicCustomGahook(player);
   rememberCustomGahookSlot(player, player.customGahookSlot, player.customGahook);
+  // Slot 0 was restored above; any other saved slot is loaded here, and a
+  // guest who signed in from this room has their drawings merged both ways.
+  if (!existing && accountView) accountRoom.restoreSavedGahooks(room, player, accountView);
+  if (linkingExistingGuest) await accountRoom.link(room, player, account);
   player.connected = true;
   player.lastSeenAt = Date.now();
   room.players[player.id] = player;
@@ -1233,6 +1276,7 @@ async function joinPlayer(room, payload, context = {}) {
   // The joining device usually already holds a live stream under this
   // credential, so it may be the player an overdue host-away was waiting for.
   reconcileHostPresence(room);
+  accountRoom.rememberProfile(room, player, account);
   return { ok: true, player: publicPlayer(room, player) };
 }
 
@@ -2207,7 +2251,7 @@ function updatePlayerName(room, payload) {
   return { ok: true, player: publicPlayer(room, player) };
 }
 
-function updatePlayerProfile(room, payload) {
+function updatePlayerProfile(room, payload, context = {}) {
   const player = getPayloadPlayer(room, payload);
   const name = cleanText(payload?.name, 24);
   if (!player) {
@@ -2234,6 +2278,7 @@ function updatePlayerProfile(room, payload) {
   });
 
   broadcastState(room, { immediate: true });
+  accountRoom.rememberProfile(room, player, context.account);
   return { ok: true, player: publicPlayer(room, player) };
 }
 
@@ -2271,9 +2316,11 @@ async function updatePlayerCustomGahook(room, payload, context = {}) {
   // An account entitlement above the local slots is only reachable when the
   // account saved it, so persistence stays account-gated while the two local
   // slots keep working with no sign-in at all.
+  let persisted = false;
   if (accountMatches && requestedSlot < (accountService.publicStatus(account).account?.customGahookSlots || 0)) {
     try {
       await accountService.saveCustomGahook(account.id, requestedSlot, portableCustomGahook(room, customGahook));
+      persisted = true;
     } catch (error) {
       player.customGahook = previous;
       rememberCustomGahookSlot(player, requestedSlot, previous);
@@ -2283,7 +2330,9 @@ async function updatePlayerCustomGahook(room, payload, context = {}) {
   }
   pruneRoomMedia(room);
   broadcastState(room, { immediate: true });
-  return { ok: true, customGahook: publicCustomGahook(player), slot: requestedSlot, slotCount, slots: publicCustomGahookSlots(player), persisted: accountMatches, gahookForm: normaliseGahookForm(player.gahookForm) };
+  // True only when the account copy was actually written, not merely because
+  // the player is signed in.
+  return { ok: true, customGahook: publicCustomGahook(player), slot: requestedSlot, slotCount, slots: publicCustomGahookSlots(player), persisted, gahookForm: normaliseGahookForm(player.gahookForm) };
 }
 
 async function selectPlayerCustomGahookSlot(room, payload, context = {}) {
@@ -2320,6 +2369,26 @@ async function selectPlayerCustomGahookSlot(room, payload, context = {}) {
   pruneRoomMedia(room);
   broadcastState(room, { immediate: true });
   return { ok: true, customGahook: publicCustomGahook(player), slot, slotCount, slots: publicCustomGahookSlots(player) };
+}
+
+// Signing in from inside a room (the account panel calls this after the
+// developer sign-in or the Google redirect) attaches the account to the seat
+// this device already holds, without a rejoin.
+async function linkPlayerAccount(room, payload, context = {}) {
+  const account = context.account;
+  if (!account) return { ok: false, error: "Sign in first.", code: "account_required" };
+  const player = getPayloadPlayer(room, payload);
+  if (!player) return { ok: true, linked: false };
+  if (player.accountId === account.id) return { ok: true, linked: true, alreadyLinked: true };
+  // Career results are attributed when a game ends, so a seat that already
+  // belongs to another account keeps it until the room is back in its lobby.
+  if (player.accountId && !["lobby", "building", "herd-writing"].includes(room.phase)) {
+    return { ok: false, error: "This seat is linked to another account until the game ends." };
+  }
+  const merged = await accountRoom.link(room, player, account);
+  pruneRoomMedia(room);
+  broadcastState(room, { immediate: true });
+  return { ok: true, linked: true, ...merged, slots: publicCustomGahookSlots(player) };
 }
 
 // How many custom Gahooks this player may keep.
@@ -2406,7 +2475,7 @@ function getSocialActor(room, payload) {
   return { ok: false, error: "Join the room before using its chat or whiteboard." };
 }
 
-function updatePlayerGahookForm(room, payload) {
+function updatePlayerGahookForm(room, payload, context = {}) {
   const player = getPayloadPlayer(room, payload);
   if (!player) {
     return { ok: false, error: "Join the game before choosing a Gahook." };
@@ -2417,6 +2486,7 @@ function updatePlayerGahookForm(room, payload) {
   }
   player.gahookForm = requestedForm;
   broadcastState(room, { immediate: true });
+  accountRoom.rememberProfile(room, player, context.account);
   return { ok: true, gahookForm: player.gahookForm };
 }
 
