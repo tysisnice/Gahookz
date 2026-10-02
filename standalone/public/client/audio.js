@@ -602,12 +602,21 @@ function getSfxBus(ctx) {
   return bus;
 }
 
+// One trim for every effect in this palette, set by measurement so that they
+// sit level with the (unchanged) Gahook sounds instead of jumping out above
+// them. A trimmed channel passed back in (the cheer inside the win fanfare)
+// is not trimmed twice.
+const SFX_LEVEL = 0.65;
+
 function sfxChannel(channel) {
-  if (channel?.ctx) return channel;
-  const ctx = getAudioContext();
+  if (channel?.trimmed) return channel;
+  const ctx = channel?.ctx || getAudioContext();
   if (!ctx) return null;
-  ctx.resume?.();
-  return { ctx, destination: getSfxBus(ctx) };
+  if (!channel?.ctx) ctx.resume?.();
+  const trim = ctx.createGain();
+  trim.gain.value = SFX_LEVEL;
+  trim.connect(channel?.destination || getSfxBus(ctx));
+  return { ctx, destination: trim, trimmed: true };
 }
 
 function envelope(ctx, destination, start, peak, attack, decay) {
@@ -935,7 +944,7 @@ export function playCountdownTick(secondsLeft, channel, at) {
   if (!ch) return [];
   const pitch = secondsLeft >= 3 ? 1050 : secondsLeft === 2 ? 1180 : 1400;
   const start = at ?? ch.ctx.currentTime + 0.01;
-  return woodblock(ch.ctx, ch.destination, start, pitch, 0.13 + (3 - Math.min(3, secondsLeft)) * 0.025);
+  return woodblock(ch.ctx, ch.destination, start, pitch, 0.2 + (3 - Math.min(3, secondsLeft)) * 0.03);
 }
 
 /** The reveal: "correct" sparkles upward, "wrong" is a friendly womp, "neutral" a soft ta-da. */
@@ -992,7 +1001,7 @@ export function playAnswerOohSound(count = 1, channel) {
   const start = ch.ctx.currentTime + 0.015;
   for (let index = 0; index < cueCount; index += 1) {
     const step = Math.min(ladder.length - 1, (window.gahookzAnswerPopCount || 0) + index);
-    pop(ch.ctx, ch.destination, start + index * 0.07, ladder[step], 0.12);
+    pop(ch.ctx, ch.destination, start + index * 0.07, ladder[step], 0.16);
   }
   window.gahookzAnswerPopCount = (window.gahookzAnswerPopCount || 0) + cueCount;
 }
