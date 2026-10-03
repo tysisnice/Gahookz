@@ -66,24 +66,33 @@ client.
 
 ## Database and account data
 
-`infra/postgres/001_accounts.sql` creates:
+The server applies every numbered file in `infra/postgres/` once, in order,
+under an advisory lock, and records it in `schema_migrations` (each file stays
+idempotent). `001_accounts.sql` creates:
 
-- accounts and provider identities keyed by Google `sub`;
+- accounts and provider identities keyed by the provider subject (Google `sub`);
 - hashed opaque sessions with expiry;
 - twelve career aggregates plus idempotent per-match result rows;
 - store-neutral entitlement grants;
 - up to twelve numbered custom-Gahook configurations.
 
-Every account starts with one cloud custom-Gahook slot. Active
-`custom_gahook_slot` entitlement quantities add slots, capped at twelve. A
-future store webhook must verify the store signature and transaction server-side
-before writing an entitlement; the client must never grant one.
+`002_account_profiles.sql` adds the saved player look (name, preset or drawn
+picture, Gahook form) and clears any email address: since 2026-10 Gahookz
+neither requests nor stores one.
+
+Every account keeps two cloud custom-Gahook slots, the same two a guest can
+draw in a room. Active `custom_gahook_slot` entitlement quantities add slots,
+capped at twelve. A future store webhook must verify the store signature and
+transaction server-side before writing an entitlement; the client must never
+grant one.
 
 Back up PostgreSQL on a tested schedule, encrypt backups, and rehearse restore.
-Account deletion should run as one database transaction by deleting the account
-row; foreign keys cascade identities, sessions, stats, entitlements, cosmetics,
-and match rows. Add owner-approved privacy/retention terms and a user-facing
-export/deletion workflow before public account promotion.
+`POST /api/account/delete` (signed in, same-origin, `confirm: "DELETE"`) deletes
+the account row in one statement; foreign keys cascade identities, sessions on
+every device, stats, entitlements, saved look, custom Gahooks and match rows,
+and the "Delete my account" button in the account panel calls it. A data-export
+workflow and owner-approved retention terms are still needed before public
+account promotion. The plan is in `docs/product/accounts-plan.md`.
 
 ## Admission and transport controls
 
