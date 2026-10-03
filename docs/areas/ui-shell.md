@@ -89,233 +89,285 @@ Mounted by the shell but owned elsewhere:
 There is no router library. `getRoute()` in `app.jsx` reads `location.pathname`
 and returns `{ mode, code }`; `App` keeps it in state and re-reads it on every
 `popstate`. `navigateTo(path)` is `history.pushState` plus a synthetic
-`popstate`, so one code path handles Back, links and programmatic moves.
+`popstate`, so Back, links and code all take one path.
 
 | URL | `mode` | Notes |
 | --- | --- | --- |
-| `/` | `welcome` | `?room=CODE` prefills the code, `&locked=1` asks for the password (`buildWelcomePath`) |
-| `/<CODE>` | `room` | Canonical room URL (`buildRoomPath`). Four letters, any case; the code is normalised to upper case |
-| `/host/<CODE>`, `/player/<CODE>`, `/<CODE>/host`, `/<CODE>/player` | `room` | Legacy shapes, still routed. The role comes from the server, not the URL |
-| `/information`, `/legal` | `information`, `legal` | Static hubs, no room, reachable offline and mid-outage |
+| `/` | `welcome` | `?room=CODE` prefills the code; `&locked=1` asks for the password (`buildWelcomePath`) |
+| `/<CODE>` | `room` | Canonical (`buildRoomPath`). Four letters, any case, normalised to upper case |
+| `/host/<CODE>`, `/player/<CODE>`, `/<CODE>/host`, `/<CODE>/player` | `room` | Legacy shapes, still routed; the URL never chooses the role, the server does |
+| `/information`, `/legal` | `information`, `legal` | Static hubs. They still render during an outage |
 
-`serveStatic` in `server.js` must list the same shapes and serve `index.html`
-for them. Add a route in both places or a reload will 404. `App` renders one of
-`InformationHub`, `LegalHub`, `WelcomeScreen`, `RoomLoading` (route code not yet
-in the store), `HostMode` (`lobby.isHost`) or `PlayerView`. The document title
-follows the mode.
+`serveStatic` in `server.js` lists the same shapes and serves `index.html` for
+them, so a new route needs both. `App` renders `InformationHub`, `LegalHub`,
+`WelcomeScreen`, `RoomLoading` (the route's code is not yet in the store),
+`HostMode` (`lobby.isHost`) or `PlayerView`.
 
 ### How state reaches the screen
 
 ```text
-POST /api/*  --api()-->  server  --SSE "state" / POST /api/state--> useEvents --> reducer --> useSelector
+api() POST /api/*  -->  server  -->  SSE "state" and POST /api/state  -->  useEvents  -->  reducer  -->  useSelector
 ```
 
-- **`api(path, payload, options)`** wraps `createApiClient` from `client/net.ts`.
-  Always `POST` JSON, never a query string; it adds `code` and `playerKey`,
-  returns `{ ok, ... }` (never throws), and after a successful non-`/api/room`
-  call asks `useEvents` for a fresh snapshot unless `refresh: false`.
-- **`useEvents(mode, code, playerKey)`** runs once per room. It opens the live
-  stream with `createLiveConnection` (a single-use ticket, one stream, retry
-  after 1.5 s), fetches `POST /api/state` once, and feeds both into
-  `createSnapshotGate`, which drops snapshots at or below the applied
-  `stateVersion`. Recovery polling only starts after 25 s of silence (the
-  server heartbeat is 15 s) and on returning to a hidden tab. A missing room or
-  a ban navigates to `/?room=CODE`; a locked room retries with the saved
-  password first.
-- **`describeSnapshotCompatibility`** compares the snapshot's schema version
-  with `SNAPSHOT_SCHEMA_VERSION` (1) so a deploy in progress shows an
-  explanation instead of a half-drawn room.
-- **`reducer`** (one Redux store, `createStore(reducer)`) holds `connected`,
-  `connectionError`, `error` (the toast) and `lobby` (the last snapshot merged
-  over `emptyLobby`). `SNAPSHOT` also updates the server clock offset used by
-  every countdown and keeps fresh local pokes and optimistic answers so a
-  slow snapshot does not erase them. Components read with `useSelector`.
-- **`client/net.ts`** is the browser's only network boundary. Everything
-  ambient (`fetch`, `EventSource`, timers) is injected, so `net.test.ts` tests
-  ordering, reconnects and "exactly one stream" without a browser. Exports:
-  `createApiClient`, `createLiveConnection`, `createSnapshotGate`,
-  `describeSnapshotCompatibility`, `connectionMessage`, `nextClockOffset`,
-  `redactCredentials` and the `*Like` interfaces. Systems shares the file.
+- **`api(path, payload, options)`** wraps `createApiClient` (`client/net.ts`).
+  Always a `POST`, never a query string; it adds `code` and `playerKey`, never
+  throws, and returns `{ ok, ... }`. After a successful non-`/api/room` call it
+  asks `useEvents` for a fresh snapshot, unless `refresh: false`.
+- **`useEvents(mode, code, playerKey)`** runs once per room: one stream from
+  `createLiveConnection` (single-use ticket, reconnect after 1.5 s) plus a first
+  `POST /api/state`, both through `createSnapshotGate`, which drops any snapshot
+  at or below the applied `stateVersion`. A recovery snapshot is fetched only
+  after 25 s of silence (the server heartbeat is 15 s) or when a hidden tab
+  returns. A missing room or a ban goes to `/?room=CODE`; a locked room first
+  retries with the password this tab holds.
+- **`describeSnapshotCompatibility`** checks the snapshot's schema version
+  against `SNAPSHOT_SCHEMA_VERSION` (1), so a deploy in progress explains itself
+  instead of drawing half a room.
+- **`reducer`** (one Redux store) holds `connected`, `connectionError`, `error`
+  (the toast) and `lobby` (the last snapshot over `emptyLobby`). `SNAPSHOT` also
+  updates the server clock offset used by countdowns and keeps fresh local pokes
+  and optimistic answers a slow snapshot would erase. Components use `useSelector`.
+- **`client/net.ts`** is the only network boundary. `fetch`, `EventSource` and
+  timers are injected, so `net.test.ts` covers ordering, reconnects and "exactly
+  one stream" in plain `node --test`. Systems shares the file.
 
-Identity lives in `localStorage`: `gahookz-client-key` is the device's
-`playerKey` (`getClientKey`), `gahookz-last-join` the last name and picture.
-Room passwords are kept per room by `saveRoomPassword` and a `?pwd=` in the URL
-is read once and removed from the address bar.
+Identity is local: `gahookz-client-key` in `localStorage` is the device's
+`playerKey` (`getClientKey`), `gahookz-last-join` the last name and picture, and
+room passwords live in `sessionStorage` per room. A `?pwd=` in the URL is read
+once and removed from the address bar.
 
 ### The overlay system and z-index scale
 
-Everything that floats over the page uses one scale, defined as custom
-properties at the top of `styles.css`. Use a token, never a bare number, for
-anything `fixed` or portalled to `<body>`. Small local numbers (0 to 5) inside
-one component stay local.
+Everything that floats over the page uses one scale, custom properties at the
+top of `styles.css`. Use a token, never a bare number, for anything `fixed` or
+portalled to `<body>`; local numbers 0 to 5 inside one component stay local.
 
 | Token | Value | Used by |
 | --- | --- | --- |
-| `--z-chat` | 40 | Floating room chat (`.waiting-room-social`) |
-| `--z-notice` | 44 | Host-presence notices (`.host-presence-layer`, pointer events off) |
+| `--z-chat` | 40 | Floating room chat |
+| `--z-notice` | 44 | Host-presence notices (pointer events off) |
 | `--z-popover` | 48 | `InfoTip` bubbles |
-| `--z-menu` | 50 | Quick menus and the phone sheet backdrop, player-card action menus |
-| `--z-modal` | 60 | Lobby rules, Settings, force start, tutorials, creation dialogs, account delete |
+| `--z-menu` | 50 | Quick menus and sheet backdrop, player-card action menus |
+| `--z-modal` | 60 | Lobby rules, Settings, force start, tutorials, creation dialogs |
 | `--z-gahook` | 70 | Jump scares, Counter Gahook prompt, host mini Gahooks |
 | `--z-arena-reactions` | 88 | 1v1 crowd reactions (`client/arena.css`) |
 | `--z-arena` | 94 | 1v1 arena overlay (`client/arena.css`) |
-| `--z-confirm` | 96 | "Leave game?", so it shows over the arena too |
+| `--z-confirm` | 96 | "Leave game?", visible over the arena too |
 | `--z-toast` | 100 | Error and status toasts |
 
-Conventions every overlay follows:
-
-- Portal to `document.body` (`window.ReactDOM.createPortal`), so no ancestor
-  can clip or re-stack it.
-- Freeze the page with `useScrollLock(active)` (`useModalBodyLock` in
-  `app.jsx` is an alias). The lock is reference-counted, so a dialog opened from
-  the phone sheet does not reset the scroll position when either closes.
-- Register with `useBackToClose(open, onClose)` (next section) and use the
-  returned `isTopmost()` in Escape and outside-click handlers.
-- Focus moves inside on open and returns to the trigger on close.
+Every overlay: portals to `document.body`; freezes the page with
+`useScrollLock(active)` (reference-counted, so a dialog opened from the phone
+sheet does not reset scroll; `useModalBodyLock` in `app.jsx` is an alias);
+registers with `useBackToClose` and uses the returned `isTopmost()` in its
+Escape and outside-click handlers; moves focus in on open and back to the
+trigger on close.
 
 ### The Back-button contract
 
-Room URLs are one URL, so menus and dialogs used to be invisible to history and
-Back dropped players out of the room. `client/back-stack.ts` (pure, tested with
-a fake history in `back-stack.test.ts`) and `client/history.jsx` fix that:
+A room is one URL, so menus and dialogs were invisible to history and Back
+dropped players out of the room. `client/back-stack.ts` (pure, tested with a fake
+history in `back-stack.test.ts`) and `client/history.jsx` give each open overlay
+one history entry above one "guard" entry for the room:
 
 ```text
 [ ... | /CODE base | /CODE guard | /CODE overlay 1 | /CODE overlay 2 ]
 ```
 
-- **`useBackToClose(open, onClose)`**: while `open`, Back calls `onClose`.
-  Closing any other way consumes the entry with `history.go()`, so history
-  never grows. Returns a stable `isTopmost()`. Wired into the three menus,
-  Settings, Lobby rules, the force-start confirm, How to play, the custom Gahook
-  creator, both drawing editors, profile editing, the party view and the host's
-  "join as player" form.
-- **`<LeaveGameGuard active onLeave />`**: mounted once by `App` while the
-  person is *in* a room (the host or a joined player; not on the join form).
-  Back with nothing open shows "Leave game? / Are you sure?" with No (focused)
-  and Yes. Yes calls `navigateTo("/")`, exactly like Exit Lobby. No restores the
-  guard entry from inside the tap.
-- **Why no re-push without a tap.** Chrome skips history entries a page added
-  without a user activation, so every push happens inside the tap that opened
-  something (or the tap on No). A second Back while the prompt shows leaves the
-  room.
-- Entries carry only `{ gahookzBack: { path, depth } }`, never which overlay made
-  them; the stack reconciles the browser to the number it wants. A close and an
-  open in the same tick cancel out. Changing page forgets the layers without
-  calling their `onBack`.
-- `createBackStack` exports `open`, `close`, `isTop`, `guard`, `restoreGuard`,
-  `wanted` and `dispose`; `BACK_STACK_MARK` names the history-state key.
+- **`useBackToClose(open, onClose)`**: while `open`, Back calls `onClose`. Closing
+  any other way consumes the entry with `history.go()`, so history never grows.
+  Wired into the three menus, Settings, Lobby rules, the force-start confirm,
+  How to play, the custom Gahook creator, the drawing editors, profile editing,
+  the party view and the host's "join as player" form.
+- **`<LeaveGameGuard active onLeave />`**: mounted once by `App` while the person
+  is in a room (the host or a joined player, not the join form). Back with nothing
+  open asks "Leave game? / Are you sure?" with No (focused) and Yes. Yes is
+  `navigateTo("/")`, like Exit Lobby; No restores the guard entry.
+- **Pushes happen only inside a tap.** Chrome skips history entries added without a
+  user activation, so a second Back while the prompt shows leaves the room.
+- Entries carry only `{ gahookzBack: { path, depth } }`; the stack reconciles the
+  browser to the count it wants, and a close plus an open in one tick cancel out.
+  Changing page forgets the layers without calling `onBack`. `createBackStack`
+  exports `open`, `close`, `isTop`, `guard`, `restoreGuard`, `wanted`, `dispose`.
 
 ### Menus
 
 `QuickMenu` (`client/controls.jsx`) is the shell of the host, player and join
-menus. Its trigger is a `<summary>` inside a `<details>` that React controls,
-so the old styles and tests keep their hooks. It switches presentation with
-`useMediaQuery(QUICK_MENU_SHEET_QUERY)`, where `QUICK_MENU_SHEET_QUERY` is
-`(max-width: 720px), (max-height: 560px)`:
+menus. Its trigger is a `<summary>` in a React-controlled `<details>`, so old
+styles and tests keep their hooks. `useMediaQuery(QUICK_MENU_SHEET_QUERY)`, where
+`QUICK_MENU_SHEET_QUERY` is `(max-width: 720px), (max-height: 560px)`, picks:
 
-- **Sheet** (phones, short landscape): a portalled `role="dialog"
-  aria-modal="true"` over `.quick-menu-backdrop`, scroll lock, its own
-  scrolling, a close button that takes focus, Tab trapped inside.
-- **Dropdown** (wide): the same children under the button, closed by outside
-  pointer-down, Escape or Back, capped to the window height.
-- `children` may be `({ close }) => ...`; `close({ restoreFocus: false })` is for
-  an action that opens another screen. Contents stay mounted while closed, so a
-  dialog opened from the menu keeps its state. `PlayerView` owns the Settings
-  dialog for the player menu for that reason.
+- **Sheet** (phones, short landscape): a portalled `role="dialog" aria-modal="true"`
+  over `.quick-menu-backdrop`, scroll lock, its own scrolling, a close button that
+  takes focus, Tab trapped inside.
+- **Dropdown** (wide): the same children under the button, closed by an outside
+  pointer-down, Escape or Back.
 
-`HostQuickMenu`, `PlayerQuickMenu` and `JoinQuickMenu` in `app.jsx` supply the
-items. The host reaches personal switches through Lobby rules (ui-lobby); a
-player reaches them through `PlayerSettingsDialog`.
+`children` may be `({ close }) => ...`; `close({ restoreFocus: false })` is for an
+action that opens another screen. Contents stay mounted while closed, so a
+dialog opened from the menu keeps its state (`PlayerQuickMenu` renders
+`PlayerSettingsDialog` inside its children for that reason). Hosts reach the
+personal switches through Lobby rules (ui-lobby), players through Settings.
 
 ### Tooltips
 
-`InfoTip` is a real `<button aria-expanded aria-describedby>` plus a
-`role="note"` bubble that stays in the tree (hidden) so a screen reader can read
-it. Hover and focus show it; a click pins it, and Escape or a tap elsewhere
-unpins. `placeTipBubble(bubble, anchor, align)` positions it in viewport
-coordinates with `position: fixed`: above by default, below when there is more
-room, clamped 8 px (`TIP_EDGE_MARGIN`) inside the screen at any width, then
-corrected for any transformed ancestor by measuring where it landed. It re-runs
-on resize and on any scroll, so a scrolling dialog cannot strand it.
+`InfoTip` is a `<button aria-expanded aria-describedby>` plus a `role="note"`
+bubble that stays in the tree, hidden, so a screen reader can read it. Hover and
+focus show it, a click pins it, Escape or a tap elsewhere unpins it.
+`placeTipBubble(bubble, anchor, align)` places it in viewport coordinates
+(`position: fixed`, so a scrolling dialog cannot clip it): above by default, below
+when there is more room, clamped 8 px inside the screen at any width, then
+corrected for a transformed ancestor by measuring where it landed. It re-runs on
+resize and on any scroll.
 
 ### Preferences
 
-All local to the device (no account, no server). `client/preferences.jsx` keeps
-three switches in `localStorage` and mirrors them onto `<html>`:
+Local to the device; no account, no server. `client/preferences.jsx` keeps three
+switches in `localStorage` and mirrors them onto `<html>`:
 
 | Preference | Key | Effect |
 | --- | --- | --- |
-| Mute | `gahookz-effects-muted` | `html.gahookz-muted`; suspends the audio context, cancels speech and custom audio |
+| Mute | `gahookz-effects-muted` | `html.gahookz-muted`; suspends audio, cancels speech |
 | Reduce effects | `gahookz-effects-reduced` | `html.gahookz-reduced-effects` |
-| Music | `gahookz-music-off` (stored inverted, so music is on by default) | `MUSIC_EVENT`, which `client/audio.js` follows |
+| Music | `gahookz-music-off` (inverted: on by default) | `MUSIC_EVENT`, followed by `client/audio.js` |
 
-`effectsReduced()` is true if muted, preferred or the system reports
-`prefers-reduced-motion`. Each preference has a getter, a setter, a
-`use...Preference` hook and a `CustomEvent`, so every switch on screen stays in
-step. CSS keys off the classes, not off the hooks.
+`effectsReduced()` is true if muted, preferred, or the system reports
+`prefers-reduced-motion`. Each has a getter, setter, `use...Preference` hook and
+`CustomEvent`, so every switch on screen stays in step.
 
 ### PWA shell
 
 `index.html` loads the stylesheets and an import map (React and Redux are
-vendored under `vendor/`; `react-shim.js`, `react-dom-client-shim.js` and
-`use-sync-selector.js` bridge the import map), then `vendor-bootstrap.js`, which
-registers `/service-worker.js`, captures `beforeinstallprompt` and imports
-`/app.js`. `manifest.webmanifest` is `display: standalone`, scope `/`, with
-192, 512 and maskable icons.
+vendored in `vendor/`, bridged by the `*-shim.js` files and
+`use-sync-selector.js`), then `vendor-bootstrap.js`, which registers
+`/service-worker.js`, captures `beforeinstallprompt` and imports `/app.js`.
+`manifest.webmanifest` is `display: standalone`, scope `/`, with 192, 512 and
+maskable icons.
 
-`service-worker.js` precaches `SHELL_ASSETS` into `gahookz-shell-<release>` on
-install and deletes older `gahookz-shell-*` caches on activate. Fetch rules:
-`/api/*`, `/events` and media are never cached; navigations are network-first
-with `/index.html` as the offline fallback; assets with `?v=` are network-first
-with a cache fallback; the rest is cache-first. The release hash comes from the
-build and is stamped into these three tracked files by `build-client.mjs`; never
-hand-edit it. See [platform.md](platform.md) for the stamping rules.
+`service-worker.js` precaches `SHELL_ASSETS` into `gahookz-shell-<release>` and
+deletes older `gahookz-shell-*` caches on activate. `/api/*`, `/events` and media
+are never cached; navigations are network-first with `/index.html` as the offline
+fallback; `?v=` assets are network-first with a cache fallback; the rest is
+cache-first. The release hash is stamped into `index.html`, `service-worker.js`
+and `vendor-bootstrap.js` by the build; never hand-edit it. Stamping rules:
+[platform.md](platform.md).
 
 ### Breakpoints
 
-`styles.css` has no breakpoint tokens; media queries are written per component.
-The ones actually used (`grep -o '@media[^{]*' styles.css | sort | uniq -c`),
-most common first:
-
-| Query | Count | Typical use |
-| --- | --- | --- |
-| `(prefers-reduced-motion: reduce)` | 7 | Stop animation |
-| `(max-width: 760px)` | 4 | Main phone layout |
-| `(min-width: 761px) and (max-width: 920px)` | 4 | Tablet |
-| `(max-width: 640px)` | 3 | Narrow phone adjustments |
-| `(max-width: 920px)`, `(max-width: 560px)`, `(max-width: 360px)` | 2 each | Tablet, small phone, tiny phone (top bar shrinks) |
-| `(min-width: 1360px)` | 2 | Wide desktop |
-| `(max-width: 720px), (max-height: 560px)` | 1 | Menu sheet (mirrors `QUICK_MENU_SHEET_QUERY`) |
-| `(max-width: 900px) and (max-height: 560px)` | 1 | Short landscape |
-| `(min-width: 921px)`, `1100px`, `1600px` | 1 each | Desktop steps |
-| `print` | 1 | Printable pages |
-
-Plus single-use `max-width` queries at 860, 840, 580 and 520 px.
+No tokens; each component writes its own media queries. Counts from
+`grep -o '@media[^{]*' styles.css | sort | uniq -c | sort -rn`:
+`prefers-reduced-motion: reduce` (7); `max-width` 760 (4), 640 (3), 920 (2), 560
+(2), 360 (2, the top bar shrinks), and one each of 1250, 1180, 900, 860, 840, 720,
+580, 520, 480, 380; `min-width: 761px` to `920px` (4), 1360 (2), and one each of
+921, 1100, 1600; two height-aware queries (`max-width: 900px and max-height:
+560px`, `max-width: 640px, max-height: 520px`); and `print` (the Information
+page). The menu sheet breakpoint is not in CSS: `QUICK_MENU_SHEET_QUERY` is
+evaluated in JavaScript. Check phone widths 320, 360 and 390, landscape 844 x 390,
+and desktop 1280.
 
 ### Accessibility conventions
 
 - Switches are `role="switch"` with `aria-checked` and a visible On/Off.
-- Dialogs are `role="dialog" aria-modal="true" aria-labelledby`; the Leave
-  prompt is `role="alertdialog"` and focuses its safe answer, No.
-- Escape closes only the topmost overlay (`isTopmost()`); Tab is trapped in
-  sheets and the Leave prompt.
-- Toasts are `role="status"`, load failures `role="alert"`, the join preview
-  `aria-live="polite"`. Icon-only buttons carry an `aria-label`.
-- Never rely on hover: tips open on focus and tap too.
+- Dialogs are `role="dialog" aria-modal="true" aria-labelledby`; the Leave prompt
+  is `role="alertdialog"` and focuses its safe answer, No.
+- Escape closes only the topmost overlay; Tab is trapped in sheets and the prompt.
+- Toasts are `role="status"`, load failures `role="alert"`; icon-only buttons
+  carry an `aria-label`. Nothing depends on hover: tips open on focus and tap.
 - Motion respects `prefers-reduced-motion` and `html.gahookz-reduced-effects`.
 
 ## Invariants
 
-_Pending._
+- **Guest play never needs an account.** Nothing in the frame, the menus or the
+  join path may ask for sign-in; accounts only add extras (`client/account.jsx`).
+- **One overlay stack.** Use the `--z-*` tokens, the shared scroll lock and
+  `useBackToClose`; never a bare large `z-index` and never a second body lock.
+- **Escape and Back close one layer at a time**, the topmost first, and focus
+  returns to the trigger. Leaving a room by Back is always confirmed.
+- **Tooltips, menus and sheets stay fully inside the viewport at 320 px wide.**
+- **Credentials stay out of URLs and logs.** `api()` and `fetchSnapshot` use
+  `POST` bodies; `redactCredentials` exists for anything that echoes a payload.
+- **A snapshot the client cannot render must explain itself**, not half-draw.
+- **The release hash is never hand-edited**, and the three stamped files are
+  committed after a final `npm run build`.
+- **Generated files** (`app.js`, `client/*.js` except `audio.js` and
+  `gahook-forms.js`, `release.json`) are build output: edit `.jsx`/`.ts`.
 
 ## Tests
 
-_Pending._
+Run under the shared lock with Node 24 (`PATH=/usr/bin:$PATH`, `node --version`
+must say v24). The ui-shell profile, plus the navigation harness:
+
+```bash
+flock /tmp/gahookz-verify.lock npm run check
+flock /tmp/gahookz-verify.lock npm run test:disposable -- bash -c "npm run standalone:smoke:layout && npm run standalone:smoke:pwa && npm run standalone:smoke:desktop-ui && npm run standalone:smoke:onboarding"
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:browser:navigation
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:browser:mobile
+```
+
+- **Unit:** `back-stack.test.ts` (the Back-stack rules against a fake history) and
+  `net.test.ts` (ordering, reconnects, one stream). `npm run check` runs both.
+- **Source-text smokes** (`layout`, `pwa`, `onboarding`, `desktop-ui`) assert that
+  structures, strings and shell stamps exist; they do not prove the screen looks
+  right. When you legitimately move code they describe, update the assertion.
+- **`browser-navigation.mjs`** drives Chromium at 320x568, 360x740, 390x844 and
+  1280x800: tooltips stay 8 px inside, pill sizes, one guard entry per room, Back
+  closes one layer at a time, Leave game? No/Yes/Escape, the phone sheet over the
+  chat, the desktop dropdown, focus return. **`browser-mobile-ui.mjs`** measures
+  phone, short-landscape and desktop geometry for the lobby and game screens.
+
+**Taking screenshots.** A build does not verify a layout, so look at one. Both
+harnesses refuse anything but `http://127.0.0.1:3199` and create their rooms
+over the API (`POST /api/room`, `/api/player/join`). They open one
+`createBrowserContext()` per player, `setViewport({ width, height, isMobile,
+hasTouch, deviceScaleFactor: 2 })`, and seed `gahookz-client-key` plus
+`gahookz-how-to-play-seen-v2-<mode>` in `localStorage` so no tutorial covers the
+screen. To capture a new screen, copy `pageFor` and `capture` from
+`browser-navigation.mjs` into a `standalone/browser-<topic>.mjs` and run it with
+`npm run test:disposable -- node standalone/browser-<topic>.mjs`. Phone sizes
+are 390x844 and 360x740 (plus 320x568 and 844x390 landscape); desktop is 1280x800.
+
+Screenshots write into dated `docs/verification/` folders that are hard-coded in
+the harnesses: `browser-navigation` writes JPEGs to
+`docs/verification/2026-09-25-update/ui-shell/` (set `GAHOOKZ_SHELL_SCREENSHOTS=0`
+to skip), and `browser-mobile-ui` rewrites PNGs under
+`docs/verification/2026-09-19-mobile-ui/`. Evidence is append-only: after a run,
+`git checkout -- docs/verification/2026-09-19-*`, and commit re-captures only in
+the current update's folder. Never point either harness at 3101, 3102 or 3103.
 
 ## Common changes
 
-_Pending._
+- **Add an overlay** (dialog, sheet, editor): portal it to `document.body`, give it
+  a `--z-*` token (add one to the scale only if none fits, and document it in
+  the comment at the top of `styles.css` and here), call `useScrollLock` and
+  `useBackToClose`, handle Escape only when `isTopmost()`, move and restore
+  focus, and add a case to `browser-navigation.mjs`.
+- **Add a menu item:** edit `HostQuickMenu`, `PlayerQuickMenu` or `JoinQuickMenu`;
+  an action that opens another screen calls `close({ restoreFocus: false })`.
+- **Add a tooltip:** wrap the text in `<InfoTip label="...">`; do not position it
+  yourself. Check it at 320 px.
+- **Add a route:** extend `getRoute`, add the shape to `serveStatic` in
+  `server.js`, and cover both in a smoke test.
+- **Add a client module:** add it to `generatedFiles` and the transform list in
+  `build-client.mjs` (platform) and to `SHELL_ASSETS` in `service-worker.js`.
+- **Add a preference:** a key, getter, setter, hook and event in
+  `client/preferences.jsx`; mirror it onto `<html>` if CSS needs it.
 
 ## Known issues
 
-_Pending._
+- **`/host` and `/play` route as rooms.** `serveStatic` serves `index.html` for
+  both, but `getRoute` reads each as a four-letter code (`HOST`, `PLAY`).
+- **`client/legal.js` is built but missing from `SHELL_ASSETS`**, so it is cached
+  only after its first online load, not at install.
+- **"Reduce Gahook effects" also mutes sound** in the host Lobby rules and the
+  join menu (`useReducedEffects` sets both), while `PlayerSettingsDialog` keeps
+  them separate.
+- **The ownership map does not list `history.jsx`, `back-stack.ts`,
+  `QuickMenu` or `useMediaQuery`**, which belong to this area.
+- **`browser-mobile-ui` rewrites a dated historical evidence folder** on every run
+  and must be restored by hand.
+- The host-away notice overlaps the lobby status banner while it shows
+  (see [systems.md](systems.md)).
+
+Live backlog: [`../backlog.md`](../backlog.md). Feature pages:
+[install and offline](../wiki/install-and-offline.md),
+[information and legal pages](../wiki/information-and-legal-pages.md),
+[live connection](../wiki/live-connection.md).
