@@ -18,8 +18,6 @@ gaps from the same library and explains what it chose. In Herd, blank answers
 are filled from a short list of generated lines. Autofilled items are marked as
 generated.
 
-One library feeds both the Suggest button and autofill, so the two never
-drift apart.
 
 ## Rules and numbers
 
@@ -31,7 +29,6 @@ Counts below are measured from `packages/content` and change when prompts are ad
 | Funny prompts (always name a player, no answer key) | 20 |
 | Older prompts kept as they were (opinion 86, factual 78, Herd seeds 11) | 175 |
 
-- Funny pool: 20 new plus 86 opinion prompts. Educational pool: 20 new plus 78 factual ones.
 - About 35% of funny draws are personalised (`DEFAULT_PERSONALISED_SHARE`).
   A room works through its whole library before any prompt repeats.
 - Classic quiz scoring always autofills educational prompts, because a funny
@@ -43,7 +40,7 @@ Counts below are measured from `packages/content` and change when prompts are ad
   Drafts last 15 minutes, up to 80 per room.
 - The answer key is sent only to the player asking, who may be the author, and never in a
   question being answered. A fact check is a display, not a scoring key.
-- The 11 Herd writing seeds exist but nothing draws them today.
+- The 11 Herd writing seeds are never drawn today.
 
 ## Where it lives
 

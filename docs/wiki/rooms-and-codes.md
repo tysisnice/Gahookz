@@ -13,10 +13,9 @@ the lobby's code band. Tapping the band copies the link and opens the phone's
 share sheet when there is one. Codes contain letters only: anything else you
 type is ignored, and the code is always shown in capitals.
 
-The host can ask for a particular code. If they do not, the server picks one
-of 30 funny codes that nobody is using, and falls back to random letters.
-A host can also protect the room with a password (see
-[Security and limits](security-and-limits.md)). Guests never need an account to
+The host can ask for a particular code; otherwise the server picks one of 30
+funny codes nobody is using, then random letters. A room can have a password
+(see [Security and limits](security-and-limits.md)). Nobody needs an account to
 host or join.
 
 A room lives only in the memory of the one server process. If the server
@@ -33,12 +32,9 @@ for games to finish first (see [Hosting and deploys](hosting-and-deploys.md)).
 - A new room nobody has opened is removed after 5 minutes.
 - When the last connection closes, the room is kept for 60 seconds, then
   removed. Anyone reconnecting inside that minute keeps it alive.
-- A room is also released at once during a shutdown if it is empty.
 - Joining again from the same browser returns the same player, because the
   browser keeps a private device key (`playerKey`) in local storage. The key
   that created the room is the host key.
-- `GET /api/lobby` tells a visitor only the code, the phase and whether a
-  password is set.
 
 ## Where it lives
 

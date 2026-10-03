@@ -33,12 +33,11 @@ A refusal is HTTP 429 with a `Retry-After` header.
 - Live streams: 1024 in total, 32 per address, 64 per room.
 - Room password: at least 4 characters, at most 80.
 - Request body: 8,000,000 bytes. Stored pictures and audio: 9,000,000 bytes per room.
-- Reports: 5 per minute per player.
 - Same-origin check: a `POST /api/*` or stream request from another site is refused (403). Requests with no `Origin` header (tools, tests) pass.
 - `GET /api/state` always answers 405 so credentials stay out of URLs.
 - The client address is read from `X-Forwarded-For` only when `GAHOOKZ_TRUST_PROXY=1`.
 - Response headers: a strict content policy (no framing, own-origin only), `nosniff`, no referrer, HSTS when `GAHOOKZ_HTTPS=1`.
-- Drain, metrics and health tokens are secrets kept outside the repository; this page records only that they exist.
+- Drain and metrics need a secret bearer token kept outside the repository.
 
 ## Where it lives
 

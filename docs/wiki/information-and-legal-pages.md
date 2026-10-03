@@ -26,7 +26,6 @@ offline and update screens skip them.
 
 ## Rules and numbers
 
-- Addresses `/information`, `/legal` (with or without a trailing slash) are served as the app shell by `serveStatic`.
 - `/information` shows its guide as "reviewed 10 August 2026" and `/legal` says "Last updated 6 September 2026". Both dates are typed into the source and do not update themselves.
 - Known stale or wrong statements (also recorded in the verification file):
   the Contact document says "use the report button in the room", but the browser has no report button yet (see [Moderation](moderation.md));

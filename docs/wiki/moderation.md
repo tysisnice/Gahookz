@@ -28,15 +28,13 @@ button in the room", which is not true yet.
 
 ## Rules and numbers
 
-- A kick bans the device key, not the network address. Clearing browser storage
-  gives a new key.
+- A kick bans the device key, not the address, and lasts as long as the room.
+  Clearing browser storage gives a new key.
 - The host cannot be kicked or vote-kicked until the role is handed over.
 - Vote-kick threshold: half of the other connected players, rounded down, plus one.
 - Reports: 5 per minute per reporter, reasons offensive, harassment, spam or
   other, a 200-character note, the last 40 kept.
-- Bans last only as long as the room.
-- Removing a Herd answer blanks its text and keeps its slot, so the vote still works.
-- Deleted pictures and audio are pruned from the room's media store.
+- Removing a Herd answer blanks its text and keeps its slot.
 - Every `/api/host/...` route is checked on the server for the host key.
 
 ## Where it lives

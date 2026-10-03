@@ -35,13 +35,11 @@ today (`usePwaInstall` is unused). Install through the browser's own menu
 ## Rules and numbers
 
 - Health check every 4 seconds, 1.4 second timeout, offline after 2 failures.
-- Pages and scripts are fetched fresh when online and fall back to the cache.
-  Files with a `?v=release-...` tag are cached per release; the cache name changes
-  with every build and old caches are deleted.
-- The release hash lives in `index.html`, `service-worker.js` and
-  `vendor-bootstrap.js`; rebuild after editing `standalone/public`.
+- Pages are fetched fresh when online and fall back to the cache. The cache name
+  changes with every build and old caches are deleted.
+- The release hash is stamped into `index.html`, `service-worker.js` and
+  `vendor-bootstrap.js` by `npm run build`.
 - Icons: 180, 192 and 512 pixel PNGs plus a maskable 512, from `gahookz-monkey.svg`.
-- Display mode `standalone`, scope `/`, theme colour `#073b59`.
 
 ## Where it lives
 

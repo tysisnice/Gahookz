@@ -20,10 +20,10 @@ If the stream goes quiet, the browser also fetches a snapshot with
 a `stateVersion`; the browser drops any snapshot older than the newest it has
 shown, so the game never jumps backwards.
 
-When the connection fails, the browser retries on its own. Players see a
-"could not reach the room" message only after two failures in a row. If the room
-is gone they are sent to the welcome screen, if they are banned they are sent
-away, and if the room has a password the saved one is presented again.
+When the connection fails, the browser retries by itself and shows "could not
+reach the room" only after two failures in a row. If the room is gone or the
+player is banned they go back to the welcome screen; a saved room password is
+presented again automatically.
 
 ## Rules and numbers
 
@@ -35,8 +35,7 @@ away, and if the room has a password the saved one is presented again.
 - Tickets: single use, last 2 hours, at most 4096 held at once.
 - Streams: 1024 total, 32 per address, 64 per room. Over the cap the server answers 503 with a 1.5 second retry.
 - Updates: changes are grouped (30 ms), with at least 50 ms between sends to one room. A slow reader keeps only its newest snapshot and is cut off after 30 seconds without catching up.
-- A browser on an incompatible release shows "refresh to keep playing" instead of a half-drawn room (`SNAPSHOT_SCHEMA_VERSION`, currently 1).
-- Credentials are stripped from anything logged (`redactCredentials`).
+- A page on an incompatible release shows "refresh to keep playing" (`SNAPSHOT_SCHEMA_VERSION`, now 1).
 
 ## Where it lives
 
@@ -44,7 +43,7 @@ away, and if the room has a password the saved one is presented again.
 | --- | --- |
 | Stream, tickets, snapshot route | `standalone/server.js` — `handleEvents`, `buildSnapshot`, `broadcastState` |
 | Backpressure | `standalone/server/sse-backpressure.mjs` |
-| Headers and stream framing | `standalone/server/transport.mjs` |
+| Stream framing | `standalone/server/transport.mjs` |
 | Browser network boundary | `standalone/public/client/net.ts` — `createApiClient`, `createLiveConnection`, `createSnapshotGate` |
 | Wiring and recovery poll | `standalone/public/app.jsx` — `useEvents` |
 | Snapshot schema | `packages/contracts/src/` |
