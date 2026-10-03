@@ -129,8 +129,13 @@ const health = async () => (await fetch(BASE_URL + "/api/health")).json();
   outage.stop();
 
   const delivered = [];
+  // The replayed entry keeps the retry backoff the failed attempt journalled
+  // (hundreds of milliseconds), so the "new process" is started past it, as
+  // the outbox unit test does. Without the offset this step passed only when
+  // the host happened to be slow enough for the backoff to elapse.
   const recovered = createCareerOutbox({
     journalPath: journal,
+    now: () => Date.now() + 600_000,
     deliver: async (queued) => { delivered.push(queued.matchId); return true; }
   });
   recovered.start();
