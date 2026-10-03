@@ -1,5 +1,15 @@
 # Dependencies and base images
 
+Status 2026-10-04: still accurate: the runtime surface is `pg` and `tsx`, the
+base image is pinned by digest, and `erasableSyntaxOnly` is on in
+`tsconfig.base.json`. Corrected below: `tsx` loads the TypeScript modules only
+for development, tests and `npm start`; the production image runs plain
+`node standalone/server.js` and relies on Node 24's own type stripping.
+`package.json` still allows Node `>=20`, but CI, Docker and the verified runtime
+are Node 24. Production, beta and dev have built from the Store repository since
+2026-10-02. Run the matrix under `flock /tmp/gahookz-verify.lock` with
+`PATH=/usr/bin:$PATH` so Node 24 is used.
+
 Gahookz runs on two runtime dependencies — `pg` and `tsx` — and that is a
 deliberate property, not an accident of youth. It is why a security advisory
 here is usually somebody else's problem, and why the container is small enough
@@ -12,7 +22,7 @@ This records how to keep that true.
 | Dependency | Why it is there | Notes |
 | --- | --- | --- |
 | `pg` | PostgreSQL client for optional accounts | Only reached when `GAHOOKZ_DATABASE_URL` is set |
-| `tsx` | Loads the incrementally migrated TypeScript modules | Pulls in `esbuild` transitively; both appear in the production image legitimately |
+| `tsx` | Loads the incrementally migrated TypeScript modules in development, tests and `npm start`; the production image runs plain `node` and does not use it | Pulls in `esbuild` transitively; both are installed in the production image legitimately |
 
 Development dependencies — `typescript`, `esbuild`, `puppeteer`, the `@types`
 packages — **never reach a shipped image**. The production stage installs with
