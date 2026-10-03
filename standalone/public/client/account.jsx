@@ -142,6 +142,13 @@ export function AccountPanelView({ api, notify, renderAvatar }) {
     if (result?.ok && result.linked) window.gahookzRefreshSnapshot?.();
   };
 
+  // Each screen that shows the panel refreshes the shared status once, so the
+  // lobby shows the look the join just saved. (The very first mount is
+  // already loading it through useAccountStatus.)
+  useEffect(() => {
+    if (currentStatus) loadAccountStatus({ force: true });
+  }, []);
+
   useEffect(() => {
     if (redirectResultHandled) return;
     const accountMessage = new URL(window.location.href).searchParams.get("account");

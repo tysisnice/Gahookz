@@ -7940,9 +7940,15 @@ button.answer-tile {
     justify-items: stretch;
   }
 
+  /* Name and slot count keep a readable width; Sign out wraps to its own
+     line on a phone instead of squeezing them to one word per line. */
   .account-panel-signed-in > header > div:nth-child(2) {
-    flex: 1 1 0;
+    flex: 1 1 190px;
     min-width: 0;
+  }
+
+  .account-panel-signed-in > header > button {
+    margin-left: auto;
   }
 
   .account-saved-gahooks {
