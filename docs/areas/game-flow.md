@@ -2,15 +2,53 @@
 
 Last verified against the code: 2026-10-04, commit 56497b9
 
-> Draft skeleton. Sections are filled in one commit at a time.
-
 ## Purpose
 
-TODO
+Game flow owns the rules of the game: the phase machine that moves a room from
+lobby to finale, the three ways to play (Quiz · Classic, Quiz · Majority Rulez
+and Herd), the host's settings and their validation, which questions are played,
+the timers and progress waits, pause and skip, scoring, and the data behind the
+reveal and the finale.
+
+The server is the only authority on phase, time and points. Browsers draw what
+the snapshot says and send commands; they never decide what happens next. Every
+room lives inside one Node process, so none of this survives a restart (see
+[systems.md](systems.md)). Guests play all of it without an account: accounts
+receive finished results afterwards and are never part of starting or playing.
 
 ## What players see
 
-TODO
+- **Lobby.** The host picks Quiz · Classic, Quiz · Majority Rulez or Herd, and
+  a game length (Quick, Standard, Custom; Herd: Quick, Full room, Custom), then
+  locks the rules. The lobby shows the planned number of questions and a rough
+  duration. Players join with a code, no sign-in.
+- **Building.** Each player writes their share of questions (Herd: one prompt
+  each). The host cannot start until everyone has submitted and is ready, or
+  uses force-start or Skip, which fills the gaps from the catalogue. The refusals
+  a host can see include "Lock in the game options first.", "Add at least one
+  question first.", "Approve or reject pending questions first." and "Every
+  connected player needs their questions submitted and ready status."
+- **Herd answer writing.** Each player is handed a few prompts from other
+  players to answer. "Every assigned Herd answer needs to be written first." and
+  "Every Herd answer writer needs to mark ready." explain why Start is refused.
+- **A question.** Five seconds to read, with the four coloured answer slots
+  shown but the text blank. Fourteen seconds to answer; picking locks the
+  answer ("Answer already locked."), and the earlier the pick the more it is
+  worth. In Herd a player cannot pick their own answer ("You wrote that answer.
+  Pick someone else's.").
+- **Reveal.** Twelve seconds: the correct or winning answer, the points each
+  player earned, who wrote each Herd answer, the Majority author's prediction
+  and a Good or Nah vote on the question. Voting is closed until then ("Voting
+  opens after answers are revealed."). When everyone has voted, the next
+  question starts early.
+- **Host controls.** Pause and Skip. Pause shows a frozen countdown for
+  everyone and holds it until a host resumes. Pausing outside a question is
+  refused with a reason, as is skipping a finished game.
+- **Finale.** The leaderboard, with shared ranks for ties, the winner or winners
+  and the lowest score. When everyone ties it is a shared win with no loser.
+
+The screens themselves belong to the three UI areas; this guide covers the
+rules and data behind them.
 
 ## Code map
 
