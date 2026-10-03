@@ -61,7 +61,76 @@ never been rehearsed; see [section 5](#5-rollback).
 
 ## 2. Look without changing anything
 
-To be written.
+Everything here is a read-only `GET` or a log read. It is safe at any time,
+including mid-game.
+
+### Is it up, and what is running?
+
+```bash
+cd /mnt/storage/syncthing/Store/Projects/gahookz
+
+curl -fsS http://127.0.0.1:3102/api/health; echo     # production, loopback
+curl -fsS http://127.0.0.1:3102/api/ready; echo      # is production taking new rooms?
+curl -fsS https://gahookz.com/api/health; echo       # production, the public path
+curl -fsS http://127.0.0.1:3103/api/health; echo     # beta
+curl -fsS http://127.0.0.1:3101/api/health; echo     # development
+```
+
+The fields that matter in `/api/health`:
+
+| Field | Meaning |
+| --- | --- |
+| `ok` | The process is up. |
+| `revision` | The Git commit baked into the image (12 characters, `-dirty` if the tree had uncommitted changes). This is the reliable answer to "what server code is live". Development reports `unknown`. |
+| `release` | A hash of the browser files only (`release-<16 hex>`). A server-only change does not move it. |
+| `builtAt`, `serverBuiltAt` | When the browser files and the image were built. |
+| `activeRooms` | Rooms alive right now. This is how many games a restart would end. |
+| `draining` | `true` once the server has been told to refuse new rooms (see [section 4](#4-deploy-only-when-tyson-asks)). |
+| `instance` | The instance id, to tell processes apart. |
+
+`/api/ready` returns HTTP 200 normally and 503 when the server is draining, shutting
+down, or at its room cap (`roomCapacity`). A 503 is not a crash.
+
+Compare the live revision with the checkout:
+
+```bash
+git rev-parse --short=12 HEAD
+curl -fsS http://127.0.0.1:3102/api/health | grep -o '"revision":"[^"]*"'
+```
+
+Before anything that restarts a container, read `activeRooms`: if it is above 0,
+people are playing.
+
+### Containers and the status script
+
+```bash
+docker ps --filter name=gahookz --format '{{.Names}}\t{{.Status}}\t{{.Ports}}'
+docker compose ls                      # which Compose projects exist
+bash scripts/docker-status.sh          # same as: npm run status:docker
+```
+
+`scripts/docker-status.sh` prints `docker compose ps`, the container health, the
+running release and revision, the instance, the draining state, the active room
+count and the last 40 log lines for the `gahookz` service. It reports whichever
+Compose project the directory resolves to. Which project that is for the Store
+tree, given that dev and production share one checkout, is unverified: check that
+the container it lists is the production one (typically `gahookz-prod-gahookz-1`).
+If it is not, rely on `docker ps` and the `curl` calls above, and see the project
+warning in [section 4](#4-deploy-only-when-tyson-asks).
+
+### Logs
+
+```bash
+docker logs --tail=100 gahookz-prod-gahookz-1       # production
+docker logs --tail=100 gahookz-gahookz-beta-1       # beta
+docker logs --tail=100 gahookz-gahookz-dev-1        # development
+```
+
+Container names are `<project>-<service>-1`, so confirm them against `docker ps`.
+More on reading them in [section 6](#6-logs-and-troubleshooting).
+
+The metrics endpoint `/api/metrics` needs a bearer token held in the host's `.env`.
+Do not paste that token into documents or chat.
 
 ## 3. Safe test workflow
 
