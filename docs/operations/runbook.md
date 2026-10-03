@@ -193,7 +193,75 @@ More: [testing wiki page](../wiki/testing.md), [platform guide](../areas/platfor
 
 ## 4. Deploy (only when Tyson asks)
 
-To be written.
+Replacing the production container ends every game in progress. Deploy only when
+asked, and give it a drain window.
+
+1. **Commit and push first.** The work is merged into `main` and pushed, the checks in
+   [section 3](#3-safe-test-workflow) passed, and `git status --porcelain` is empty.
+   The script stamps a `-dirty` revision rather than refusing, so a dirty tree
+   would ship uncommitted work.
+2. **Check who is playing** (`activeRooms`, see [section 2](#2-look-without-changing-anything)) and warn the players.
+3. **Tag the running image** so there is something to roll back to ([section 5](#5-rollback)).
+4. **Confirm the Compose project.** The script runs `docker compose` in its own
+   directory. Production must resolve to project `gahookz-prod`, while dev uses
+   `gahookz`, and both now come from the Store tree:
+
+   ```bash
+   docker compose ps -q gahookz      # must print the live production container id
+   ```
+
+   If it prints nothing, or the script stops with "Port 3102 is published by
+   Compose project ... which this deploy does not own", stop and fix the project
+   name first. A wrong project builds an image and then fails on the busy port,
+   leaving production on old code with a broken container beside it. How one
+   `.env` serves both projects here is unverified; never read `.env` to find out.
+
+### Run it
+
+```bash
+cd /mnt/storage/syncthing/Store/Projects/gahookz
+git branch --show-current                      # main
+git pull --ff-only origin main
+
+GAHOOKZ_DRAIN_WAIT_SECONDS=300 bash scripts/docker-deploy.sh   # same as: npm run deploy:docker
+```
+
+The script stamps the 12-character revision, validates Compose, builds the `gahookz`
+image, drains, force-recreates **only** the `gahookz` service (dev and beta are
+untouched) and waits for a healthy container reporting the expected revision.
+Without `GAHOOKZ_DRAIN_WAIT_SECONDS` it replaces production at once and says so.
+
+Watch the output:
+
+- The drain needs `GAHOOKZ_METRICS_TOKEN` in the host's `.env`. Without it the script
+  prints "No GAHOOKZ_METRICS_TOKEN in .env, so the node cannot be drained first." and
+  then replaces production anyway, ending games.
+- After the wait (here 300 s) it proceeds even if rooms remain, ending them.
+- If you abort during the wait, production stays in drain mode and refuses new
+  rooms until it is restarted or drain is cancelled with `POST /api/drain`
+  `{"active":false}` (bearer token required).
+
+### Confirm what is live
+
+```bash
+git rev-parse --short=12 HEAD
+curl -fsS https://gahookz.com/api/health; echo      # "revision" must match, "draining" false
+bash scripts/docker-status.sh
+```
+
+Then check by hand in a browser (not a script): create a room, join from a phone,
+watch the lobby update, close it. Record the revision, time, result and rollback
+target in the plan ledger.
+
+### Known issue: the image check
+
+The script compares the running container's image with `gahookz:local`, while the
+Compose default for production is `gahookz:prod-local` (`GAHOOKZ_PROD_IMAGE`). The
+check passes only if the host's `.env` sets `GAHOOKZ_PROD_IMAGE=gahookz:local`
+(unverified). The check runs after the new container is up, so a failure there
+("does not use the image that was just built", or `No such image: gahookz:local`)
+does not mean production is down: read `/api/health` before reacting. `docker compose restart gahookz` restarts the old image and never
+deploys source changes.
 
 ## 5. Rollback
 
