@@ -222,9 +222,11 @@ needs an intended answer, Majority does not, Herd takes only Herd prompts),
 caps them at the preset, and deals them round-robin across authors
 (`fairRoundRobinQuestions`) so no author dominates a capped game. Questions that
 missed the cut in an earlier game get first refusal, then the order is shuffled.
-Eligible players are the ones connected when the game starts
-(`room.game.eligiblePlayerIds`); someone who joins later can watch but is not
-scored.
+Eligible players (`room.game.eligiblePlayerIds`) are the ones connected when
+the game starts (Herd: when answer writing begins). `joinPlayer` appends anyone
+who joins during `reading`, `answering` or `reveal`, so late arrivals are scored
+and ranked; someone who joins during Herd's `herd-writing` has no answers
+assigned and is not in the list.
 
 **Herd answer allocation.** `buildHerdAssignmentPlan` in `herd.ts` decides who
 writes which answer. Each question wants `min(4, players)` answers. Slots are
