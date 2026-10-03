@@ -63,8 +63,8 @@ Every `POST /api/*` passes the same gate in `server.js`: `assertSameOrigin`,
 `readJson` (8 MB cap), `admission.assertMutation` (token buckets), then the
 route. Anything under `/api/host/` is host-only by default
 (`server/route-policy.mjs`). The browser sends the room code in an
-`X-Gahookz-Room` header as well, so a proxy could route by room later; today
-there is one process, so nothing depends on it.
+`X-Gahookz-Room` header as well, so a proxy could route by room later; nothing in
+the server reads it today.
 
 The server pushes a **complete snapshot**, not a patch. `buildSnapshot` builds
 it separately for each connected stream, from that stream's role, so hidden
@@ -82,10 +82,10 @@ browser drops anything older than what it has already shown.
    `pokeFromPlayer`. Nothing here reads an account.
 3. **Rules.** In a live game the host may have turned Gahook effects off, which
    refuses the request. Otherwise the sender must be joined and connected, the
-   target connected and not the sender, and each sender may Gahook each target
-   once per question.
+   target connected and not the sender, and during a live round each sender
+   gets one Gahook per question. In the lobby there is no such limit.
 4. **Mutation.** `pokePlayer` changes the room in memory: it records the target's
-   latest Gahook, moves points when stealing is on, and updates spam streaks that
+   latest Gahook, moves points when the host's effects policy is "chaos", and updates spam streaks that
    can trigger Counter or Ultimate Gahooks.
 5. **Broadcast.** `broadcastState(room, { immediate: true })` bumps
    `stateVersion` and flushes on the same tick. If the room already flushed
