@@ -265,7 +265,52 @@ deploys source changes.
 
 ## 5. Rollback
 
-To be written.
+> **Untested plan.** The rollback images exist, but no rollback has ever been
+> rehearsed. Treat every step as a plan to be checked as you go. A rollback also
+> replaces the process, so it ends the games the failed release was hosting.
+
+### Before every deploy: keep a known-good image
+
+Builds overwrite the production image tag, so tag what is running first. This only
+adds a label and changes nothing live:
+
+```bash
+prod=$(docker ps -q --filter name=gahookz-prod-gahookz); echo "$prod"   # must print one container id
+docker tag "$(docker inspect --format '{{.Image}}' "$prod")" "gahookz:rollback-prod-$(date +%Y%m%d)"
+docker image ls 'gahookz:rollback-*'
+```
+
+### Option 1: revert and redeploy (preferred)
+
+Uses only the tooling that is documented above. On a branch, `git revert <bad-commit>`,
+run the [section 3](#3-safe-test-workflow) checks, merge and push, then do a normal
+[deploy](#4-deploy-only-when-tyson-asks). Do not `git switch` the Store tree to an old
+commit: dev bind-mounts it, so dev would change and Syncthing would copy the old
+source to the other machines.
+
+### Option 2: recreate production from a kept image (fastest, untested)
+
+When production is broken and a revert is too slow. A variable on the command line
+overrides `.env` for that one command, so `.env` is never edited:
+
+```bash
+cd /mnt/storage/syncthing/Store/Projects/gahookz
+docker compose ps -q gahookz           # must print the production container id (project check)
+GAHOOKZ_PROD_IMAGE=gahookz:rollback-prod-20261002 \
+  docker compose up -d --force-recreate --no-build gahookz
+curl -fsS http://127.0.0.1:3102/api/health; echo
+```
+
+Expect the old image's revision, which will not match `git rev-parse HEAD`. The
+override lasts for that command only: the next `docker compose up` or deploy returns
+to the default tag. The 20261002 image is what ran *before* the move to the Store
+tree, so use it only if nothing newer was tagged.
+
+### Rehearse it on beta first
+
+Beta is capped at two rooms and nobody depends on it. Do the Option 2 steps once with
+`GAHOOKZ_BETA_IMAGE=gahookz:rollback-beta-20261002`, service `gahookz-beta`, port 3103,
+and write down what actually happened here.
 
 ## 6. Logs and troubleshooting
 
