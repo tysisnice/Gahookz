@@ -19,7 +19,9 @@ const DESKTOP = { width: 1440, height: 1000 };
 
 const errors = [];
 const checked = [];
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+const browser = await // A cold Chromium start on this two-core, low-memory host has taken 43 s,
+// past Puppeteer's 30 s default; a warm start takes 2 s.
+puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], timeout: 120_000 });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function post(code, path, body = {}) {

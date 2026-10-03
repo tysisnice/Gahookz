@@ -34,7 +34,7 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8">
   }
 </script></head><body></body></html>`;
 
-const browser = await puppeteer.launch({ headless: true, protocolTimeout: 300000, args: ["--no-sandbox", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
+const browser = await puppeteer.launch({ headless: true, timeout: 120_000, protocolTimeout: 300000, args: ["--no-sandbox", "--disable-dev-shm-usage", "--autoplay-policy=no-user-gesture-required"] });
 const results = [];
 try {
   const page = await browser.newPage();

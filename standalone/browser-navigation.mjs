@@ -42,7 +42,7 @@ const note = (message) => {
   console.log('  ok  ' + message);
 };
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], timeout: 60_000 });
+const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], timeout: 120_000 });
 
 async function post(code, path, body = {}) {
   const response = await fetch(base + path, {

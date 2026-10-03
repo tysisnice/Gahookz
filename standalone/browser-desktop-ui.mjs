@@ -5,7 +5,9 @@ const base = process.env.GAHOOKZ_BASE_URL || 'http://127.0.0.1:3199';
 assert.equal(base, 'http://127.0.0.1:3199');
 const out = 'docs/verification/2026-09-19-desktop-ui';
 const errors = [];
-const browser = await puppeteer.launch({headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
+const browser = await // A cold Chromium start on this two-core, low-memory host has taken 43 s,
+// past Puppeteer's 30 s default; a warm start takes 2 s.
+puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-dev-shm-usage'], timeout: 120_000 });
 const wait = ms => new Promise(r=>setTimeout(r,ms));
 async function post(code,path,body={}) {
   const r = await fetch(base+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code,...body})});
