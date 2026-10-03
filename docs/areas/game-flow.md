@@ -41,22 +41,25 @@ reliable handle, so grep for them.
 
 | Function | Line | Role |
 | --- | --- | --- |
-| `updateHostSettings` | 2496 | Validates and applies the host's mode, scoring, length and rule choices; stashes and restores per-family banks. |
-| `lockSetup` | 2703 | Freezes the rules before the game; produces the `LockedGameRules` the lobby shows. |
-| `submitAnswer` | 3022 | Records one player's answer (Quiz, Majority or Herd authoring answer choice) and ends the phase early when everyone is in. |
+| `updateHostSettings` | 2496 | Validates and applies the host's mode, scoring, length and rule choices while the room is in `lobby`. |
+| `lockSetup` | 2703 | Moves `lobby` to `building` and freezes the rules (`room.lockedRules`) the game will be scored and explained by. |
+| `submitAnswer` | 3022 | Records one player's pick during `answering`. Quiz scores it on the spot; Majority and Herd store it unscored until the reveal. Ends the phase early when every connected player has answered. |
 | `scoreMajorityRound` | 3097 | Turns a round's votes into points, through `buildMajorityResults`. |
 | `scoreHerdRound` | 3136 | Turns a Herd round's selections into points, through `buildHerdRoundResults`. |
-| `voteQuestion` | 3181 | Records a player's vote on a question during building, which feeds the question approval flow. |
-| `getStartCheck` | 4106 | Answers "may this game start, and if not, why" for the host. |
-| `startGame` | 4365 | Leaves the lobby: picks the questions, resets scores, begins round 1. |
+| `voteQuestion` | 3181 | Records a player's Good or Nah rating of the question just played, during `reveal` only. When everyone connected has voted, the next question starts. |
+| `getStartCheck` | 4106 | Answers "may this game start, and if not, why" for the host's Start button, for both `building` and `herd-writing`. |
+| `startGame` | 4365 | Starts play from `building` or `herd-writing`: selects the questions (unless Herd already prepared them), zeroes scores, begins question 1. |
 | `beginQuestion` | 4486 | Enters `reading` for a question index and arms the phase timer. |
 | `beginAnswering` | 4518 | Enters `answering` and arms the answering timer. |
-| `transitionToReveal` | 4534 | Closes answering, scores the round, enters `reveal`. |
+| `transitionToReveal` | 4534 | Closes `answering`, scores a Majority or Herd round, enters `reveal`. |
 | `setGamePaused` | 4659 | Pauses or resumes the running phase timer (host only). |
 | `skipPhase` | 4712 | Advances the current phase at once, following `skipDecision`. |
-| `resetLobby` | 4738 | Returns a finished or abandoned game to the lobby for another play. |
+| `resetLobby` | 4738 | Returns the room to `lobby` (or `building` for a new game that keeps unplayed questions), zeroing scores and parking the questions that were written. |
 
-`server.js` is 5,604 lines at this commit. Prefer extracting new pure logic into
+Nearby, not in the brief's list but part of the same machine: `finishGameNow`,
+`forceStartGame`, `beginHerdAnswerWriting`, `selectQuestionsForGame`,
+`waitForProgressThen`, `acknowledgeProgress` and `recordCareerResults` (hands
+the result to the accounts area). `server.js` is 5,604 lines at this commit. Prefer extracting new pure logic into
 `packages/game-engine` or a `server/*.mjs` module with unit tests, and keep
 `server.js` to orchestration.
 
