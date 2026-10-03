@@ -220,4 +220,30 @@ extracting a vertical slice into a new module over adding to them.
 
 ## 6. Where it is heading
 
-_To be written. This section will be a plan, not built behaviour._
+> **This section is a plan. None of it is built, and none of it is scheduled.**
+> It summarises `OPERATIONS-AND-ROADMAP.md` section 11 and
+> [ADR 0001](0001-long-term-foundation.md), checked against the code on
+> 2026-10-04. Anything that would change production needs Tyson's decision.
+
+The plan keeps the protocol and the player experience, adds typed boundaries,
+then moves state out of the process on purpose. The target repository is an npm
+workspace with `apps/web`, `apps/server`, `apps/desktop` (an Electron host
+shell for Steam) and `apps/mobile` (a Capacitor wrapper), over shared packages
+such as `client-data`, `ui` and `entitlements`. There is no `apps/` folder
+today: the server and the browser app both live under `standalone/`.
+
+| Plan, in order | Today |
+| --- | --- |
+| A pure `game-engine`: `(roomState, command, now, rng)` to `(nextState, effects)`, with no HTTP, timers or global maps | Partial. `packages/game-engine` holds phase maths and the Herd engine. Quiz and Majority Rulz mutation, and every timer, still live in `server.js`. |
+| Versioned runtime schemas for every command and snapshot | Partial. `packages/contracts` has schemas, but the server validates only the host-settings request with them. Other commands use hand-written checks. |
+| One authoritative room worker, with explicit room affinity | Exactly one process, no affinity needed. The browser already sends `X-Gahookz-Room` for it, and the server ignores it. |
+| PostgreSQL for accounts, entitlements, prompt packs, moderation records and consent | Accounts and saved looks have a schema and code (`infra/postgres`), unprovisioned in production. Entitlements, prompt packs, audit records and consent are not built. |
+| Object storage for user media, with validation, expiry and moderation | Not built. Media lives in process memory and ends with the room. |
+| Redis, only if needed, for snapshots, coordination and pub/sub | Not built, and not needed with one process. |
+| A drain and migration strategy before any second game node | Drain exists. Migration does not, and [ADR 0002](0002-room-recovery-feasibility.md) explains why it is a large project. |
+| Guest room play stays account-free | Unchanged, and a standing rule. |
+
+SSE stays the transport for web, Electron and Capacitor. WebSockets would be
+reconsidered only if measured latency or a platform limit justified them. Until
+recovery and affinity exist and are tested, the constraint in section 3 stands:
+one process, one production replica, and a deploy that drains first.
