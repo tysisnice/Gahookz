@@ -49,7 +49,71 @@ configuration itself is not in this repository.
 
 ## 2. Processes and transport
 
-_To be written._
+Each environment is one plain Node process (`node standalone/server.js`). It
+answers four kinds of request:
+
+| Request | What it does |
+| --- | --- |
+| `POST /api/*` | Every command: create a room, join, answer, vote, Gahook, host controls. The body is JSON and carries the room `code` and the caller's `playerKey`. Success is `200 {ok: true, ...}`, a refusal is `400` or `404` with a message. |
+| `POST /api/events/ticket`, then `GET /events?ticket=...` | The live stream (SSE). The ticket is 24 random bytes, single use, valid two hours. The device key stays inside the server-side ticket and never appears in a URL or a proxy log. |
+| `POST /api/state` | Snapshot recovery. The browser asks for a full snapshot when the stream has been silent for 25 seconds, or when a hidden tab wakes. `GET /api/state` is a deliberate 405. |
+| `GET /`, assets, `/media/<CODE>/<id>` | The static PWA (`standalone/public`, with a service worker and an offline shell) and room media from memory. |
+
+Every `POST /api/*` passes the same gate in `server.js`: `assertSameOrigin`,
+`readJson` (8 MB cap), `admission.assertMutation` (token buckets), then the
+route. Anything under `/api/host/` is host-only by default
+(`server/route-policy.mjs`). The browser sends the room code in an
+`X-Gahookz-Room` header as well, so a proxy could route by room later; today
+there is one process, so nothing depends on it.
+
+The server pushes a **complete snapshot**, not a patch. `buildSnapshot` builds
+it separately for each connected stream, from that stream's role, so hidden
+information (answers before reveal, votes, authors, device keys) is never in a
+payload the viewer should not have. Each snapshot has a `stateVersion`, and the
+browser drops anything older than what it has already shown.
+
+### One Gahook, from tap to every screen
+
+1. **Tap.** A player taps another player's card. `app.jsx` calls
+   `api("/api/player/poke", { playerKey, playerId })`. `createApiClient`
+   (`client/net.ts`) adds the room code and POSTs JSON.
+2. **Gate.** Same-origin check, body read, rate-limit buckets, then
+   `handleAction` finds the room by code and `handleRoomAction` routes to
+   `pokeFromPlayer`. Nothing here reads an account.
+3. **Rules.** In a live game the host may have turned Gahook effects off, which
+   refuses the request. Otherwise the sender must be joined and connected, the
+   target connected and not the sender, and each sender may Gahook each target
+   once per question.
+4. **Mutation.** `pokePlayer` changes the room in memory: it records the target's
+   latest Gahook, moves points when stealing is on, and updates spam streaks that
+   can trigger Counter or Ultimate Gahooks.
+5. **Broadcast.** `broadcastState(room, { immediate: true })` bumps
+   `stateVersion` and flushes on the same tick. If the room already flushed
+   within the last 50 ms, one flush is scheduled instead, so a Gahook storm
+   costs one fan-out per floor, not one per tap.
+6. **Fan-out.** `flushBroadcast` walks the open streams of that room.
+   `sendState` builds each client's own snapshot and writes it with one
+   `res.write`. A reader whose socket is full keeps only its newest snapshot.
+7. **Reply.** The sender's POST returns `{ ok: true, pokeId, kind, ... }`. The
+   sender does not need a separate snapshot fetch (`refresh: false`).
+8. **Render.** On every phone, the host screen and the shared party screen, the
+   `EventSource` message reaches `createSnapshotGate`, which discards stale
+   versions. The reducer stores the snapshot and React draws the overlay for the
+   target's latest Gahook.
+
+```text
+tap -> POST /api/player/poke -> room mutated in memory -> broadcastState
+    -> one snapshot per open stream (SSE) -> snapshot gate -> every screen
+```
+
+The recovery poll, ticket renewal and reconnect delay are in
+[Live connection](../wiki/live-connection.md). The numbers behind steps 5 and 6
+are in [Systems](../areas/systems.md), "Broadcast coalescing and SSE
+backpressure".
+
+> Correction to older text: `OPERATIONS-AND-ROADMAP.md` section 3 says the client
+> polls `GET /api/state` every 1.8 seconds. That is no longer true. The poll is a
+> `POST`, and it runs only when the stream is silent.
 
 ## 3. State ownership
 
