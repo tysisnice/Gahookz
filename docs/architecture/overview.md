@@ -117,7 +117,59 @@ backpressure".
 
 ## 3. State ownership
 
-_To be written._
+Every room is one plain object in the `lobbies` map in `standalone/server.js`,
+created by `makeLobby`. The process owns it outright.
+
+| Held in memory for the life of the room | Where |
+| --- | --- |
+| Players, public ids, scores, connection state | `room.players` |
+| Credentials: the host key (the creator's device key), player credentials, admitted credentials after a password check, bans | `server/auth.mjs` |
+| Room password, as a salted scrypt hash that is never serialised | `room.passwordHash`, `room.passwordSalt` |
+| Phase, deadline, questions, answers, votes, Herd assignment plan | `room.phase`, `room.game`, `room.questions` |
+| Timers: phase, progress wait, broadcast flush, expiry, host-away, duel | cleared together by `expireRoom` |
+| Chat (last 60 messages), whiteboard (last 160 strokes), reports (last 40) | `server/social.mjs` |
+| Drawings, profile pictures and custom-Gahook images and audio, up to about 9 MB decoded | `room.media`, `server/media.mjs` |
+
+Outside any room the process also holds the open SSE streams, the event tickets
+(at most 4096), the rate-limit buckets, the account-session cache and in-flight
+Google sign-in flows. All of it is gone when the process stops.
+
+**What survives a restart** is deliberately small:
+
+- **The career-result journal.** When a signed-in player finishes a game, the
+  result is appended and fsynced to `GAHOOKZ_CAREER_JOURNAL` before it is
+  acknowledged. Production Compose points it at `/app/data/career.journal` on
+  the `career-data` volume, and the server redelivers whatever was pending when
+  it starts. Guests never enter it, so while production has no accounts
+  configured it holds nothing. See [Accounts](../areas/accounts.md).
+- **PostgreSQL accounts, only when configured.** Accounts, sessions, the saved
+  look, two cloud custom-Gahook slots and career statistics live in PostgreSQL
+  when `DATABASE_URL` is set. **Production is not configured today.** Per the
+  accounts guide, `/api/health` there reports `accountPersistence: "memory"`
+  and Google sign-in is unavailable, and the memory repository is lost on
+  restart too. Beta has no database by design. I did not query the live server
+  while writing this page.
+
+Everything else ends with the process: rooms, players, credentials, chat,
+drawings, media. There is no persistence or recovery for an active room, which
+is why deploys drain first (`POST /api/drain`, or `SIGTERM`, bounded by
+`GAHOOKZ_DRAIN_TIMEOUT_MS`) and why the server still tells players so.
+
+**Why exactly one production replica.** The design leans on the process being
+the single writer:
+
+- Room mutation is plain synchronous code on one object, with no lock or lease.
+  Two processes could each believe they own the same code.
+- The room table, tickets, open streams, media and rate limits are all local. A
+  request that reached the wrong replica would answer "That room does not
+  exist", and a room's media would not be there.
+- A second replica would not add capacity for a given room, only split the
+  players of one party across two worlds.
+
+Recovery inside one process is feasible, and recovery across processes is a much
+larger project, as [ADR 0002](0002-room-recovery-feasibility.md) records. Neither
+is built. Until one is built **and tested**, no document should imply that a
+restart keeps a game.
 
 ## 4. Limits
 
