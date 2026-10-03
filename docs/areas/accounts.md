@@ -293,4 +293,4 @@ Docker, so run them only when asked.
 - Guests have no device library of custom Gahooks between rooms.
 - The account panel appears in three lobby screens, not in a settings page.
 
-Live backlog: [`../backlog.md`](../backlog.md).
+Live backlog: section 10 of [`OPERATIONS-AND-ROADMAP.md`](../../OPERATIONS-AND-ROADMAP.md).
