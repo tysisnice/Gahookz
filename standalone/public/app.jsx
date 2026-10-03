@@ -1353,16 +1353,6 @@ function WelcomeScreen() {
 
 }
 
-// The panel itself lives in client/account.jsx; this wrapper hands it the room
-// API client, the toast, and the avatar renderer, which belong to this file.
-function AccountPanel() {
-  const dispatch = useDispatch();
-  return <AccountPanelView
-    api={api}
-    notify={(message) => dispatch({ type: "ERROR", value: message })}
-    renderAvatar={(profile) => <AvatarBadge avatarId={profile.avatarId} customImage={profile.avatarImageDataUrl} />} />;
-}
-
 function EntryModeArt({ art }) {
   return art === "host" ?
   <svg className="entry-mode-art" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 9v46M9 32h46" /><circle cx="32" cy="32" r="23" /></svg> :
@@ -3535,6 +3525,16 @@ function useKeyboardInset() {
     };
   }, []);
   return inset;
+}
+
+// The panel itself lives in client/account.jsx; this wrapper hands it the room
+// API client, the toast, and the avatar renderer, which belong to this file.
+function AccountPanel() {
+  const dispatch = useDispatch();
+  return <AccountPanelView
+    api={api}
+    notify={(message) => dispatch({ type: "ERROR", value: message })}
+    renderAvatar={(profile) => <AvatarBadge avatarId={profile.avatarId} customImage={profile.avatarImageDataUrl} />} />;
 }
 
 function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = null, onEditComplete }) {
