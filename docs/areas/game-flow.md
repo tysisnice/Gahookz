@@ -286,6 +286,50 @@ and every player on the bottom score as a loser, except when everybody is tied:
 then it is a shared win with no losers. `winner` and `loser` are set only when
 exactly one player holds that position. Only `gameEligiblePlayers` are ranked.
 
+### Privacy and snapshots
+
+Room state reaches browsers as a snapshot built on the server for each viewer.
+Two builders decide what a viewer may learn about the current round:
+`publicQuestion` (the question and its answers) and `publicAnswerSelections`
+(who picked what). Only these two were audited for this guide; the other
+snapshot fields (player scores, results, Gahook state) were not.
+
+**What other players can see before the reveal, today.**
+
+| Phase | Visible to every viewer | Not yet visible |
+| --- | --- | --- |
+| `reading` | The question text and image, its author, and the answer *slots* (label, colour and shape) with the text blanked. | Answer text, which answer is correct, Herd answer authors, results. |
+| `answering` | Answer text. **For every player who has answered: their player id, the answer id they picked, and when** (`answerSelections`, with an `isOwn` flag). | Which answer is correct (Classic), the winner (Majority, Herd), Herd answer authors, prediction, results. |
+| `reveal`, `finished` | Everything: the correct or winning answer, every selection, results, Herd answer authors and points, the Majority prediction. | Nothing about the round. |
+
+The plain statement: **before the reveal, other players' Majority Rulez and Herd
+choices are visible to everyone.** The browser draws each player's picture on the
+tile they chose. This is a known gap, not a design decision. A planned wave-2
+change (brief item U23 in
+[`docs/plans/2026-09-25-briefs.md`](../plans/2026-09-25-briefs.md)) will stop the
+server sending other players' choices before the reveal in those two modes and
+send only who has answered. Until it merges, this section describes the code, and
+whoever merges it must rewrite the table above.
+
+Facts about the code that the change has to account for:
+
+- `publicAnswerSelections` does not look at the mode. Classic Quiz leaks the same
+  way: other players' picked answer ids are visible during `answering`, though
+  not whether they are correct, because `correct` stays `undefined` until the
+  reveal. The U23 brief leaves Classic unchanged unless the leak exists there;
+  it does.
+- It takes the viewer's player id, not their role, and `publicQuestion` ignores
+  its `role` argument, so host, player and party-screen snapshots carry the same
+  fields.
+- One protection already exists: during `answering` the question author's own
+  pick is withheld from everyone but the author, so the person who wrote a
+  prompt cannot be copied.
+- Herd answer authors stay hidden until the reveal. `publicQuestion` never sends
+  `authorId` for an answer, only an `ownAnswer` flag for the viewer's own
+  answers, and `author` stays `null` until `reveal`.
+- The server enforces all of this, not the UI. Hiding a field in the browser
+  does not count (see the invariants below).
+
 ## Invariants
 
 TODO
