@@ -49,8 +49,8 @@ configuration itself is not in this repository.
 
 ## 2. Processes and transport
 
-Each environment is one plain Node process (`node standalone/server.js`). It
-answers four kinds of request:
+Each environment is one plain Node process (`node standalone/server.js`; dev
+wraps it in a watcher). It answers four kinds of request:
 
 | Request | What it does |
 | --- | --- |
