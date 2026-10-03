@@ -158,7 +158,7 @@ is why deploys drain first (`POST /api/drain`, or `SIGTERM`, bounded by
 **Why exactly one production replica.** The design leans on the process being
 the single writer:
 
-- Room mutation is plain synchronous code on one object, with no lock or lease.
+- Room mutation is plain code on one in-memory object, with no lock or lease.
   Two processes could each believe they own the same code.
 - The room table, tickets, open streams, media and rate limits are all local. A
   request that reached the wrong replica would answer "That room does not
@@ -173,7 +173,27 @@ restart keeps a game.
 
 ## 4. Limits
 
-_To be written._
+These are the headline numbers that shape capacity. The full list, with the
+request-rate buckets and what each refusal looks like, is in
+[Security and limits](../wiki/security-and-limits.md); room lifetime is in
+[Rooms and room codes](../wiki/rooms-and-codes.md).
+
+| Limit | Value | Set by |
+| --- | --- | --- |
+| Active rooms per process | 32 by default, 1 to 64 through `GAHOOKZ_MAX_ACTIVE_ROOMS`; beta runs with 2 | `server/room.mjs` |
+| Players per room | 20 | `MAX_PLAYERS_PER_ROOM` |
+| Live streams | 1024 in total, 32 per address, 64 per room | `server/admission.mjs` |
+| Media per room | about 9 MB decoded, in memory, dropped with the room | `server/media.mjs` |
+| JSON request body | 8,000,000 bytes | `readJson` in `server/transport.mjs` |
+| Chat and whiteboard kept | 60 messages, 160 strokes | `server/social.mjs` |
+| Container (production Compose) | 1 GB memory and 2 CPUs by default, 128 processes | `compose.yaml` |
+
+Creating a room past the cap fails; joining an existing room does not. Two
+consequences are worth knowing. Because the per-address caps count the client
+address, a venue where many players share one public address shares those caps
+too. And because every room, stream and image sits in one process's memory, the
+32-room cap is a memory and fan-out budget as much as a policy: raising it is a
+load question, not a configuration one.
 
 ## 5. Code layout
 
