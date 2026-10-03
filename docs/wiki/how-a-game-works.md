@@ -10,19 +10,18 @@ Every game follows the same journey.
 
 1. **The host creates a room.** It gets a four-letter code ([Rooms and room codes](rooms-and-codes.md)).
 2. **Players join** with the code or a link, a name and a profile picture. No sign-in, ever ([Joining and profiles](joining-and-profiles.md)).
-3. **The lobby.** Everyone waits here and the code is shared ([Lobby](lobby.md)). The host sets the [Lobby rules](lobby-rules.md), then picks Quiz or Herd, the Majority Rulez switch and the game length ([Game setup](game-setup.md)), and locks the rules.
+3. **The lobby.** Everyone waits here and the code is shared ([Lobby](lobby.md)). The host sets the [Lobby rules](lobby-rules.md), then picks Quiz or Herd, the Majority Rulez switch and the game length ([Game setup](game-setup.md)), and presses **Begin Game** to lock them.
 4. **Writing.** Each player writes their share of the questions ([Writing questions](question-writing.md)). In Herd, each player writes one prompt, then writes answer options for other players' prompts. The host starts once everyone is ready. If someone is slow, Skip fills the gaps from the built-in catalogue.
-5. **Rounds.** Each question has a reading moment, a time to answer (earlier answers score more) and a reveal with the points. Players rate the question Good or Nah. Players can also send [Gahooks](gahooks.md) to each other.
-6. **The finale.** The final scoreboard names the winners ([Finale](finale.md)). The host can then bring everyone back to the lobby for another game.
+5. **Rounds.** Each question has a reading moment, a time to answer (earlier answers score more) and a reveal with the points. Players rate the question Good or Nah. Players can send [Gahooks](gahooks.md) to each other.
+6. **The finale.** The final scoreboard names the winners ([Finale](finale.md)).
 
 The host can Pause or Skip during a question. The server alone decides the phase, the clock and the points, so every screen agrees.
 
 ## Rules and numbers
 
-- Reading 5 seconds, answering 14 seconds, reveal 12 seconds. One question takes at most 31 seconds of timers; real games run longer ([Phases and timers](phases-and-timers.md)).
+- Reading 5 seconds, answering 14 seconds, reveal 12 seconds. Real games run longer ([Phases and timers](phases-and-timers.md)).
 - When everyone has answered, or everyone has voted Good or Nah, the game moves on early.
 - Quiz is Classic (right answers) or Majority Rulez (the most popular answer wins). See [Scoring](scoring.md).
-- Players who join during a live question are scored and ranked.
 
 ## Where it lives
 
