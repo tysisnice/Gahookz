@@ -1,5 +1,19 @@
 # Gahookz production operations
 
+Status 2026-10-04: still accurate: one Node process owns every room and a
+restart ends them, the drain flag and `/api/health` `revision` work as described,
+and the admission limits, moderation gaps and account and PostgreSQL sections
+match the code. Where this page's context has moved on: production, beta and dev
+have run from the Store repository since 2026-10-02 (`/srv/gahookz` is an older
+clone, not the source); production runs one replica, and per
+[the accounts guide](../areas/accounts.md) it has no database or Google client
+configured, so accounts are inert (`accountPersistence: "memory"`); the
+consistent-hash Nginx file in `deploy/nginx/` is an example, and with one
+process nothing relies on room affinity; "deploy one shard at a time" means the
+single production service; and the smoke runs below belong on a disposable
+server (port 3199), never on production. The big picture is in
+[the architecture overview](../architecture/overview.md).
+
 This document describes the production shape implemented in this repository. It
 is intentionally candid about what is safe today and what still needs measured
 work before a very large public launch.

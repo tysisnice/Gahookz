@@ -63,8 +63,8 @@ Every `POST /api/*` passes the same gate in `server.js`: `assertSameOrigin`,
 `readJson` (8 MB cap), `admission.assertMutation` (token buckets), then the
 route. Anything under `/api/host/` is host-only by default
 (`server/route-policy.mjs`). The browser sends the room code in an
-`X-Gahookz-Room` header as well, so a proxy could route by room later; nothing in
-the server reads it today.
+`X-Gahookz-Room` header as well. The example config in `deploy/nginx/` hashes on
+it, but nothing in the server reads it.
 
 The server pushes a **complete snapshot**, not a patch. `buildSnapshot` builds
 it separately for each connected stream, from that stream's role, so hidden
