@@ -38,6 +38,7 @@ import { InfoTip, QuickMenu, ToggleSwitch } from "./client/controls.jsx";
 import { LeaveGameGuard, useBackToClose, useScrollLock } from "./client/history.jsx";
 import { NumberWheel } from "./client/number-wheel.jsx";
 import { CustomGahookCreator } from "./client/custom-gahook.jsx";
+import { AccountPanelView, onAccountProfile, useAccountJoinPrefill } from "./client/account.jsx";
 import { InformationHub } from "./client/information.jsx";
 import { LegalHub } from "./client/legal.jsx";
 
@@ -725,6 +726,21 @@ function saveJoinSession(join) {
   }
 }
 
+// A signed-in player's saved look (client/account.jsx) becomes this device's
+// join default, exactly as if they had last joined with it here. Guests never
+// reach this, so their local choices behave as they always have.
+onAccountProfile((profile) => {
+  const saved = getSavedJoin();
+  saveJoinSession({
+    ...saved,
+    name: profile.playerName || saved.name,
+    avatarId: profile.avatarId || saved.avatarId,
+    avatarImageDataUrl: profile.avatarImageDataUrl || "",
+    gahookForm: profile.gahookForm || saved.gahookForm
+  });
+  if (profile.gahookForm) storeGahookForm(profile.gahookForm);
+});
+
 function roomPasswordKey(code) {
   return "gahookz-room-password-" + normaliseRoomCode(code);
 }
@@ -1341,93 +1357,6 @@ function WelcomeScreen() {
       {wrongPasswordPoke ? <PokeJumpScare key={wrongPasswordPoke.id} poke={wrongPasswordPoke} /> : null}
     </main>);
 
-}
-
-const CAREER_STATS = [
-  ["gamesPlayed", "Games"],
-  ["wins", "Wins"],
-  ["podiums", "Podiums"],
-  ["totalScore", "Total points"],
-  ["highScore", "Best game"],
-  ["answersSubmitted", "Answers"],
-  ["correctAnswers", "Quiz correct"],
-  ["popularChoices", "Crowd picks"],
-  ["questionsAuthored", "Questions"],
-  ["herdVotesReceived", "Herd votes"],
-  ["gahooksSent", "Gahooks sent"],
-  ["gahooksReceived", "Gahooks got"]
-];
-
-function accountLoginHref() {
-  const returnUrl = new URL(window.location.href);
-  returnUrl.hash = "";
-  returnUrl.searchParams.delete("account");
-  return "/auth/google/start?returnTo=" + encodeURIComponent(returnUrl.pathname + returnUrl.search);
-}
-
-function AccountPanel() {
-  const dispatch = useDispatch();
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const accountMessage = new URL(window.location.href).searchParams.get("account");
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch("/api/account", { headers: { accept: "application/json" } });
-      setStatus(await response.json());
-    } catch {
-      setStatus({ ok: false, signedIn: false, googleAvailable: false });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-    if (accountMessage) {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("account");
-      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
-      if (accountMessage === "connected") dispatch({ type: "ERROR", value: "Google account connected. Your game stats can now follow you." });
-      if (accountMessage === "error") dispatch({ type: "ERROR", value: "Google sign-in did not finish. Guest play still works." });
-    }
-  }, []);
-
-  const signOut = async () => {
-    const result = await api("/api/account/logout", {}, { refresh: false });
-    if (!result.ok) {
-      dispatch({ type: "ERROR", value: result.error });
-      return;
-    }
-    await load();
-  };
-
-  if (loading) return null;
-  if (status?.signedIn && status.account) {
-    const account = status.account;
-    return (
-      <section className="account-panel account-panel-signed-in" aria-label="Gahookz account">
-        <header>
-          <div className="account-avatar" aria-hidden="true"><span>{account.displayName.slice(0, 1).toUpperCase()}</span></div>
-          <div><small>Career profile</small><h2>{account.displayName}</h2><p>{account.customGahookSlots} cloud Gahook {account.customGahookSlots === 1 ? "slot" : "slots"}</p></div>
-          <button type="button" onClick={signOut}>Sign out</button>
-        </header>
-        <div className="career-stat-grid">
-          {CAREER_STATS.map(([key, label]) => <div key={key}><strong>{Number(account.stats?.[key] || 0).toLocaleString()}</strong><span>{label}</span></div>)}
-        </div>
-        <p className="account-privacy-note">Signing in saves career totals and custom Gahooks. A room still works for every guest.</p>
-      </section>);
-  }
-  // A server without a verified identity provider and durable storage cannot
-  // keep the promise this panel makes, so it offers nothing rather than
-  // advertising career stats that would not survive the next restart.
-  if (!status?.googleAvailable) return null;
-  return (
-    <section className="account-panel account-panel-guest" aria-label="Optional Gahookz account">
-      <div><small>Optional player profile</small><h2>Keep your wins and custom Gahooks</h2><p>Guest play stays instant. Sign in only if you want stats and unlocks to follow you.</p></div>
-      <a className="google-sign-in-button" href={accountLoginHref()}>Continue with Google</a>
-    </section>);
 }
 
 function EntryModeArt({ art }) {
@@ -3627,6 +3556,16 @@ function useKeyboardInset() {
   return inset;
 }
 
+// The panel itself lives in client/account.jsx; this wrapper hands it the room
+// API client, the toast, and the avatar renderer, which belong to this file.
+function AccountPanel() {
+  const dispatch = useDispatch();
+  return <AccountPanelView
+    api={api}
+    notify={(message) => dispatch({ type: "ERROR", value: message })}
+    renderAvatar={(profile) => <AvatarBadge avatarId={profile.avatarId} customImage={profile.avatarImageDataUrl} />} />;
+}
+
 function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = null, onEditComplete }) {
   const dispatch = useDispatch();
   const isEditingProfile = Boolean(editingPlayer?.id);
@@ -3657,6 +3596,15 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
     avatarIdRef.current = AVATAR_PRESETS[0].id;
     setAvatarId(AVATAR_PRESETS[0].id);
   };
+
+  // A signed-in player's saved look, when it arrives after this form opened
+  // (or they sign in from it). Still editable before joining.
+  useAccountJoinPrefill(!isEditingProfile, (profile) => {
+    setName(profile.playerName);
+    if (profile.avatarImageDataUrl && allowCustomProfiles) handleAvatarImage(profile.avatarImageDataUrl);
+    else if (profile.avatarId) chooseAvatar(profile.avatarId);
+    if (profile.gahookForm) storeGahookForm(profile.gahookForm);
+  });
 
   const submitJoin = async (event) => {
     event.preventDefault();

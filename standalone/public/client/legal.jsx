@@ -209,14 +209,15 @@ function Privacy() {
       <Section title="If you sign in">
         <p>Signing in with Google is optional and only unlocks cosmetic extras. If you do:</p>
         <ul className="information-list">
-          <li>Google tells us your account identifier, display name, email address and profile picture URL. Your password is never seen by Gahookz.</li>
-          <li>We keep that, your career statistics, and any custom Gahooks you save, until you delete the account.</li>
+          <li>Google tells us your account identifier, display name and profile picture URL. Gahookz does not ask for or keep your email address, and your password is never seen by Gahookz.</li>
+          <li>We keep that, your saved player look (name, profile picture and Gahook choice), your career statistics, and any custom Gahooks you save, until you delete the account.</li>
           <li>The session cookie is opaque, marked HttpOnly and Secure, and holds no personal information.</li>
         </ul>
         <p>
-          Ask us to delete your account and everything linked to it is removed — identity,
-          sessions, statistics, unlocks and saved Gahooks. Ask and we will also send you a copy of
-          what is stored.
+          Delete your account at any time with “Delete my account” in the account panel, and
+          everything linked to it is removed at once — identity, sessions on every device,
+          statistics, unlocks, saved look and saved Gahooks. Ask and we will also send you a copy
+          of what is stored.
         </p>
       </Section>
 
@@ -253,8 +254,8 @@ function Contact() {
 
       <Section title="Privacy requests">
         <p>
-          To get a copy of your account data or have it deleted, contact us from the email address
-          attached to the account.
+          You can delete your account yourself, while signed in, from the account panel. To get a
+          copy of your account data, contact us and give the display name on the account.
         </p>
       </Section>
 
