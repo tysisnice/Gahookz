@@ -346,8 +346,24 @@ then the public path.
 
 ## 7. Maintenance cadence
 
-To be written.
+| When | Do |
+| --- | --- |
+| Every change | Check `git status` and Syncthing state; run the focused tests and the build; keep generated and secret files out of Git; update the docs ([section 8](#8-definition-of-done)). |
+| Every production release | Name the exact revision; warn players; tag the running image ([section 5](#5-rollback)); deploy through the script with a drain window; check local and public health and a real browser room; record revision, time, result and rollback target. |
+| Weekly while testing | Read the app and proxy logs and the restart counts; check disk, memory and Syncthing conflict copies (`*.sync-conflict-*`); check health and TLS; triage abuse reports and dependency alerts. |
+| Monthly | Review Node, npm, esbuild, TypeScript and base-image updates on a branch ([dependency policy](dependency-policy.md)); run the full browser and device matrix; rehearse the rollback on beta; review DNS, dynamic DNS and certificate renewal; prune old image tags only after confirming a rollback image exists. |
+| Before a public campaign | Load, moderation, privacy, legal, accessibility, monitoring, rollback and support gates all signed off ([production readiness](production-readiness.md)). "It works for friends" is evidence, not the gate. |
 
 ## 8. Definition of done
 
-To be written.
+A change is not done because it compiled. It is done when:
+
+1. The intended behaviour, and what it does not change, is written down.
+2. The diff is scoped to one purpose and reviewed, and contains no conflicted, generated or secret files.
+3. Types and contracts are updated where the change touches them.
+4. `npm run check`, the focused smoke scripts and, after merging, the full stateful suite pass on a disposable server, never on 3101 to 3103.
+5. Anything visual was looked at on a phone and a desktop size, not just built.
+6. Privacy, moderation, guest play (no account needed to join) and compatibility effects were considered.
+7. The area guide, the feature's wiki page and `docs/CHANGELOG.md` describe the change, and `npm run docs:check` passes.
+8. Production was deployed only when Tyson asked, with a drain window, and local and public health plus a real browser room were checked.
+9. A rollback target and the remaining risks are recorded in the handoff.
