@@ -187,6 +187,9 @@ React and Redux are vendored under `standalone/public/vendor`.
   stamped and committed in step with browser source.
 - `.dockerignore`, `tsconfig.web.json` and CI refuse Syncthing artifacts the same
   way `sync-artifacts.mjs` does; change all together.
+- Everything under `packages/` is loaded directly by plain `node` in the
+  production image, so it must stay within erasable TypeScript (no constructor
+  parameter properties, enums or namespaces) or the server fails at startup.
 - Environment variables that change behaviour are documented in `.env.example`
   with safe defaults.
 - Never `pkill` by pattern; find the listener with
