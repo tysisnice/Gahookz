@@ -134,7 +134,62 @@ Do not paste that token into documents or chat.
 
 ## 3. Safe test workflow
 
-To be written.
+The stateful smoke suite creates and mutates real rooms. Never point it, or any
+test, at ports 3101 to 3103 or a public domain. Tests use **port 3199 only**, on a
+server that `npm test` and `npm run test:disposable` start and stop themselves.
+
+### Work in a worktree
+
+The Store tree feeds `dev.gahookz.com`, so do experiments elsewhere:
+
+```bash
+cd /mnt/storage/syncthing/Store/Projects/gahookz
+bash scripts/agent-worktree.sh <name>            # new branch agent/<name> in ~/gahookz-agent-worktrees/<name>
+bash scripts/agent-worktree.sh --reuse <name>    # attach an existing agent/<name> branch
+```
+
+`node_modules` in a worktree is a symlink to the main checkout. Never run `npm install`
+or `npm ci` there.
+
+### Run the checks
+
+Every build or test holds one shared lock, because the machine has two cores and
+runs the live game. Use Node 24: some shells put a newer Node first on `PATH`, and a
+timing-sensitive smoke has failed under Node 26 and passed under 24.
+
+```bash
+cd ~/gahookz-agent-worktrees/<name>
+export PATH=/usr/bin:$PATH; node --version                        # must say v24
+
+flock /tmp/gahookz-verify.lock npm run check                      # typecheck + unit tests + build, about 30 s
+flock /tmp/gahookz-verify.lock npm test                           # full stateful suite, about 3 min
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:rooms
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:browser
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run standalone:smoke:<name>
+flock /tmp/gahookz-verify.lock npm run docs:check
+```
+
+- Run the stateful batches one after another. Do not start a server by hand, and do
+  not wrap `npm test` in `test:disposable`: it manages its own servers.
+- `test:disposable` refuses an occupied port 3199. If something else holds it, leave it
+  alone. To stop a stray test server, find the listener, never `pkill -f server.js`
+  (that pattern matches the live containers):
+
+  ```bash
+  ss -lptnH "sport = :3199" | grep -oP 'pid=\K[0-9]+'
+  ```
+
+- A build rewrites three tracked shell files (`index.html`, `service-worker.js`,
+  `vendor-bootstrap.js`). Commit them after the final build; CI fails if they are stale.
+  Generated `.js` files are gitignored; clean them with `npm run clean:generated`.
+- Browser checks re-capture screenshots into `docs/verification/`. Keep re-captures
+  only in the current update's folder and restore dated historical folders with
+  `git checkout -- docs/verification/<dated-folder>`.
+- A layout change is not verified by a build. Screenshot it at 390x844, 360x740 and
+  desktop size against a disposable server, and look at the pictures.
+- Optional, no server needed: `docker compose config --quiet` validates the Compose files.
+
+More: [testing wiki page](../wiki/testing.md), [platform guide](../areas/platform.md).
 
 ## 4. Deploy (only when Tyson asks)
 
