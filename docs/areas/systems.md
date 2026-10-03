@@ -255,13 +255,13 @@ Run under the shared lock with Node 24 (`PATH=/usr/bin:$PATH`):
 flock /tmp/gahookz-verify.lock npm run check
 flock /tmp/gahookz-verify.lock npm run standalone:smoke:room-expiry
 flock /tmp/gahookz-verify.lock npm run test:disposable -- bash -c "npm run standalone:smoke:security && npm run standalone:smoke:roles && npm run standalone:smoke:regressions && npm run standalone:smoke:host-controls"
-flock /tmp/gahookz-verify.lock npm run drill:resilience
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run drill:resilience
 ```
 
 Unit tests: `admission.test.mjs`, `auth.test.mjs`, `transport.test.mjs`,
 `route-policy.test.mjs`, `sse-backpressure.test.mjs`, `host-presence.test.mjs`,
 `content-inventory.test.mjs`. `smoke-room-expiry` owns its own server on port
-3199, so do not wrap it. Evidence for the host-presence work is in
+3199, so do not wrap it; `drill-resilience` does not start one, so do wrap it. Evidence for the host-presence work is in
 `docs/verification/2026-09-25-update/systems.md`.
 
 ## Common changes
