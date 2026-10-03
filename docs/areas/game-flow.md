@@ -239,6 +239,53 @@ author. The plan is built in `beginHerdAnswerWriting`, which writes the
 assignments onto each question's `answers`; an answer a writer never submits is
 filled from `GENERATED_HERD_ANSWERS` by force-start.
 
+### Scoring
+
+Points are whole numbers. Every speed-scaled award uses the time the **server**
+measured between `answerOpenedAt` (when `answering` began) and the request
+arriving, clamped to 0 to 14,000 ms (`ANSWERING_MS`). A client cannot claim a
+faster time.
+
+| Mode | Who scores | Points | When applied |
+| --- | --- | --- | --- |
+| Classic | A player who picks the intended answer | `round(1000 - elapsed / 14000 x 500)`: 1,000 for an instant answer, about 750 at 7 s, 500 at the buzzer (`quizPoints`). A wrong answer or no answer scores 0. | At once, inside `submitAnswer` |
+| Majority Rulez | Every player who picked the **winning** answer | The same `quizPoints` curve, 500 to 1,000. Everyone else scores 0. | At the reveal, in `scoreMajorityRound` |
+| Majority Rulez author bonus | The question's author | Flat 100 (`MAJORITY_AUTHOR_BONUS`), only if the vote was **unanimous** and the author's prediction named the winning answer | At the reveal |
+| Herd, voter | Every player who picked the winning answer | `round(500 - elapsed / 14000 x 250)`: 500 for an instant vote down to 250 (`speedPoints`, `HERD_MAX_VOTE_POINTS`) | At the reveal, in `scoreHerdRound` |
+| Herd, answer author | The writer of **every** answer, winning or not | `round(500 x votes / eligible players)` (`HERD_MAX_AUTHOR_POINTS`) | At the reveal |
+
+**Who wins a Majority or Herd round.** The answer with the most votes. If
+several answers tie on votes, the tie is separated by, in order: the fastest
+single vote, then the fastest average vote, then the answer's fixed position in
+the question. `tieBreakReason` (`none`, `fastest`, `average` or `order`) names
+the rule that actually decided it, so the reveal never calls an order tie-break a
+speed win. A player who does not answer is not in the results and scores 0. If
+nobody answers, there is no winner and nobody scores.
+
+**Details that matter.**
+
+- Majority has no correct answer. The author's prediction can earn the bonus but
+  never makes an answer "correct". A fact-check attached to an educational
+  question is shown beside the result and is never a scoring key.
+- The author bonus needs every eligible player to have answered, all with the
+  winning answer. One missing or different vote, even the author's own, loses it.
+- In Herd, `submitAnswer` refuses a vote for your own answer
+  (`ownAnswer: true`), so a writer cannot collect both the voter and author award
+  from one choice. An answer filled in by force-start still pays the writer it
+  was assigned to.
+- Gahook interactions that move points (`GAHOOK_STEAL_POINTS` 50,
+  `GET_GOT_SCORE_PENALTY` 1,000) change `player.score` outside this area; the
+  social guide owns those rules.
+- Scores are reset to 0 in `startGame` and `resetLobby`.
+
+**Leaderboard and placings** (`server/scoring.mjs`).
+`sortedLeaderboard` orders by score, highest first, with the earlier joiner
+first on equal scores. `rankedLeaderboard` gives tied scores the same rank
+(1, 1, 3). `scorePlacements` reports every player on the top score as a winner,
+and every player on the bottom score as a loser, except when everybody is tied:
+then it is a shared win with no losers. `winner` and `loser` are set only when
+exactly one player holds that position. Only `gameEligiblePlayers` are ranked.
+
 ## Invariants
 
 TODO
