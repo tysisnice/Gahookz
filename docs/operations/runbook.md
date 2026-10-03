@@ -314,7 +314,35 @@ and write down what actually happened here.
 
 ## 6. Logs and troubleshooting
 
-To be written.
+Docker keeps three 10 MB log files per service. Follow a log with `-f`:
+
+```bash
+docker logs -f --tail=100 gahookz-prod-gahookz-1
+docker stats --no-stream                       # memory and CPU per container
+docker logs --tail=100 nginx-proxy-manager     # the proxy
+```
+
+Work outwards from the container: the app on loopback, then its logs, then the proxy,
+then the public path.
+
+| Symptom | Check first | Likely layer |
+| --- | --- | --- |
+| Loopback `/api/health` fails | `docker ps`, the app logs | app, image, Docker |
+| Loopback works, public fails | proxy logs; both containers on `gahookz-proxy`; DNS; router | proxy, TLS, ingress |
+| Page loads, room stops updating | the `/events` request stays open; proxy buffering and timeouts | SSE or proxy |
+| New build looks old | compare `release` in health with the page's asset query and the service worker cache | release or browser cache |
+| `/api/ready` returns 503 | `draining`, `activeRooms` against `roomCapacity` | drain left on, or the 32-room cap |
+| Production changed unexpectedly | container creation time, `revision`, shell history | release process |
+| Memory climbs | `activeRooms` and `docker stats` | process-local rooms and media |
+| Dev ignores a source change | dev logs; `client/host-presence.jsx` and `client/legal.jsx` are not watched | dev watcher |
+
+- Do not fix an SSE problem by enabling caching, adding replicas or removing room affinity.
+- Do not fix a dev problem by rebuilding production.
+- Restarting a container ends its rooms. The proxy also fronts other apps: restart
+  it (`cd /srv/docker/nginx-proxy-manager && docker compose restart`) only when it is
+  the fault, and do not `cat` its data directory, which holds its signing key.
+- Docker starts production again after a reboot (`restart: unless-stopped`). To bring
+  it up by hand: `docker compose up -d gahookz`, then check health.
 
 ## 7. Maintenance cadence
 
