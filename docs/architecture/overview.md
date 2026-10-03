@@ -197,7 +197,26 @@ load question, not a configuration one.
 
 ## 5. Code layout
 
-_To be written._
+The ownership map in [the areas README](../areas/README.md) says which agent
+edits which function. This table is the short version, by folder.
+
+| Folder | What it holds | Owner and guide |
+| --- | --- | --- |
+| `standalone/server.js` | HTTP routing, room commands, phase machine, snapshots, SSE, static serving. About 5,600 lines, the highest-risk file. | Shared: [systems](../areas/systems.md) (transport, rooms), [game-flow](../areas/game-flow.md) (phases, scoring), social (Gahooks, chat, arena) |
+| `standalone/server/*.mjs` | Extracted server features. `transport`, `admission`, `auth`, `route-policy`, `room`, `media`, `host-presence`, `sse-backpressure` belong to systems; `gameplay`, `scoring`, `majority`, `phase-controls`, `presentation` to game-flow; `arena`, `social`, `custom-gahook` to social; `accounts`, `account-room`, `career-outbox` to accounts | [systems](../areas/systems.md), [game-flow](../areas/game-flow.md), [accounts](../areas/accounts.md) |
+| `standalone/public/app.jsx` and `client/*.jsx` | The browser app: state, routes, API client, host and player screens, feature modules | ui-shell, ui-lobby, ui-game, social, audio-art (profiles in [`docs/agents/`](../agents/README.md)) |
+| `standalone/public/styles.css` | The whole visual system, about 11,400 lines, each rule owned by the area of its component | Same as the component it styles |
+| `packages/contracts`, `packages/game-engine` | Typed schemas and snapshot types; the pure phase and Herd engine | [game-flow](../areas/game-flow.md), shared with systems |
+| `packages/accounts`, `infra/postgres` | Career statistic helpers; the account schema | [accounts](../areas/accounts.md) |
+| `packages/content` | Prompt catalogue | [content](../areas/content.md) |
+| `Dockerfile`, `compose.yaml`, `scripts/`, `deploy/`, `.github/`, `standalone/build-client.mjs`, `dev.mjs` | Build, dev server, Docker, deploy tooling, CI | [platform](../areas/platform.md) |
+| `standalone/smoke-*.mjs`, `browser-*.mjs`, `load-*.mjs`, `drill-resilience.mjs` | The regression net | [quality](../areas/quality.md) |
+| `standalone/legacy/` | Retired modes, not built | nobody |
+
+At this commit the area guides for the browser areas, social and audio-art are
+not written yet, so their rows point at the agent profiles. Three files
+(`server.js`, `app.jsx`, `styles.css`) are oversized and still growing; prefer
+extracting a vertical slice into a new module over adding to them.
 
 ## 6. Where it is heading
 
