@@ -34,7 +34,7 @@ reliable handle, so grep for them.
 | `game-engine/src/phases.ts` | `PHASE_DURATIONS_MS`, `nextPhase`, `remainingMs`, `resumeDeadline`, `plannedRounds`, `estimatedDurationMs`. Pure phase maths. |
 | `game-engine/src/herd.ts` | Herd answer limits, `buildHerdAssignmentPlan` (who writes which answers) and `buildHerdRoundResults` (grouping, points, tie-breaks). |
 | `contracts/src/settings.ts` | `GameSettings` (`gameFamily`, `quizScoring`), validation and the legacy `GameMode` mapping (`toLegacyGameMode`, `fromLegacyGameMode`, `normaliseGameSettings`, `scoringLabel`). |
-| `contracts/src/host-settings.ts` | The host-settings request and response schemas, prompt styles, Gahook effect policies, `LockedGameRules`, and the question readiness checks (`isClassicReady`, `questionReadinessProblem`). |
+| `contracts/src/host-settings.ts` | The host-settings request and response schemas, prompt styles, Gahook effect policies, `LockedGameRules` (declared but not yet used by any code), and the question readiness checks (`isClassicReady`, `questionReadinessProblem`). |
 | `contracts/src/game.ts` | `GAME_MODES`, `GAME_PHASES`, `ROUND_PRESETS` and the schema versions. |
 
 ### `standalone/server.js` functions
@@ -156,6 +156,86 @@ If a paused `answering` phase has everyone answered, resuming advances to the
 reveal. A pause survives the host being away: game timers keep their state and
 a paused game stays paused until a host resumes it (see
 [systems.md](systems.md)).
+
+### Modes and settings
+
+There are two game **families**, and Quiz has two **scoring rules**, which gives
+the three ways to play that players see:
+
+| Name shown (`scoringLabel`) | `gameFamily` | `quizScoring` | Legacy `gameMode` | Who writes what |
+| --- | --- | --- | --- | --- |
+| Quiz · Classic | `quiz` | `classic` | `quiz` | Each player writes questions with up to four answers and chooses the **intended** answer (`intendedAnswerId`). |
+| Quiz · Majority Rulez | `quiz` | `majority` | `majority` | The same questions, but no answer is correct; the room's most popular choice wins. The author may predict the winner (`predictedAnswerId`). |
+| Herd | `herd` | any (remembered) | `herd` | Each player writes one prompt. Then every prompt gets up to four short answers (`HERD_MAX_AUTHORED_ANSWERS`) written by *other* players, and the room votes for the answer it likes best. |
+
+`GameSettings` in `packages/contracts/src/settings.ts` is the single writable
+truth. The old `gameMode` string is derived from it by `toLegacyGameMode` and is
+never stored as an independent field, because two writable copies drift
+silently. New rooms start on Quiz · Classic (`DEFAULT_GAME_SETTINGS`). Under
+Herd the remembered `quizScoring` is kept only so the lobby can restore the
+host's Majority choice when they switch back.
+
+**How a mode is selected.** The host's rules modal sends one
+`POST /api/host/settings` request, validated by `HostSettingsRequestSchema`
+(strict: an unknown key is a rejection). `updateHostSettings` then:
+
+- refuses unless the room is in `lobby` ("Settings are locked once the quiz starts");
+- rejects a stale request when `settingsRevision` no longer matches the room's;
+- passes `gameFamily`/`quizScoring` and any legacy `gameMode` through
+  `normaliseGameSettings`, which rejects a contradiction (`gameMode: "herd"`
+  with `gameFamily: "quiz"`) instead of guessing;
+- on a **family** change only, parks the outgoing family's questions in
+  `room.savedQuestionBank` (`stashFamilyQuestions`) and restores the incoming
+  family's. Switching Classic and Majority keeps every question and every
+  player's ready state, because only the scoring changes;
+- re-stamps each question's `mode` (`applyQuestionScoring`) and bumps
+  `settingsRevision`.
+
+`lockSetup` later copies the choice into `room.lockedRules`, and
+`applyQuestionScoring` prefers `room.lockedRules.gameMode`, so a game is scored by
+the rules in force when setup locked. `transitionToReveal` branches on each
+question's own `mode`.
+
+**Game length.** `roundPreset` is `quick`, `standard` or `custom`
+(`ROUND_PRESETS`). The numbers live in `server.js` **(tunable)**:
+
+| Family | Preset | Questions per player | Most rounds played |
+| --- | --- | --- | --- |
+| Quiz (both scorings) | Quick | 1 | 10 (`QUICK_MAX_ROUNDS`) |
+| Quiz | Standard (the default) | `clamp(floor(18 / players), 1, 3)` | 18 (`STANDARD_MAX_ROUNDS`) |
+| Quiz | Custom | 1 to 5 (default 3) | no cap |
+| Herd | Quick (what a family switch to Herd starts on) | 1 | 8 (`HERD_QUICK_MAX_ROUNDS`) |
+| Herd | `standard`, shown as "Full room" | 1 | no cap: every eligible player's prompt is played |
+| Herd | Custom | 1 | `herdRoundTarget`, 1 to 20 (`HERD_MAX_CUSTOM_ROUNDS`, default 8) |
+
+`maximumRoundsForPreset` returns the cap and `questionsPerPlayerForPreset` the
+quota. Before play, `plannedQuestionCount` is
+`plannedRounds(connectedPlayers x quota, cap)` from `phases.ts`; once questions are
+chosen (`herd-writing`, any live phase, `finished`) it is simply
+`quizQuestions.length`. The lobby's duration estimate multiplies that by the
+31 seconds of timers per round. Each family remembers its own preset
+(`room.familyLengths`).
+
+**Which questions are played.** `selectQuestionsForGame` takes the eligible
+players' questions that are ready for the mode (`questionReadyForMode`: Classic
+needs an intended answer, Majority does not, Herd takes only Herd prompts),
+caps them at the preset, and deals them round-robin across authors
+(`fairRoundRobinQuestions`) so no author dominates a capped game. Questions that
+missed the cut in an earlier game get first refusal, then the order is shuffled.
+Eligible players are the ones connected when the game starts
+(`room.game.eligiblePlayerIds`); someone who joins later can watch but is not
+scored.
+
+**Herd answer allocation.** `buildHerdAssignmentPlan` in `herd.ts` decides who
+writes which answer. Each question wants `min(4, players)` answers. Slots are
+shared out evenly: every writer gets `floor(slots / players)` answers and a random
+few get one more. A question's own author is excluded whenever enough other
+players exist. Overshoot is repaired by moving an answer to an under-loaded
+writer. Each answer also gets a `displayIndex` from a fresh shuffle per question,
+so the colour an answer appears in (Red, Blue, Yellow, Green) never reveals its
+author. The plan is built in `beginHerdAnswerWriting`, which writes the
+assignments onto each question's `answers`; an answer a writer never submits is
+filled from `GENERATED_HERD_ANSWERS` by force-start.
 
 ## Invariants
 
