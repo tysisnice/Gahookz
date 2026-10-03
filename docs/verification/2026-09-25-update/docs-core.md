@@ -19,3 +19,24 @@ pass; each item is recorded for the owner of that file.
 
 No other statement in the five guides is marked "unverified" except where
 `.env` or Docker state would have been needed; those places say so.
+
+## Wiki pages written (2026-10-04, `docs-steward`, branch `agent/docs-core`)
+
+Eleven core wiki pages, one commit each, written from the area guides and
+confirmed against the code: `rooms-and-codes.md`, `host-and-roles.md`,
+`security-and-limits.md`, `live-connection.md`, `hosting-and-deploys.md`,
+`testing.md`, `accounts-and-career.md`, `moderation.md`,
+`install-and-offline.md`, `information-and-legal-pages.md` and
+`prompts-and-suggestions.md`. Nothing was run against Docker or ports
+3101-3103; the content counts were re-measured with a read-only import of
+`packages/content` (20 educational, 20 funny, 175 legacy, personalised share 0.35).
+
+More stale or wrong statements found while writing:
+
+| File | Statement | Correction (what the code does) |
+| --- | --- | --- |
+| `standalone/public/client/legal.jsx`, "Reporting something in a room" | "Use the report button in the room. It goes straight to the host" | Nothing in `standalone/public` calls `/api/player/report`, `/api/host/report/resolve` or `/api/host/remove-content`, and the snapshot's `reports` field is never read by the browser. The routes exist and are tested (`smoke-roles`, `smoke-room-rules`, `smoke-review-repairs`), but no button exists. Either build the buttons or reword the page. |
+| `standalone/public/client/legal.jsx`, Privacy "If you play as a guest" | The room ends "a few minutes after everyone leaves" | An abandoned room is kept for 60 seconds (`GAHOOKZ_ROOM_ABANDON_GRACE_MS`, since 2026-09-26); a room nobody has opened expires after 5 minutes. |
+| `standalone/public/client/offline.jsx` | Exports `usePwaInstall` as the install flow | Nothing imports it, so no install button exists; `vendor-bootstrap.js` captures `beforeinstallprompt` and nothing consumes it. Install works only through the browser's own menu (unverified in a real browser). |
+| `standalone/public/client/information.jsx` | `/information` is the public guides page | No in-app link to `/information` was found (the welcome screen links only to `/legal`); the page is reachable by address. Menus were not exhaustively checked. |
+| `standalone/public/client/information.jsx`, `legal.jsx` | "reviewed 10 August 2026", "Last updated 6 September 2026" | Hard-coded strings in the source; they do not move when the guides change. |
