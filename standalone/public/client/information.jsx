@@ -11,9 +11,9 @@ import React, { useEffect, useState } from "react";
 // The old report URLs still resolve and say where their content went, because
 // breaking a link somebody bookmarked is its own small rudeness.
 const REPORTS = Object.freeze([
-  { id: "majority", title: "Majority Rulz guide", tag: "Mode rules", summary: "Opinion questions, crowd-made answers, speed scoring and the unanimous author bonus." },
+  { id: "majority", title: "Majority Rulez guide", tag: "Mode rules", summary: "Opinion questions, crowd-made answers, speed scoring and the unanimous author bonus." },
   { id: "herd", title: "Herd guide", tag: "Mode rules", summary: "Player-made prompts, balanced answer writing, favourite voting and two ways to score." },
-  { id: "overview", title: "Gahookz overview", tag: "Game identity", summary: "How Quiz, Majority Rulz, Herd and Gahooks work together as one party game." }
+  { id: "overview", title: "Gahookz overview", tag: "Game identity", summary: "How Quiz, Majority Rulez, Herd and Gahooks work together as one party game." }
 ]);
 
 /** Reports that moved to the repository. Kept so their links still answer. */
@@ -117,13 +117,13 @@ function MajorityReport() {
   return (
     <>
       <section className="information-verdict">
-        <strong>Majority Rulz keeps Quiz's pace, but lets the room decide what is right.</strong>
+        <strong>Majority Rulez keeps Quiz's pace, but lets the room decide what is right.</strong>
         <p>Every question is an opinion. Players try to choose the answer the most people will choose, while the question author predicts the room before voting begins.</p>
       </section>
 
       <ReportSection title="Current game flow">
         <ol className="information-flow">
-          <li><strong>Choose Majority Rulz.</strong><span>The host uses the familiar Quiz room setup, duration presets, moderation and custom-content controls.</span></li>
+          <li><strong>Choose Majority Rulez.</strong><span>The host uses the familiar Quiz room setup, duration presets, moderation and custom-content controls.</span></li>
           <li><strong>Write opinion questions.</strong><span>Each author supplies two to four answers and marks the answer they predict everyone will choose. There is no factual correct answer.</span></li>
           <li><strong>Read and answer.</strong><span>Questions use the same reading and answering phases as classic Quiz. The author's prediction stays hidden while votes are open.</span></li>
           <li><strong>Let the room decide.</strong><span>The answer with the most votes becomes correct. If answers tie on votes, the tied answer chosen quickest wins.</span></li>
@@ -145,7 +145,7 @@ function MajorityReport() {
 
       <ReportSection title="Design guardrails">
         <div className="information-priority-list">
-          <Priority level="P0" title="Keep Quiz unchanged">Majority Rulz branches at question validation and reveal scoring; classic Quiz remains the benchmark.</Priority>
+          <Priority level="P0" title="Keep Quiz unchanged">Majority Rulez branches at question validation and reveal scoring; classic Quiz remains the benchmark.</Priority>
           <Priority level="P1" title="Make subjectivity obvious">Creation, answering and reveal copy should never imply that the author supplied a factual correct answer.</Priority>
           <Priority level="P1" title="Explain speed ties">When a vote tie is broken, show that speed decided it so the winning answer never feels arbitrary.</Priority>
           <Priority level="P2" title="Curate opinion prompts">Suggestions should invite harmless debate, reveal personalities and avoid obscure factual knowledge.</Priority>
@@ -198,7 +198,7 @@ function HerdReport() {
 }
 
 function OverviewReport() {
-  return <><section className="information-verdict"><strong>Gahookz is a co-created live party game, not merely a quiz site.</strong><p>Its strongest product idea is that the room makes the entertainment together: players create prompts and answers, compete live, draw or upload media, chat while waiting, and sabotage friends with expressive Gahooks.</p></section><ReportSection title="The product loop"><ol className="information-flow"><li><strong>Gather.</strong><span>One host creates a four-letter room; players join from phones or browsers with no account.</span></li><li><strong>Create.</strong><span>The room makes its own content or uses curated suggestions.</span></li><li><strong>Compete.</strong><span>Quiz rewards knowledge and speed. Majority Rulz rewards reading the room. Herd rewards writing the answer the room loves and spotting it quickly.</span></li><li><strong>Gahook.</strong><span>Players interrupt friends, steal a small number of points and personalise the moment.</span></li><li><strong>Celebrate.</strong><span>Round reveals and finales identify winners, lovable losers and mode-specific moments, while the previous result remains visible after returning to the lobby.</span></li></ol></ReportSection><ReportSection title="What is working"><ul className="information-checklist"><li>A memorable name, bright visual identity and playful language.</li><li>Low-friction room-code, QR and link joining, with optional accounts instead of mandatory registration.</li><li>Friend-made content that changes with every group.</li><li>Custom profiles, drawings and Gahooks that create social ownership.</li><li>A shared Quiz-shaped host and player flow across all three modes.</li><li>Mode-aware tutorials, music, reveals and scoring without changing classic Quiz rules.</li></ul></ReportSection><ReportSection title="Main product risk"><p>The game can accumulate too many features in the same phase. Every new social tool, score, animation and setting should answer one question: does this improve creating, competing, sabotaging or celebrating? If not, it probably belongs outside the live round.</p></ReportSection></>;
+  return <><section className="information-verdict"><strong>Gahookz is a co-created live party game, not merely a quiz site.</strong><p>Its strongest product idea is that the room makes the entertainment together: players create prompts and answers, compete live, draw or upload media, chat while waiting, and sabotage friends with expressive Gahooks.</p></section><ReportSection title="The product loop"><ol className="information-flow"><li><strong>Gather.</strong><span>One host creates a four-letter room; players join from phones or browsers with no account.</span></li><li><strong>Create.</strong><span>The room makes its own content or uses curated suggestions.</span></li><li><strong>Compete.</strong><span>Quiz rewards knowledge and speed. Majority Rulez rewards reading the room. Herd rewards writing the answer the room loves and spotting it quickly.</span></li><li><strong>Gahook.</strong><span>Players interrupt friends, steal a small number of points and personalise the moment.</span></li><li><strong>Celebrate.</strong><span>Round reveals and finales identify winners, lovable losers and mode-specific moments, while the previous result remains visible after returning to the lobby.</span></li></ol></ReportSection><ReportSection title="What is working"><ul className="information-checklist"><li>A memorable name, bright visual identity and playful language.</li><li>Low-friction room-code, QR and link joining, with optional accounts instead of mandatory registration.</li><li>Friend-made content that changes with every group.</li><li>Custom profiles, drawings and Gahooks that create social ownership.</li><li>A shared Quiz-shaped host and player flow across all three modes.</li><li>Mode-aware tutorials, music, reveals and scoring without changing classic Quiz rules.</li></ul></ReportSection><ReportSection title="Main product risk"><p>The game can accumulate too many features in the same phase. Every new social tool, score, animation and setting should answer one question: does this improve creating, competing, sabotaging or celebrating? If not, it probably belongs outside the live round.</p></ReportSection></>;
 }
 
 

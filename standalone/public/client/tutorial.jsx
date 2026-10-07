@@ -17,7 +17,7 @@ export const TUTORIAL_CONTENT = Object.freeze({
     ]),
     sentences: Object.freeze([
       "One person hosts and shares the four-letter room word. Everyone else joins on their own phone or computer—no account or app required.",
-      "Quiz has real answers, Majority Rulz rewards the most popular pick, and Herd lets your friends write every answer choice.",
+      "Quiz has real answers, Majority Rulez rewards the most popular pick, and Herd lets your friends write every answer choice.",
       "Use your Gahook once per round to surprise a friend and steal 50 points. Laugh, climb the leaderboard, and see who wins the final showdown."
     ])
   }),
@@ -62,7 +62,7 @@ export const TUTORIAL_CONTENT = Object.freeze({
     ]),
     sentences: Object.freeze([
       "Share the room link or four-letter word, then watch the player cards appear as everyone joins.",
-      "Pick Quiz, Majority Rulz, or Herd, choose the available options, and decide whether questions need your approval.",
+      "Pick Quiz, Majority Rulez, or Herd, choose the available options, and decide whether questions need your approval.",
       "Begin question making, start when everyone is ready, then use pause or skip to keep the live game flowing."
     ])
   })
