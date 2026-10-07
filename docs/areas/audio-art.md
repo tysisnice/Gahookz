@@ -184,7 +184,7 @@ trims by `SFX_LEVEL` (0.65) into a bus with a limiter (threshold -4 dB).
 | Congratulations, Ultimate Congratulations, and its extra-tap chime | `playCongratsSound`, `playUltimateCongratsSound`, `playUltimateCongratsExtraSound` | `PlayerView` (`app.jsx`); `playCongratsSound` also in Gahook Dash |
 | Boo (five formant-filtered low voices) | `playBooSound` | `PlayerView` |
 | 1v1 Arena win (fanfare, small crowd) / lose (GET GOT sound) | `playVictoryPartySound` / `playGetGotSound` | `client/arena.jsx` |
-| Gahook per character: monkey, gorilla, koala, croc, chicken (sweeps, tones, noise); Sad Pig cry (`pig` and legacy `capybara`); custom presets bonk, honk, boing, airhorn, none, or the player's own recording | `playGahookFormSound`, `playMonkeyPokeSound`, `playSadPigCry` | `PlayerView`, `HostLobbyPokeEffects`, `client/arena.jsx`, the form picker's preview, Dash |
+| Gahook per character: monkey, gorilla, koala, croc, chicken (sweeps, tones, noise); Sad Pig cry (`pig` and legacy `capybara`); custom presets bonk, honk, boing, airhorn, none, or the player's own recording | `playGahookFormSound`, `playMonkeyPokeSound`, `playSadPigCry` | `PlayerView`, `HostLobbyPokeEffects`, `client/arena.jsx`, the custom Gahook creator's preview, host mini Gahooks, Dash |
 | Voice cue after a Gahook (three descending buzzes); long cue | `playGahookVoiceCue`, `playLongGahookCue` | `PlayerView`, wrong-password and banned pokes in `WelcomeScreen` and `JoinScreen`, Dash |
 | Ultimate Gahook, its extra, Counter Gahook, GET GOT | `playUltimateGahookSound`, `playUltimateExtraGahookSound`, `playCounterGahookSound`, `playGetGotSound` | `PlayerView`, `HostLobbyPokeEffects`, `RoomGetGotOverlay` |
 | Spoken cues ("gah hook", "get got", "Winner ...", "congratulations", "boo") | `speakText` (browser speech synthesis; ducks the music) | `PlayerView`, `FinishedScreen`, `RoomGetGotOverlay` |
@@ -276,3 +276,121 @@ worker precaches all five files. PNGs are never edited by hand.
   is currently **no third-party asset** in the game. A player's own recorded or
   uploaded custom Gahook sound is user content, played back to the room, not an
   asset we ship ([Custom Gahooks](../wiki/custom-gahooks.md)).
+
+## Invariants
+
+- **Nothing audible before a gesture, or while muted.** All sound goes through
+  `getAudioContext()` (null when muted) and the context stays suspended until
+  `warmGahookEffects({ fromGesture: true })`. A new sound function must start
+  with that check, usually via `sfxChannel`.
+- **Music has its own switch and never plays in a hidden tab.** `musicAllowed`
+  is the single gate: sound not muted, Music on, tab visible.
+- **Music ducks under every game sound.** A new effect calls `duckMusic`; a new
+  Gahook sound is covered by `resetPokeSoundChannel`.
+- **No sound or music replays on join, refresh or reconnect.**
+  `syncGameSoundCues` records the first snapshot of a room without playing.
+- **The composer stays pure** (no Web Audio, no DOM) so it runs under Node
+  tests, and the player accepts any `BaseAudioContext` so the sample renderer
+  runs the real code.
+- **Everything animated stops under reduced effects.** New Gahook art must be
+  covered by the `.gahookz-reduced-effects .poke-overlay *` rule (put it inside
+  `.poke-overlay`) and must still read as a still picture.
+- **Characters are legible at 46 px** (mini Gahooks and the picker) and at full
+  screen; the first pose alone must carry the character.
+- **Tutorial pictures use no text under 40 units** (`smoke-onboarding`).
+- **Icons come from the SVG.** Change `gahookz-monkey.svg`, run
+  `npm run icons:render`, commit both; the maskable outline must stay inside
+  the safe zone (the script fails otherwise).
+- **A retired Gahook id keeps working.** `capybara` maps to `pig`; never remove
+  a mapping from `LEGACY_GAHOOK_FORMS` without migrating stored choices.
+- **Only assets we may ship** (see the licensing rule above).
+- `music.ts`, `music-composer.ts` and `tutorial-art.jsx` are built to `.js`
+  files that are gitignored, listed in `build-client.mjs` and `dev.mjs` and
+  precached by the service worker; a new client module needs all four.
+
+## Tests
+
+Run under the shared lock with Node 24
+(`export PATH=$HOME/.local/opt/node-v24.13.1-linux-x64/bin:$PATH`).
+
+```bash
+# typecheck, unit tests (composer: music.test.ts; forms: gahook-forms.test.ts) and build
+flock /tmp/gahookz-verify.lock npm run check
+# Gahook forms, sounds source checks, Sad Pig, legacy capybara mapping
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run standalone:smoke:gahooks
+# tutorial artwork (labels, 40-unit text floor, precache), icons, information pages
+flock /tmp/gahookz-verify.lock npm run test:disposable -- bash -c "npm run standalone:smoke:onboarding && npm run standalone:smoke:pwa && npm run standalone:smoke:information"
+# Gahook Dash (uses the Sad Pig sprite and the shared sounds)
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run standalone:smoke:dash
+# Music switch assertions in the settings and rules dialogs
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run standalone:smoke:party-view
+# audio cues in a real browser: no cheer on refresh, one cheer per game, mute, Music switch, pig cry
+# (build first: npm run build)
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:browser:audio
+# icons are reproducible from the SVG (launches Chromium; rerun if it times out under load)
+flock /tmp/gahookz-verify.lock npm run icons:render -- --check
+```
+
+`GAHOOKZ_AUDIO_SOAK_SECONDS=300` before `test:browser:audio` adds a realtime
+soak through every music state. `npm run audio:samples` renders 24 Ogg/Opus
+samples (music states, effects, mixed scenes) offline in headless Chromium and
+writes `levels.json`; it is how levels are measured, because an agent cannot
+hear. The output is under `docs/verification/2026-09-25-update/audio/`.
+
+## Common changes
+
+- **Add or change a sound effect.** Build it in `audio.js` from the palette
+  helpers (`mallet`, `chime`, `woodblock`, `pop`, `brass`, `swish`), start with
+  `sfxChannel(channel)`, call `duckMusic`, export it, and call it from the
+  trigger. For an event that follows room state, add it to
+  `syncGameSoundCues` so the first-snapshot rule applies. Render the samples and
+  check the level against `SFX_LEVEL`.
+- **Change the music.** Tempo, swing, progressions, grooves and levels are
+  data in `MUSIC_STYLES`; the overall loudness is `DEFAULT_MUSIC_LEVEL`. Run
+  `npm run check` (composer tests) and `npm run audio:samples`, then listen.
+- **Add a music state.** Add it to `MusicState`, `MUSIC_STATES` and
+  `MUSIC_STYLES`, and map a screen or phase to it in the `App` effect.
+- **Add a Gahook character.** Draw `<Name>Face` in `presentation.jsx` with two
+  poses and a `.premium-effects-<id>` rule and `.is-form-<id>` backdrop, add a
+  case to `GahookFormVisual`, a sound branch in `playGahookFormSound`, the id to
+  both `GAHOOK_FORMS` lists and a Dash sprite; checklist and the server side are
+  in [social](social.md#common-changes). Add the character to the tutorial
+  heads if it appears there.
+- **Change an avatar.** Edit `AVATAR_BASE` and `avatarArt`/`animalAvatarArt` in
+  `app.jsx`; ids are stored in profiles, so never reuse or rename an id.
+- **Redraw a tutorial picture.** Edit the matching `*TutorialArtwork` and beat
+  functions in `tutorial-art.jsx`, keep text at 40 units or more, and check the
+  picture at 260, 360 and 900 px wide. Change `artworkLabel` copy in
+  `tutorial.jsx`.
+- **Change the icon.** Edit `gahookz-monkey.svg`, run
+  `flock /tmp/gahookz-verify.lock npm run icons:render` (add
+  `-- --preview <dir>` for the 512 px, 48 px and safe-zone pictures), commit the
+  SVG and PNGs, and rebuild so the release hash in the service worker changes.
+
+## Known issues
+
+Backlog: see [the backlog](../backlog.md). Found while writing this guide:
+
+- **The "Reduce Gahook effects" switches disagree.** The join-screen menu
+  (`EffectsPreferenceButtons`) and the host's Lobby rules row
+  (`EffectsPreferenceToggle`) go through `useReducedEffects`, which sets the
+  reduced preference **and** mutes sound; the Settings dialog's switch sets the
+  reduced preference only. See
+  [Preferences and accessibility](../wiki/preferences-and-accessibility.md).
+- **The welcome screen has no sound controls** and a host mid-game reaches
+  personal sound settings only through Lobby rules in the lobby.
+- **Nobody has judged the music by ear.** Balance and levels were measured
+  (see `docs/verification/2026-09-25-update/audio.md`); the knobs are
+  `DEFAULT_MUSIC_LEVEL`, `SFX_LEVEL` and `MUSIC_STYLES`.
+- **Gahook sounds bypass the effects limiter.** The Rage Gorilla peaks at about
+  -0.1 dBFS; routing the poke channel through the limiter is a small follow-up.
+- **Dash and the Arena tap tone keep their own beeps** (`offline.jsx`,
+  `arena.jsx`) instead of the effects palette.
+- **`FinishedScreen` speaks "Winner ..." on every mount**, including after a
+  refresh, over the cheer.
+- **Majority Rulez tutorial picture is the old one** (small text) until its tab
+  is removed.
+- **Installed app icons** may keep the old picture until the OS refreshes them;
+  icon URLs are not content-hashed.
+- **Chromium checks are load-sensitive:** `icons:render` and `test:browser:audio` start
+  Chromium and can time out on a busy host; rerun when the load drops.
