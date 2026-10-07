@@ -28,8 +28,6 @@ Rulez opens the Quiz guide.
   also closes it ([navigation](navigation-and-back-button.md)).
 - The seen-flag is local to the device and per mode (key prefix
   `gahookz-how-to-play-seen-v2-`).
-- The dialog is a labelled modal: focus moves in and returns, Tab stays inside,
-  arrow keys, Home and End move between tabs.
 - The unused Majority picture still exists in the artwork file but no tab
   reaches it.
 - The sentences spell the mode "Majority Rulz" while the rest of the game says
