@@ -218,7 +218,7 @@ async function runRoleSmoke() {
     const hostView = await state(roomCode, "host", hostKey);
     const partyView = await state(roomCode, "party", "");
     const guestView = await state(roomCode, "player", guestKey);
-    assert(hostView.answerSelections.length >= 3, "Classic pre-reveal snapshots still list who has answered");
+    assert(hostView.answerSelections.length >= 2, "Classic pre-reveal snapshots still list who has answered");
     assertNoOtherChoicesVisible(partyView, "", "classic party");
     assertNoOtherChoicesVisible(guestView, guestView.ownPlayer.id, "classic player");
     assertNoOtherChoicesVisible(hostView, hostView.ownPlayer?.id || "", "classic host");

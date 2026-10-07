@@ -2872,21 +2872,20 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
 
   return (
     <main className={"host-screen host-game phase-" + lobby.phase + " mode-" + lobby.gameMode}>
-      <HostTopBar connected={connected} phase={phaseLabel} code={lobby.code} hostMenu={hostMenu} onSkip={onSkip} />
+      <HostTopBar connected={connected} phase={phaseLabel} code={lobby.code} hostMenu={hostMenu} />
       <section className="quiz-meta-row is-two-up">
         <Metric label="Question" value={Math.max(1, lobby.currentQuestionIndex + 1) + "/" + Math.max(1, lobby.totalQuestions)} />
         <Metric label="Answers" value={lobby.answerCount + "/" + lobby.activePlayerCount} />
       </section>
       <section className="question-stage">
-        {!reveal || revealIntro || onPause ? <div className="game-timer-row">
+        {!reveal || revealIntro || onPause || onSkip ? <div className="game-timer-row">
           <TimerBar key={reveal ? "answer-reveal" : lobby.phase} phaseEndsAt={reveal ? revealIntroEndsAt : lobby.phaseEndsAt} durationMs={reveal ? REVEAL_ANSWER_SPOTLIGHT_MS : duration} waiting={!reveal && lobby.phaseWaitingForProgress} paused={lobby.paused} pausedRemainingMs={lobby.pausedRemainingMs} muted={lobby.phase === "reading"} onComplete={reveal ? undefined : onProgressComplete} />
-          {onPause ? <PauseButton paused={lobby.paused} onToggle={() => onPause(!lobby.paused)} /> : null}
+          {onPause || onSkip ? <div className="host-round-controls">{onPause ? <PauseButton paused={lobby.paused} onToggle={() => onPause(!lobby.paused)} /> : null}{onSkip ? <SkipPhaseButton onSkip={onSkip} /> : null}</div> : null}
         </div> : null}
         <div className="question-copy">
-          <span className="phase-chip">{phaseLabel}</span>
+          <div className="question-copy-head"><span className="phase-chip">{phaseLabel}</span>{question?.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}</div>
           <h1>{question?.text || "Loading question"}</h1>
           {roundActive ? <AnsweredPlayersRow selections={lobby.answerSelections} players={lobby.players} /> : null}
-          {question?.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}
         </div>
         {question?.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}
       </section>
@@ -4123,10 +4122,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
 
   return (
     <main className={"host-screen host-game player-party-game phase-" + lobby.phase + " mode-" + lobby.gameMode}>
-      <HostTopBar connected={connected} phase={phaseLabel} code={lobby.code} hostMenu={hostMenu} onSkip={lobby.isHost ? async () => {
-        const result = await api("/api/host/skip");
-        if (!result.ok) dispatch({ type: "ERROR", value: result.error });
-      } : undefined} />
+      <HostTopBar connected={connected} phase={phaseLabel} code={lobby.code} hostMenu={hostMenu} />
       <ModeTutorialLauncher mode={lobby.gameMode} autoOpen includeHost={false} showButton={false} />
       <section className="quiz-meta-row is-two-up">
         <Metric label="Question" value={Math.max(1, lobby.currentQuestionIndex + 1) + "/" + Math.max(1, lobby.totalQuestions)} />
@@ -4136,16 +4132,18 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
       <section className="question-stage">
           {!reveal || revealIntro || lobby.isHost ? <div className="game-timer-row">
             <TimerBar key={reveal ? "answer-reveal" : lobby.phase} phaseEndsAt={reveal ? revealIntroEndsAt : lobby.phaseEndsAt} durationMs={reveal ? REVEAL_ANSWER_SPOTLIGHT_MS : duration} waiting={!reveal && lobby.phaseWaitingForProgress} paused={lobby.paused} pausedRemainingMs={lobby.pausedRemainingMs} muted={lobby.phase === "reading"} onComplete={reveal ? undefined : acknowledgeProgress} />
-            {lobby.isHost ? <PauseButton paused={lobby.paused} onToggle={async () => {
+            {lobby.isHost ? <div className="host-round-controls"><PauseButton paused={lobby.paused} onToggle={async () => {
               const result = await api("/api/host/pause", { paused: !lobby.paused });
               if (!result.ok) dispatch({ type: "ERROR", value: result.error });
-            }} /> : null}
+            }} /><SkipPhaseButton onSkip={async () => {
+              const result = await api("/api/host/skip");
+              if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+            }} /></div> : null}
           </div> : null}
           <div className="question-copy">
-            <span className="phase-chip">{questionNumberLabel}</span>
+            <div className="question-copy-head"><span className="phase-chip">{questionNumberLabel}</span>{question.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}</div>
             <h1><PromptText text={question.text} names={question.namedPlayerNames} /></h1>
             {roundActive ? <AnsweredPlayersRow selections={visibleAnswerSelections} players={lobby.players} /> : null}
-            {question.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}
           </div>
           {question.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}
         </section> :
@@ -4210,9 +4208,9 @@ function RoomStatusBanner({ code, tone = "", eyebrow, title, children, actions =
     </section>);
 }
 
-function HostTopBar({ connected, phase, code = "", hostMenu, onSkip }) {
+function HostTopBar({ connected, phase, code = "", hostMenu }) {
   const stateLabel = phase === "Join" ? "Join" : phase === "Party View" ? "Lobby" : "Live";
-  return <header className="host-topbar"><div className="brand-lockup"><strong>Gahookz</strong></div><div className="host-actions">{onSkip ? <button className="host-skip-phase-button" type="button" onClick={onSkip}>Skip phase <span aria-hidden="true">→</span></button> : null}<span className={"phase-pill is-" + stateLabel.toLowerCase()}>{stateLabel}</span>{code ? <strong className="topbar-room-code" aria-label={"Room " + code}>{code}</strong> : null}{hostMenu}</div></header>;
+  return <header className="host-topbar"><div className="brand-lockup"><strong>Gahookz</strong></div><div className="host-actions"><span className={"phase-pill is-" + stateLabel.toLowerCase()}>{stateLabel}</span>{code ? <strong className="topbar-room-code" aria-label={"Room " + code}>{code}</strong> : null}{hostMenu}</div></header>;
 }
 
 function Metric({ label, value }) {
@@ -5459,6 +5457,10 @@ function animalAvatarArt(kind, accent) {
 
 
 
+
+function SkipPhaseButton({ onSkip }) {
+  return <button className="skip-phase-button" type="button" onClick={onSkip} title="Skip to the next phase"><span>Skip</span><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3 4.5v11l7-5.5zM10 4.5v11l7-5.5z" fill="currentColor" /></svg></button>;
+}
 
 function PauseButton({ paused, onToggle }) {
   return <button className={paused ? "pause-game-button is-paused" : "pause-game-button"} type="button" onClick={onToggle} aria-label={paused ? "Resume game" : "Pause game"} title={paused ? "Resume game" : "Pause game"}><span aria-hidden="true" /></button>;
