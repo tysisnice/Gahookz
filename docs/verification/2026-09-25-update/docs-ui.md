@@ -21,3 +21,13 @@ menu and the host's Lobby rules "Reduce Gahook effects" controls call
 `useReducedEffects`, which sets reduced effects **and** mutes sound, while the
 Settings dialog's switch sets reduced effects only. `docs/areas/ui-shell.md`
 describes only the three storage keys, not this difference.
+
+## Added while writing `docs/areas/ui-game.md` and `docs/wiki/tutorials.md`
+
+| File | Quote | Correction |
+| --- | --- | --- |
+| `docs/backlog.md` | "Classic, Majority Rulez and Herd expose other players' picks during answering (`publicAnswerSelections`). ... Close this when U23 merges." | U23 is merged: pre-reveal entries for other players carry only `playerId`/`answeredAt`; close the line |
+| `standalone/public/styles.css` | `.host-skip-phase-button` rules | Dead since U20 moved Skip beside Pause as `.skip-phase-button`; no component uses the old class |
+| `standalone/public/client/tutorial-art.jsx` | `MajorityTutorialArtwork` and the `mode === "majority"` branch | Unreachable since the Majority tab was removed (kept, and `smoke-onboarding` still asserts it exists) |
+| `standalone/public/client/tutorial.jsx` | "Majority Rulz" (three sentences) | The rest of the game and the wiki spell it "Majority Rulez" |
+| `standalone/smoke-layout.mjs` | "Ordinary live answer choices should show player identities" | Message predates U23 (identities show only at the reveal); the check itself still holds |
