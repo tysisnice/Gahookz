@@ -2578,22 +2578,19 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
 
 }
 
-function HerdPreparationProgress({ preparation }) {
-  const progress = preparation || { completed: 0, total: 0, players: [] };
-  return (
-    <section className="herd-preparation-progress">
-      <header><span>Answer workshop</span><strong>{progress.completed}/{progress.total} answers written</strong></header>
-      <div className="herd-progress-meter" aria-label={progress.completed + " of " + progress.total + " answers written"}><span style={{ width: (progress.total ? progress.completed / progress.total * 100 : 0) + "%" }} /></div>
-      <div className="herd-writer-grid">
-        {(progress.players || []).map((entry) => <article className={entry.ready ? "herd-writer-card is-ready" : "herd-writer-card"} key={entry.player.id}>
-          <AvatarBadge player={entry.player} small />
-          <span><strong>{entry.player.name}</strong><small>{entry.completed}/{entry.total} answers · {entry.ready ? "ready" : "writing"}</small></span>
-        </article>)}
-      </div>
-    </section>);
+// Per-player Herd writing progress, shown in the player's own card status line.
+function herdProgressText(preparation, player) {
+  const entry = (preparation?.players || []).find((candidate) => candidate.player.id === player.id);
+  if (!entry || !entry.total) return "";
+  return entry.completed >= entry.total ? "Done" : entry.completed + "/" + entry.total + " answered";
 }
 
 function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, onForceStart }) {
+  const dispatch = useDispatch();
+  const poke = async (player) => {
+    const result = await api("/api/player/poke", { playerKey, playerId: player.id });
+    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+  };
   return (
     <main className="host-screen host-lobby herd-preparation-screen">
       <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={hostMenu} />
@@ -2604,11 +2601,11 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
         <div className="player-wall">
           {/* Painting lives over the player wall now, not over the chat. */}
           <LobbyPaintSurface lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />
-          <HerdPreparationProgress preparation={lobby.herdPreparation} />
+          <div className="player-grid">{lobby.players.map((player) => <ReadonlyPlayerCard key={player.id} player={player} ownPlayer={lobby.ownPlayer} showQuestionStatus={false} statusText={herdProgressText(lobby.herdPreparation, player)} onPoke={poke} onVoteKick={() => {}} />)}</div>
           <section className="herd-host-review">
             <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span><div className="lobby-paint-slot"></div></div>
             <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
-              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || "Waiting for an answer…"}</strong><small>Answer by {item.answerAuthor.name}</small>
+              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || "Waiting for an answer…"}</strong>{item.imageDataUrl ? <img className="herd-review-image" src={item.imageDataUrl} alt="Answer image" loading="lazy" /> : null}<small>Answer by {item.answerAuthor.name}</small>
             </article>)}</div>
           </section>
         </div>
@@ -2624,13 +2621,14 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
     </main>);
 }
 
-function HerdAnswerWriter({ assignment, text, onChange, disabled }) {
+function HerdAnswerWriter({ assignment, text, image, onChange, onImageChange, disabled }) {
   return (
     <article className={assignment.submitted ? "herd-answer-writer is-submitted" : "herd-answer-writer"}>
       <span>Question by {assignment.question.author.name}</span>
       <h2><PromptText text={assignment.question.text} names={assignment.question.namedPlayerNames} /></h2>
       {assignment.question.imageDataUrl ? <img src={assignment.question.imageDataUrl} alt="Question" /> : null}
       <label><span>Your answer</span><input value={text} disabled={disabled} onChange={(event) => onChange(event.target.value)} maxLength="80" placeholder="Make it the answer everyone wants to pick" /></label>
+      <ImageUploadDrawPicker compact maxSide={960} maxChars={700000} value={image} onChange={onImageChange} disabled={disabled} label="Optional answer image" previewAlt="Your answer image" />
     </article>);
 }
 
@@ -2639,14 +2637,16 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
   const assignments = lobby.ownHerdAssignments || [];
   const [drafts, setDrafts] = useState({});
   const [saving, setSaving] = useState(false);
+  const [imageDrafts, setImageDrafts] = useState({});
   const answerText = (assignment) => drafts[assignment.questionId] ?? assignment.text ?? "";
+  const answerImage = (assignment) => imageDrafts[assignment.questionId] ?? assignment.imageDataUrl ?? "";
   const submitAll = async () => {
     if (saving || assignments.some((assignment) => !answerText(assignment).trim())) return;
     setSaving(true);
     try {
       // Keep drafts intact if any request fails; a retry safely updates saved answers.
       for (const assignment of assignments) {
-        const result = await api("/api/herd/answer", { playerKey, questionId: assignment.questionId, text: answerText(assignment) });
+        const result = await api("/api/herd/answer", { playerKey, questionId: assignment.questionId, text: answerText(assignment), imageDataUrl: answerImage(assignment) });
         if (!result.ok) { dispatch({ type: "ERROR", value: result.error }); return; }
       }
       const ready = await api("/api/player/ready", { playerKey, ready: true });
@@ -2681,15 +2681,14 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
           Keep them funny, short, and tempting. Nobody sees who wrote an answer until the vote is over.
         </RoomStatusBanner>
         <section className="herd-answer-workspace">
-          <HerdPreparationProgress preparation={lobby.herdPreparation} />
-          {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} text={answerText(assignment)} disabled={saving} onChange={(text) => setDrafts((previous) => ({ ...previous, [assignment.questionId]: text }))} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
+          {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} text={answerText(assignment)} image={answerImage(assignment)} disabled={saving} onChange={(text) => setDrafts((previous) => ({ ...previous, [assignment.questionId]: text }))} onImageChange={(image) => setImageDrafts((previous) => ({ ...previous, [assignment.questionId]: image }))} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
           {assignments.length ? <button className="primary-button herd-submit-all" type="button" disabled={saving || assignments.some((assignment) => !answerText(assignment).trim())} onClick={submitAll}>{saving ? "Submitting answers…" : "Submit all answers"}</button> : null}
           {allSubmitted ? <button className={ownPlayer.ready ? "ready-button is-ready" : "ready-button needs-ready"} type="button" onClick={toggleReady}>{ownPlayer.ready ? "Ready for the live vote" : "I’m done — ready up"}</button> : null}
           {lobby.isHost ? <div className="party-start-button"><ForceStartControl canStart={lobby.canStart} canForceStart={(lobby.herdPreparation?.total || 0) > 0} label="Start live Herd" onStart={() => hostStart(false)} onForceStart={() => hostStart(true)} forceTitle="Fill missing answers and start?" forceCopy="Any blank answer slots will get a safe generated answer before the live game begins." /></div> : null}
         </section>
         <div className="player-wall herd-writing-roster">
           <div className="section-heading"><h1>Players</h1><span>{lobby.players.length}</span></div>
-          <div className="player-grid">{lobby.players.map((player) => <ReadonlyPlayerCard key={player.id} player={player} ownPlayer={ownPlayer} showQuestionStatus={false} onPoke={poke} onVoteKick={async (target) => { const result = await api("/api/player/vote-kick", { playerKey, playerId: target.id }); if (!result.ok) dispatch({ type: "ERROR", value: result.error }); }} />)}</div>
+          <div className="player-grid">{lobby.players.map((player) => <ReadonlyPlayerCard key={player.id} player={player} ownPlayer={ownPlayer} showQuestionStatus={false} statusText={herdProgressText(lobby.herdPreparation, player)} onPoke={poke} onVoteKick={async (target) => { const result = await api("/api/player/vote-kick", { playerKey, playerId: target.id }); if (!result.ok) dispatch({ type: "ERROR", value: result.error }); }} />)}</div>
         </div>
         <RoomSocialHub lobby={lobby} ownPlayer={ownPlayer} playerKey={playerKey} />
       </section>
@@ -4230,7 +4229,7 @@ function Metric({ label, value }) {
   return <div className="metric-row"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, onKick, onMakeHost, onRandomizeIdentity, onRemoveSelf, onChallenge = null, canChallenge = false }) {
+function PlayerCard({ player, maxQuestions, showQuestionStatus = true, statusText = "", onPoke, onKick, onMakeHost, onRandomizeIdentity, onRemoveSelf, onChallenge = null, canChallenge = false }) {
   const [menuRef, closeMenu] = useDetailsMenu();
   const [activeAction, setActiveAction] = useState("");
   const dispatch = useDispatch();
@@ -4257,7 +4256,7 @@ function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, o
           <h2>{player.name}</h2>
           {player.isHost ? <span className="player-host-chip">Host</span> : null}
         </div>
-        <p>{showQuestionStatus ? player.ready ? "Ready" : player.questionsSubmitted + "/" + maxQuestions + " questions" : "In lobby"}</p>
+        <p>{statusText || (showQuestionStatus ? player.ready ? "Ready" : player.questionsSubmitted + "/" + maxQuestions + " questions" : "In lobby")}</p>
       </div>
       {!player.connected ? <span className="player-status">Offline</span> : null}
       <div className="player-card-actions">
@@ -4282,7 +4281,7 @@ function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, o
 
 }
 
-function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, ownPlayer, onPoke, onVoteKick, onChallenge = null, canChallenge = false }) {
+function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, statusText = "", ownPlayer, onPoke, onVoteKick, onChallenge = null, canChallenge = false }) {
   const [menuRef, closeMenu] = useDetailsMenu();
   const [challenging, setChallenging] = useState(false);
   const voteKick = () => {
@@ -4314,7 +4313,7 @@ function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, o
           <h2>{player.name}</h2>
           {player.isHost ? <span className="player-host-chip">Host</span> : null}
         </div>
-        <p>{showQuestionStatus ? player.ready ? "Ready" : player.questionsSubmitted + "/" + maxQuestions + " questions" : "In lobby"}</p>
+        <p>{statusText || (showQuestionStatus ? player.ready ? "Ready" : player.questionsSubmitted + "/" + maxQuestions + " questions" : "In lobby")}</p>
       </div>
       {!player.connected ? <span className="player-status">Offline</span> : null}
       <div className="player-card-actions">
@@ -4375,9 +4374,10 @@ function AnswerGrid({ answers, reveal, hideText = false, interactive = false, di
     <section className={gridClassName}>
       {answers.map((answer) => {
         const answerChoices = choicesByAnswer[answer.id] || [];
-        const className = ["answer-tile", "answer-" + answer.id, reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : ""].filter(Boolean).join(" ");
+        const showImage = Boolean(answer.imageDataUrl) && !hideText;
+        const className = ["answer-tile", "answer-" + answer.id, showImage ? "has-answer-image" : "", reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : ""].filter(Boolean).join(" ");
         const label = hideText ? "..." : answer.text || answer.label;
-        const content = <><span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
+        const content = <>{showImage ? <img className="answer-tile-image" src={answer.imageDataUrl} alt="Picture sent with this answer" loading="lazy" /> : null}<span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
         return interactive ?
         <button className={className} key={answer.id} type="button" disabled={disabled} onClick={() => onAnswer?.(answer.id)}>{content}</button> :
         <article className={className} key={answer.id}>{content}</article>;
@@ -4783,7 +4783,11 @@ function UploadMiniIcon() {
 
 }
 
-function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image", previewAlt = "Selected image preview", disabled = false, compact = false }) {
+// `compact` is the Herd answer variant: no frame, the two source buttons stay
+// side by side even on a phone, and the preview is a small thumbnail. Answer
+// images are shown at tile size and several are kept per room, so that caller
+// also asks for a smaller upload (maxSide / maxChars).
+function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image", previewAlt = "Selected image preview", disabled = false, compact = false, maxSide = 1500, maxChars = 2400000 }) {
   const dispatch = useDispatch();
   const fileInputRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
@@ -4799,7 +4803,7 @@ function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image",
       return;
     }
     try {
-      onChange?.(await shrinkImageFile(file, { maxSide: 1500, quality: 0.84, maxDataUrlChars: 2400000 }));
+      onChange?.(await shrinkImageFile(file, { maxSide, quality: 0.84, maxDataUrlChars: maxChars }));
     } catch (_error) {
       dispatch({ type: "ERROR", value: "Could not read that image." });
     } finally {
@@ -4812,8 +4816,8 @@ function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image",
       <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleImage} disabled={disabled} hidden />
       {value ? <div className="image-choice-preview"><img src={value} alt={previewAlt} /><button className="icon-button light" type="button" onClick={() => onChange?.("")} disabled={disabled} aria-label="Remove selected image">x</button></div> : null}
       <div className="image-source-actions">
-        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={disabled}><UploadMiniIcon /><span>{value ? "Choose upload" : "Upload image"}</span></button>
-        <button type="button" onClick={() => setDrawing(true)} disabled={disabled}><EditMiniIcon /><span>{value ? "Draw or edit" : "Draw image"}</span></button>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={disabled}><UploadMiniIcon /><span>{value ? compact ? "Replace image" : "Choose upload" : "Upload image"}</span></button>
+        <button type="button" onClick={() => setDrawing(true)} disabled={disabled}><EditMiniIcon /><span>{value ? compact ? "Edit drawing" : "Draw or edit" : "Draw image"}</span></button>
       </div>
       {!value ? <small>{label}</small> : <small>Image selected. Upload another or draw to replace it.</small>}
       {drawing ? createPortal(<div className="creation-modal-backdrop" role="presentation" onPointerDown={(event) => {

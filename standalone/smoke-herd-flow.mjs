@@ -76,6 +76,14 @@ assert.equal(snapshot.phase, "herd-writing");
 assert.equal(snapshot.herdPreparation.total, 20, "Five players should create four answers for each of five prompts");
 assert.equal(snapshot.totalQuestions, 5);
 
+// Herd answers: text required, image optional. Images go through the same
+// validation and room media store as question images.
+const PNG_A = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+const PNG_B = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/F5gQ3wAAAABJRU5ErkJggg==";
+const mediaStatus = async (url) => (await fetch(BASE_URL + url)).status;
+let imageAnswer = null;
+let moderatedImageUrl = "";
+
 for (const player of players) {
   const playerState = await state("player", player.key);
   assert.equal(playerState.ownHerdAssignments.length, 4, "Every five-player Herd writer should receive four prompts");
@@ -87,6 +95,32 @@ for (const player of players) {
       questionId: assignment.questionId,
       text: player.name + " answer " + (answerIndex + 1)
     });
+    if (player === players[0] && answerIndex === 0) {
+      const base = { code, playerKey: player.key, questionId: assignment.questionId, text: player.name + " answer 1" };
+      const oversize = await request("/api/herd/answer", { ...base, imageDataUrl: "data:image/png;base64," + "A".repeat(3000001) });
+      assert.equal(oversize.data.ok, false, "An oversize Herd answer image must be rejected");
+      const invalid = await request("/api/herd/answer", { ...base, imageDataUrl: "data:text/html;base64,PGI+aGk8L2I+" });
+      assert.equal(invalid.data.ok, false, "A non-image Herd answer image must be rejected");
+      const noText = await request("/api/herd/answer", { ...base, text: "", imageDataUrl: PNG_A });
+      assert.equal(noText.data.ok, false, "An image-only Herd answer must be rejected: text is required");
+      const accepted = await post("/api/herd/answer", { ...base, imageDataUrl: PNG_A });
+      imageAnswer = { questionId: assignment.questionId, answerId: accepted.answerId };
+      const own = await state("player", player.key);
+      const stored = own.ownHerdAssignments.find((item) => item.answerId === accepted.answerId);
+      assert(/^\/media\/[A-Z]{4}\/[a-f0-9]{32}$/.test(stored.imageDataUrl), "The author sees a media URL, not a data URL");
+      assert.equal(await mediaStatus(stored.imageDataUrl), 200, "The stored Herd image should be served");
+      // Re-saving the text without an image field keeps the stored image.
+      await post("/api/herd/answer", base);
+      assert.equal((await state("player", player.key)).ownHerdAssignments.find((item) => item.answerId === accepted.answerId).imageDataUrl, stored.imageDataUrl, "Re-saving text must keep the image");
+      // Host moderation removes the image, and the blob is pruned.
+      await post("/api/host/remove-content", { code, playerKey: hostKey, kind: "herd-answer", targetId: accepted.answerId });
+      moderatedImageUrl = stored.imageDataUrl;
+      assert.equal(await mediaStatus(moderatedImageUrl), 404, "Moderation must delete the Herd answer image");
+      const review = (await state()).herdAnswerReview.find((item) => item.answerId === accepted.answerId);
+      assert.equal(review.imageDataUrl, "", "Moderation clears the image from the snapshot");
+      // The author writes a fresh answer with an image for the rest of the game.
+      await post("/api/herd/answer", { ...base, imageDataUrl: PNG_A });
+    }
   }
   await post("/api/player/ready", { code, playerKey: player.key, ready: true });
 }
@@ -98,6 +132,8 @@ assert(snapshot.herdAnswerReview.every((assignment) => assignment.submitted), "T
 await post("/api/host/start", { code, playerKey: hostKey });
 
 let rounds = 0;
+let sawImageVoting = false;
+let revealedImageUrl = "";
 let firstReveal = null;
 while ((snapshot = await state()).phase !== "finished") {
   assert.equal(snapshot.phase, "reading");
@@ -106,6 +142,15 @@ while ((snapshot = await state()).phase !== "finished") {
   assert.equal(snapshot.phase, "answering");
   const choices = snapshot.currentQuestion.answers;
   assert.equal(choices.length, 4);
+  if (snapshot.currentQuestion.id === imageAnswer.questionId) {
+    const withImage = choices.find((answer) => answer.id === imageAnswer.answerId);
+    assert(withImage.imageDataUrl.startsWith("/media/"), "Voting shows the answer image as a media URL");
+    assert.equal(withImage.author, null, "The author stays hidden while voting");
+    assert(choices.filter((answer) => answer.id !== imageAnswer.answerId).every((answer) => !answer.imageDataUrl), "Only the answer with an image carries one");
+    const viewer = await state("player", players[1].key);
+    assert.equal(viewer.currentQuestion.answers.find((answer) => answer.id === imageAnswer.answerId).author, null);
+    sawImageVoting = true;
+  }
 
   // Writing an answer and then voting for it would collect the voter's speed
   // points and the author's per-vote points from one choice. Check on the first
@@ -174,18 +219,34 @@ while ((snapshot = await state()).phase !== "finished") {
   assert(snapshot.currentQuestion.herdResults, "Herd reveal should publish its scoring result");
   if (rounds === 0) assert.equal(snapshot.answerSelections.filter((selection) => selection.answerId).length, 5, "The reveal shows every player's choice");
   assert(snapshot.currentQuestion.answers.every((answer) => answer.author && Number.isInteger(answer.authoredPoints)), "Answer writers and authored points should appear only at reveal");
+  if (snapshot.currentQuestion.id === imageAnswer.questionId) {
+    const revealed = snapshot.currentQuestion.answers.find((answer) => answer.id === imageAnswer.answerId);
+    assert(revealed.imageDataUrl.startsWith("/media/") && revealed.author?.id, "The reveal shows the image and then names the author");
+    revealedImageUrl = revealed.imageDataUrl;
+    assert(snapshot.currentQuestion.herdResults.groups.find((group) => group.answerId === imageAnswer.answerId).imageDataUrl, "Reveal groups carry the image");
+  }
   if (rounds === 0) firstReveal = snapshot.currentQuestion.herdResults;
   await post("/api/host/skip", { code, playerKey: hostKey });
   rounds += 1;
 }
 
 assert.equal(rounds, 5);
+assert(sawImageVoting, "The image answer should have appeared in voting");
 assert.equal(firstReveal.topCount, 3);
 assert.equal(firstReveal.authorResults.find((result) => result.answerId === firstReveal.winningAnswerId).points, 300, "Three of five votes should award 300 authored points");
 assert(firstReveal.playerResults.filter((result) => result.correct).every((result) => result.points > 0 && result.points <= 500), "Winning voters should earn no more than 500 speed points");
 snapshot = await state();
 assert.equal(snapshot.leaderboard.length, 5);
 assert(snapshot.leaderboard.every((player) => player.score > 0), "Every player should be able to score through Herd votes or authored answers");
+
+{
+  // Kicking the author removes their Herd answer image too.
+  const url = revealedImageUrl;
+  assert.equal(await mediaStatus(url), 200, "The image is still stored before the kick");
+  const ownerId = (await state("player", players[0].key)).ownPlayer.id;
+  await post("/api/host/kick", { code, playerKey: hostKey, playerId: ownerId });
+  assert.equal(await mediaStatus(url), 404, "Kicking the author must delete their Herd answer image");
+}
 
 console.log(JSON.stringify({
   ok: true,

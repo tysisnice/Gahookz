@@ -31,6 +31,12 @@ receive finished results afterwards and are never part of starting or playing.
 - **Herd answer writing.** Each player is handed a few prompts from other
   players to answer. "Every assigned Herd answer needs to be written first." and
   "Every Herd answer writer needs to mark ready." explain why Start is refused.
+  An answer needs text and may also carry one picture (`/api/herd/answer`,
+  optional `imageDataUrl`: omitted keeps the stored one, `""` clears it). It is
+  validated and stored like a question image (`validateImage`, the room media
+  store) and shown to the writer, the host's review, voters (`publicQuestion`,
+  once answering opens) and the reveal (`publicHerdResults` groups); host
+  removal, kick and player-media removal clear it.
 - **A question.** Five seconds to read, with the four coloured answer slots
   shown but the text blank. Fourteen seconds to answer; picking locks the
   answer ("Answer already locked."), and the earlier the pick the more it is

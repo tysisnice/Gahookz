@@ -34,7 +34,7 @@ button in the room", which is not true yet.
 - Vote-kick threshold: half of the other connected players, rounded down, plus one.
 - Reports: 5 per minute per reporter, reasons offensive, harassment, spam or
   other, a 200-character note, the last 40 kept.
-- Removing a Herd answer blanks its text and keeps its slot.
+- Removing a Herd answer blanks its text and its picture and keeps its slot. Kicking a player or removing their media also clears the pictures on their Herd answers.
 - Every `/api/host/...` route is checked on the server for the host key.
 
 ## Where it lives

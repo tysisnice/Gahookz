@@ -68,6 +68,8 @@ export function pruneRoomMedia(room) {
   allRoomQuestions(room).forEach((question) => {
     retain(question.imageDataUrl);
     retain(question.authorAvatarImageDataUrl);
+    // Herd answers can carry an image of their own.
+    (question.answers || []).forEach((answer) => retain(answer.imageDataUrl));
   });
   Object.values(room.game?.answers || {}).forEach((answer) => retain(answer.imageDataUrl));
   (room.chatMessages || []).forEach((message) => retain(message.senderAvatarImageDataUrl));

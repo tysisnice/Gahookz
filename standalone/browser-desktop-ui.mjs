@@ -81,7 +81,8 @@ try {
   if(mode==='herd') {
    await player.waitForSelector('.herd-answer-writer');
    assert.equal(await player.$$eval('.herd-writing-roster .player-card',a=>a.length),3);
-   assert(await player.$('.herd-answer-workspace .herd-preparation-progress'));
+   assert.equal(await player.$('.herd-preparation-progress'),null,'The separate progress card is gone');
+   assert((await player.$$eval('.herd-writing-roster .player-card p',a=>a.map(n=>n.textContent))).every(t=>/^\d+\/\d+ answered$/.test(t)),'Player cards show per-player Herd progress');
    await player.$$eval('.herd-answer-writer input',inputs=>inputs.forEach((input,i)=>{
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Browser answer '+i);
     input.dispatchEvent(new Event('input',{bubbles:true}));

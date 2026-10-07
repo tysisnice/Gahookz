@@ -66,7 +66,7 @@ it. Never start a server by hand, and never `pkill` by pattern.
 | `npm test` | `test:simulation`, then `standalone:smoke:room-expiry` (own server), then `test:disposable` around the 25 scripts in `standalone:smoke:shared` | about 3 min |
 | `npm run test:disposable -- npm run test:rooms` | `simulate-room-flows.mjs` | unmeasured |
 | `npm run test:disposable -- npm run test:browser` | `browser-flow.mjs` | unmeasured |
-| `npm run test:disposable -- npm run test:browser:<name>` | `desktop-ui`, `mobile`, `arena`, `navigation`, `audio` | unmeasured |
+| `npm run test:disposable -- npm run test:browser:<name>` | `desktop-ui`, `mobile`, `arena`, `navigation`, `audio`, `herd-writing` | unmeasured |
 | `npm run test:disposable -- npm run drill:resilience` | `drill-resilience.mjs` | unmeasured |
 
 ### What each harness proves, and what it does not

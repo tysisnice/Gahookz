@@ -54,7 +54,11 @@ other player's pick before the reveal, with an "Answered" avatar row.
   is hidden (`...`) and the tiles are not tappable; while answering a player
   taps one, it locks (`is-locked`, own tile `is-selected`) and the choice is
   sent optimistically. A soft "ooh" plays when new answers arrive after the
-  first load of a question.
+  first load of a question. A Herd answer that carries a picture shows it above
+  the text (`answer-tile-image`, `has-answer-image`; bounded to 120 / 150 / 220 px
+  tall by viewport width, alt text "Picture sent with this answer", never the
+  writer). The server sends the picture only once the text is sent, so it is
+  absent while reading.
 - **Live leaderboard** under the tiles during reading and answering
   (`GameLeaderboardPanel`, top 6, hint "Choose one friend to Gahook this
   question", the per-question Gahook button on each row; own row and used
@@ -79,9 +83,10 @@ other player's pick before the reveal, with an "Answered" avatar row.
   screen ("Player controls" button to go back). In a game it is `HostGame`
   with Skip (host only) and no Pause; at the end it is `ReadonlyFinishedScreen`.
 
-Herd answer writing and the **Herd answer images** are being changed by another
-agent: **in progress**, not described here. See [Herd](../wiki/herd.md) for the
-shipped rules.
+Herd answer writing (the answer boxes, per-player progress in the player cards
+and the optional answer pictures) is the ui-lobby area; see
+[Herd](../wiki/herd.md). This guide covers only how a picture is shown in the
+live tiles and the reveal.
 
 ## Code map
 
@@ -307,8 +312,9 @@ screen) are in [ui-shell](ui-shell.md#tests).
 - `smoke-layout` still carries an assertion message ("Ordinary live answer
   choices should show player identities") that predates U23; its check is
   `!anonymous={!reveal}`, which still holds.
-- The Herd answer-writing and Herd answer image changes were in progress when
-  this guide was written; the reveal text for Herd may change.
+- Herd answer pictures (2026-10-08) render inside `AnswerGrid`, so the voting
+  tiles, the party screen and `HerdRevealBreakdown` share one implementation;
+  there is no full-size view of a picture (a tile tap is a vote).
 - `backlog.md` still lists the pre-U23 leak of other players' picks as open;
   U23 is merged. Close that line.
 

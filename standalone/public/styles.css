@@ -11534,6 +11534,7 @@ button.answer-tile {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
 
 /* Paint editor layout: row 1 Undo / Clear / Upload; row 2 brush sizes then
    Brush / Eraser; colours with the custom swatch last. Rows never wrap, so the
@@ -11803,3 +11804,60 @@ button.answer-tile {
   .custom-gahook-creator__header input,
   .custom-gahook-creator__header label { min-width: 0; max-width: 100%; box-sizing: border-box; }
 }
+
+
+/* Herd answer images. The compact picker sits directly under the answer box:
+   no frame, the two source buttons stay side by side even at 360px (the base
+   rule stacks them under 560px), and the preview is a small thumbnail. */
+.image-upload-draw-picker.is-compact {
+  margin-top: 0;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.herd-answer-writer > .image-upload-draw-picker.is-compact { margin-top: -4px; }
+.image-upload-draw-picker.is-compact .image-source-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.image-upload-draw-picker.is-compact .image-source-actions > button {
+  min-height: 44px;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.86rem;
+  line-height: 1.15;
+}
+.image-upload-draw-picker.is-compact .image-source-actions svg { flex-basis: 20px; width: 20px; height: 20px; }
+@media (max-width: 359px) {
+  /* At 320px each button is about 120px wide: drop the icon so the label stays on one line. */
+  .image-upload-draw-picker.is-compact .image-source-actions > button { padding: 4px 5px; font-size: 0.8rem; }
+  .image-upload-draw-picker.is-compact .image-source-actions svg { display: none; }
+}
+.image-upload-draw-picker.is-compact .image-choice-preview {
+  justify-self: start;
+  max-width: 100%;
+  min-width: 96px;
+  border: 1px solid #c9d3e3;
+  background: #ffffff;
+}
+.image-upload-draw-picker.is-compact .image-choice-preview img { width: auto; max-width: 100%; max-height: 96px; margin: 0 auto; }
+.image-upload-draw-picker.is-compact .image-choice-preview > button { top: 4px; right: 4px; width: 32px; height: 32px; }
+.image-upload-draw-picker.is-compact > small { display: none; }
+
+/* An answer image in a voting or reveal tile is bounded so a tall drawing never
+   pushes the tile off a phone; the white plate keeps transparent images legible
+   on the coloured tile. */
+.answer-tile.has-answer-image { flex-direction: column; }
+.answer-tile-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 120px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+}
+@media (min-width: 900px) { .answer-tile-image { max-height: 150px; } }
+@media (min-width: 1400px) { .answer-tile-image { max-height: 220px; } }
+.herd-review-image { display: block; width: auto; height: auto; max-width: 100%; max-height: 110px; border-radius: 8px; background: #fff; }
