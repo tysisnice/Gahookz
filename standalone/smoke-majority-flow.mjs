@@ -46,6 +46,16 @@ async function waitForPhase(phase, timeoutMs = 4000) {
   throw new Error("Timed out waiting for phase " + phase + " in room " + roomCode);
 }
 
+
+// Pre-reveal privacy: no snapshot may say which option another player chose.
+function assertNoOtherChoicesVisible(snapshot, viewerPlayerId, label) {
+  for (const selection of snapshot.answerSelections || []) {
+    if (selection.playerId === viewerPlayerId) continue;
+    assert.equal("answerId" in selection, false, label + ": another player's choice leaked before the reveal");
+  }
+  assert.equal(JSON.stringify(snapshot.answerSelections || []).includes("answerId"), viewerPlayerId ? (snapshot.answerSelections || []).some((s) => s.playerId === viewerPlayerId) : false, label + ": unexpected answerId in selections");
+}
+
 await post("/api/room", { code: roomCode, playerKey: hostKey });
 await post("/api/host/settings", {
   code: roomCode,
@@ -126,6 +136,14 @@ for (let round = 0; round < players.length; round += 1) {
     await new Promise((resolve) => setTimeout(resolve, 25));
     await post("/api/answer", { code: roomCode, playerKey: players[2].key, answerId: "red" });
     await post("/api/answer", { code: roomCode, playerKey: players[3].key, answerId: "red" });
+    const hostView = await state();
+    const partyView = await state("party", "");
+    const ownView = await state("player", players[0].key);
+    assert(hostView.answerSelections.length >= 3, "Pre-reveal snapshots still list who has answered");
+    assertNoOtherChoicesVisible(hostView, "", "majority host");
+    assertNoOtherChoicesVisible(partyView, "", "majority party");
+    assertNoOtherChoicesVisible(ownView, ownView.ownPlayer.id, "majority player");
+    assert.equal(ownView.answerSelections.find((s) => s.isOwn)?.answerId, "blue", "A player still sees their own choice");
   } else {
     for (const player of players) {
       await post("/api/answer", { code: roomCode, playerKey: player.key, answerId: "red" });
@@ -135,6 +153,9 @@ for (let round = 0; round < players.length; round += 1) {
   const reveal = await waitForPhase("reveal");
   const results = reveal.currentQuestion.majorityResults;
   assert(results, "Majority reveal should include its vote result");
+  if (round === 0) {
+    assert.equal(reveal.answerSelections.filter((selection) => selection.answerId).length, 4, "The reveal shows every player's choice");
+  }
   if (round === 0) {
     assert.equal(results.tiedByVotes, true);
     assert.equal(results.tieBrokenBySpeed, true);

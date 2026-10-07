@@ -4106,12 +4106,15 @@ function publicAnswerSelections(room, viewerPlayerId = "") {
   })).
   sort((a, b) => a.answeredAt - b.answeredAt);
   if (room.phase === "reveal") return selections;
-  return selections.map((selection) => ({
-    playerId: selection.playerId,
-    answerId: selection.answerId,
-    answeredAt: selection.answeredAt,
-    isOwn: selection.playerId === viewerPlayerId
-  }));
+  // Before the reveal nobody may learn which option another player chose, in any
+  // mode (a late answerer could copy a friend). Other players' entries only say
+  // that they have answered; answerId is kept for the viewer's own pick.
+  return selections.map((selection) => {
+    const isOwn = Boolean(viewerPlayerId) && selection.playerId === viewerPlayerId;
+    return isOwn ?
+    { playerId: selection.playerId, answerId: selection.answerId, answeredAt: selection.answeredAt, isOwn: true } :
+    { playerId: selection.playerId, answeredAt: selection.answeredAt, isOwn: false };
+  });
 }
 
 function getStartCheck(room) {
