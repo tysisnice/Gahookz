@@ -24,7 +24,7 @@ and does, and why the feature exists.
 
 ## Related
 
-- [Another wiki page](other-page.md)
+- [The wiki index](README.md) (replace with the related pages)
 
 ## History
 

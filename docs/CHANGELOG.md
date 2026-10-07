@@ -32,5 +32,5 @@ repeating them here.
 ## 2026-09-19 — Quiz/Herd overhaul (P00–P12), desktop and mobile UI, arena 1v1, hosting
 
 Merged to `main` as `78a1382` and running in production as `e3b6dde`. See the
-archived [implementation plan](archive/IMPLEMENTATION-PLAN.md) and the
+[implementation plan](../IMPLEMENTATION-PLAN.md) and the
 [verification records](verification/) for that work.
