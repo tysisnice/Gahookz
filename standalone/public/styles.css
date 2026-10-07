@@ -11446,3 +11446,114 @@ button.answer-tile {
 @media (prefers-reduced-motion: reduce) {
   .quick-menu-backdrop { animation: none; }
 }
+
+/* Paint editor layout: row 1 Undo / Clear / Upload; row 2 brush sizes then
+   Brush / Eraser; colours with the custom swatch last. Rows never wrap, so the
+   labels shrink (and the Brush / Eraser words drop to icons) on narrow phones. */
+.simple-paint-editor__toolbar {
+  display: grid;
+  gap: 8px;
+  align-items: stretch;
+  flex-direction: row;
+}
+
+.simple-paint-editor__actions {
+  display: flex;
+  flex-wrap: nowrap;
+  margin-left: 0;
+  gap: 5px;
+}
+
+.simple-paint-editor__actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.simple-paint-editor__drawrow {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.simple-paint-editor__drawrow .simple-paint-editor__sizes {
+  flex: 0 0 auto;
+}
+
+.simple-paint-editor__drawrow .simple-paint-editor__tool-group {
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
+.simple-paint-editor__drawrow .simple-paint-editor__tool {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 120px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.simple-paint-editor__colors {
+  flex-direction: row;
+  align-items: center;
+}
+
+.simple-paint-editor__swatch--custom {
+  position: relative;
+  display: inline-block;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  cursor: pointer;
+  background:
+    radial-gradient(circle, var(--paint-custom, #ffffff) 0 34%, transparent 36%),
+    conic-gradient(#ef4444, #facc15, #22c55e, #06b6d4, #2563eb, #9333ea, #ec4899, #ef4444);
+}
+
+.simple-paint-editor__custom-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.simple-paint-editor__status.is-error {
+  color: #b42318;
+}
+
+@media (max-width: 420px) {
+  .simple-paint-editor__drawrow .simple-paint-editor__tool-label {
+    display: none;
+  }
+
+  .simple-paint-editor__drawrow .simple-paint-editor__icon,
+  .simple-paint-editor__drawrow .simple-paint-editor__tool .simple-paint-editor__icon {
+    margin-right: 0;
+  }
+
+  .simple-paint-editor__drawrow .simple-paint-editor__size {
+    width: 34px;
+    height: 34px;
+  }
+
+  .simple-paint-editor__actions button {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 350px) {
+  .simple-paint-editor__actions .simple-paint-editor__icon {
+    display: none;
+  }
+
+  .simple-paint-editor__actions button {
+    padding: 0 3px;
+  }
+}

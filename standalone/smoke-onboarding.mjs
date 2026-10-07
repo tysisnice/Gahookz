@@ -63,7 +63,7 @@ assert(socialHub.includes('send("/api/room/chat"') && socialHub.includes("/api/r
 assert(socialHub.includes("<AvatarBadge") && socialHub.includes("small />"), "Lobby chat should reuse a compact player-banner avatar");
 assert(styles.includes(".social-chat__message.is-own .social-chat__bubble") && styles.includes("word-break: break-word"), "Lobby chat bubbles should fit their messages and safely wrap long text");
 assert(!avatarPicker.includes('type="file"') && !avatarPicker.includes("UploadAvatarIcon"), "Join should not show a separate profile-picture upload control");
-assert(joinScreen.includes("<SimplePaintEditor") && joinScreen.includes("upload an image here"), "Profile-picture uploads should remain available inside the custom drawing editor");
+assert(joinScreen.includes("<SimplePaintEditor") && fs.readFileSync(new URL("./public/client/drawing.jsx", import.meta.url), "utf8").includes("Upload image") && !joinScreen.includes("upload an image here"), "Profile-picture uploads should remain available inside the custom drawing editor");
 assert(joinScreen.includes("<AccountPanel"), "Account sign-in should be available while choosing a player name");
 assert(hostLobby.includes("<AccountPanel"), "Account sign-in should be available in the host lobby");
 assert(playerWaitingLobby.includes("<AccountPanel"), "Account sign-in should be available in the player lobby");

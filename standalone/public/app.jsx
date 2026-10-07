@@ -3683,7 +3683,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
       }}>
         <section className="creation-modal avatar-paint-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-paint-title">
           <header className="avatar-paint-modal__header">
-            <div><span>Make it yours</span><h2 id="avatar-paint-title">Draw your profile picture</h2><p>Draw from scratch or upload an image here, then make it your own.</p></div>
+            <div><span>Make it yours</span><h2 id="avatar-paint-title">Draw your profile picture</h2></div>
             <button type="button" onClick={() => setDrawingAvatar(false)} aria-label="Close profile picture drawing">×</button>
           </header>
           <SimplePaintEditor
@@ -4798,7 +4798,7 @@ function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image",
       }}>
         <section className="creation-modal avatar-paint-modal answer-image-paint-modal" role="dialog" aria-modal="true" aria-label="Draw an image">
           <header className="avatar-paint-modal__header">
-            <div><span>Make it visual</span><h2>Draw an image</h2><p>Use the same brushes, colours, eraser, and upload tool as your profile picture.</p></div>
+            <div><span>Make it visual</span><h2>Draw an image</h2></div>
             <button type="button" onClick={() => setDrawing(false)} aria-label="Close image drawing">x</button>
           </header>
           <SimplePaintEditor

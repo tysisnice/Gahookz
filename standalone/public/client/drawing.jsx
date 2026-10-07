@@ -227,7 +227,8 @@ export function SimplePaintEditor({
   const [brushSizeId, setBrushSizeId] = useState(() => String(brushSizes[1]?.id || brushSizes[0]?.id || "medium"));
   const [canUndo, setCanUndo] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [status, setStatus] = useState("Ready to draw.");
+  const [status, setStatus] = useState("")
+  const [statusIsError, setStatusIsError] = useState(false);
 
   const canvasSize = useMemo(() => getBoundedCanvasSize({
     width,
@@ -251,9 +252,15 @@ export function SimplePaintEditor({
   const exportMimeType = normalizedMimeType(mimeType);
   const externalSource = value !== undefined ? value : initialImage;
 
+  const announce = (message) => {
+    setStatus(message);
+    setStatusIsError(false);
+  };
+
   const reportError = (error, fallbackMessage = "Something went wrong with the drawing.") => {
     const message = error instanceof Error && error.message ? error.message : fallbackMessage;
     setStatus(message);
+    setStatusIsError(true);
     onError?.(error instanceof Error ? error : new Error(message));
   };
 
@@ -369,18 +376,18 @@ export function SimplePaintEditor({
       resetCanvas(baseCanvas, backgroundColor, true);
       hasArtworkRef.current = false;
       hasBaseImageRef.current = false;
-      setStatus("Ready to draw.");
+      announce("");
       return undefined;
     }
 
-    setStatus("Loading image…");
+    announce("Loading image…");
     loadImage(externalSource).then(image => {
       if (sourceLoadRef.current !== loadId) return;
       drawImageToCanvas(baseCanvas, image, imageFit, backgroundColor, true);
       resetCanvas(canvas, backgroundColor, true);
       hasArtworkRef.current = true;
       hasBaseImageRef.current = true;
-      setStatus("Image loaded. Ready to draw.");
+      announce("Image loaded.");
     }).catch(error => {
       if (sourceLoadRef.current !== loadId) return;
       resetCanvas(canvas, backgroundColor, true);
@@ -416,7 +423,7 @@ export function SimplePaintEditor({
     setIsDrawing(false);
     if (!cancelled) {
       hasArtworkRef.current = true;
-      setStatus("Stroke added. Undo is available.");
+      announce("Stroke added. Undo is available.");
       emitChange("stroke");
     }
   };
@@ -473,7 +480,7 @@ export function SimplePaintEditor({
     activeStrokeRef.current = null;
     setIsDrawing(false);
     setCanUndo(historyRef.current.length > 0);
-    setStatus("Stroke cancelled.");
+    announce("Stroke cancelled.");
   };
 
   const handleUndo = () => {
@@ -488,7 +495,7 @@ export function SimplePaintEditor({
     hasArtworkRef.current = snapshot.hasArtwork;
     hasBaseImageRef.current = snapshot.hasBaseImage;
     setCanUndo(historyRef.current.length > 0);
-    setStatus("Last change undone.");
+    announce("Last change undone.");
     emitChange("undo");
   };
 
@@ -501,7 +508,7 @@ export function SimplePaintEditor({
     resetCanvas(baseCanvas, backgroundColor, true);
     hasArtworkRef.current = false;
     hasBaseImageRef.current = false;
-    setStatus("Canvas cleared. Undo is available.");
+    announce("Canvas cleared. Undo is available.");
     emitChange("clear");
   };
 
@@ -521,7 +528,7 @@ export function SimplePaintEditor({
     }
 
     const objectUrl = URL.createObjectURL(file);
-    setStatus("Loading upload…");
+    announce("Loading upload…");
     try {
       const image = await loadImage(objectUrl);
       const canvas = canvasRef.current;
@@ -532,7 +539,7 @@ export function SimplePaintEditor({
       resetCanvas(canvas, backgroundColor, true);
       hasArtworkRef.current = true;
       hasBaseImageRef.current = true;
-      setStatus("Image added. You can draw over it or undo.");
+      announce("Image added. You can draw over it or undo.");
       emitChange("upload");
     } catch (error) {
       reportError(error);
@@ -544,50 +551,54 @@ export function SimplePaintEditor({
   const handleExport = () => {
     const result = serialize("export");
     if (!result) return;
-    setStatus("Drawing ready to use.");
+    announce("Drawing ready to use.");
     onExport?.(result.dataUrl, result.metadata);
   };
 
   return <section className={`simple-paint-editor ${readOnly ? "simple-paint-editor--read-only" : ""} ${className}`.trim()} aria-label={label}>
     {!readOnly && <div className="simple-paint-editor__toolbar" aria-label="Drawing tools">
-      <div className="simple-paint-editor__tool-group" role="group" aria-label="Paint tool">
-        <button
-          className={`simple-paint-editor__tool ${tool === "brush" ? "is-selected" : ""}`}
-          type="button"
-          aria-pressed={tool === "brush"}
-          onClick={() => setTool("brush")}
-        ><span className="simple-paint-editor__icon" aria-hidden="true">🖌</span>Brush</button>
-        <button
-          className={`simple-paint-editor__tool ${tool === "eraser" ? "is-selected" : ""}`}
-          type="button"
-          aria-pressed={tool === "eraser"}
-          onClick={() => setTool("eraser")}
-        ><span className="simple-paint-editor__icon" aria-hidden="true">🧽</span>Eraser</button>
-      </div>
-
-      <fieldset className="simple-paint-editor__sizes">
-        <legend>Brush size</legend>
-        {safeBrushSizes.map(size => <label
-          className={`simple-paint-editor__size ${activeBrushSize.id === size.id ? "is-selected" : ""}`}
-          key={size.id || size.label}
-          title={`${size.label || "Brush"}: ${size.size} pixels`}
-        >
-          <input
-            type="radio"
-            name={`${descriptionId}-brush-size`}
-            value={size.id}
-            checked={activeBrushSize.id === size.id}
-            onChange={() => setBrushSizeId(size.id)}
-          />
-          <span className="simple-paint-editor__size-dot" style={{ width: `${clamp(size.size, 4, 28)}px`, height: `${clamp(size.size, 4, 28)}px` }} aria-hidden="true" />
-          <span style={VISUALLY_HIDDEN_STYLE}>{size.label || `${size.size} pixel brush`}</span>
-        </label>)}
-      </fieldset>
-
       <div className="simple-paint-editor__actions" role="group" aria-label="Canvas actions">
         <button type="button" onClick={handleUndo} disabled={!canUndo}><span className="simple-paint-editor__icon" aria-hidden="true">↶</span>Undo</button>
         <button type="button" onClick={handleClear}><span className="simple-paint-editor__icon" aria-hidden="true">🗑</span>{clearLabel}</button>
         {allowUpload && <button type="button" onClick={() => uploadRef.current?.click()}><span className="simple-paint-editor__icon" aria-hidden="true">⭱</span>Upload image</button>}
+      </div>
+
+      <div className="simple-paint-editor__drawrow">
+        <fieldset className="simple-paint-editor__sizes">
+          <legend style={VISUALLY_HIDDEN_STYLE}>Brush size</legend>
+          {safeBrushSizes.map(size => <label
+            className={`simple-paint-editor__size ${activeBrushSize.id === size.id ? "is-selected" : ""}`}
+            key={size.id || size.label}
+            title={`${size.label || "Brush"}: ${size.size} pixels`}
+          >
+            <input
+              type="radio"
+              name={`${descriptionId}-brush-size`}
+              value={size.id}
+              checked={activeBrushSize.id === size.id}
+              onChange={() => setBrushSizeId(size.id)}
+            />
+            <span className="simple-paint-editor__size-dot" style={{ width: `${clamp(size.size, 4, 28)}px`, height: `${clamp(size.size, 4, 28)}px` }} aria-hidden="true" />
+            <span style={VISUALLY_HIDDEN_STYLE}>{size.label || `${size.size} pixel brush`}</span>
+          </label>)}
+        </fieldset>
+
+        <div className="simple-paint-editor__tool-group" role="group" aria-label="Paint tool">
+          <button
+            className={`simple-paint-editor__tool ${tool === "brush" ? "is-selected" : ""}`}
+            type="button"
+            aria-pressed={tool === "brush"}
+            aria-label="Brush"
+            onClick={() => setTool("brush")}
+          ><span className="simple-paint-editor__icon" aria-hidden="true">🖌</span><span className="simple-paint-editor__tool-label">Brush</span></button>
+          <button
+            className={`simple-paint-editor__tool ${tool === "eraser" ? "is-selected" : ""}`}
+            type="button"
+            aria-pressed={tool === "eraser"}
+            aria-label="Eraser"
+            onClick={() => setTool("eraser")}
+          ><span className="simple-paint-editor__icon" aria-hidden="true">🧽</span><span className="simple-paint-editor__tool-label">Eraser</span></button>
+        </div>
       </div>
     </div>}
 
@@ -605,18 +616,23 @@ export function SimplePaintEditor({
           aria-pressed={color.toLowerCase() === paletteColor.toLowerCase()}
           style={{ "--paint-swatch": paletteColor }}
         />)}
+        <label
+          className={`simple-paint-editor__swatch simple-paint-editor__swatch--custom ${safePalette.some(entry => entry.toLowerCase() === color.toLowerCase()) ? "" : "is-selected"}`}
+          style={{ "--paint-custom": safePalette.some(entry => entry.toLowerCase() === color.toLowerCase()) ? "#ffffff" : color }}
+          title="Custom colour"
+        >
+          <input
+            className="simple-paint-editor__custom-input"
+            type="color"
+            aria-label="Custom colour"
+            value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#111214"}
+            onChange={event => {
+              setColor(event.target.value);
+              setTool("brush");
+            }}
+          />
+        </label>
       </div>
-      <label className="simple-paint-editor__custom-color">
-        <span>Custom colour</span>
-        <input
-          type="color"
-          value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#111214"}
-          onChange={event => {
-            setColor(event.target.value);
-            setTool("brush");
-          }}
-        />
-      </label>
     </div>}
 
     <div className={`simple-paint-editor__canvas-shell ${isDrawing ? "is-drawing" : ""}`} style={{ aspectRatio: `${canvasSize.width} / ${canvasSize.height}` }}>
@@ -645,7 +661,8 @@ export function SimplePaintEditor({
     <p id={descriptionId} style={VISUALLY_HIDDEN_STYLE}>
       {readOnly ? "A saved drawing preview." : "Draw with a mouse, pen or one finger. Choose a colour, brush size or eraser from the controls."}
     </p>
-    <p id={statusId} className="simple-paint-editor__status" role="status" aria-live="polite">{status}</p>
+    {/* Status is announced to screen readers but only drawn when something went wrong. */}
+    <p id={statusId} className={statusIsError ? "simple-paint-editor__status is-error" : "simple-paint-editor__status"} style={statusIsError ? undefined : VISUALLY_HIDDEN_STYLE} role="status" aria-live="polite">{status}</p>
     {!readOnly && <input
       ref={uploadRef}
       className="simple-paint-editor__file-input"

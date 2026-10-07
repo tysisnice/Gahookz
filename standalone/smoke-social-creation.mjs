@@ -190,7 +190,7 @@ function runStaticUiSmoke() {
   const joinScreen = functionSection(appSource, "JoinScreen");
   assert(/onDraw|draw-avatar/i.test(avatarPicker) && joinScreen.includes("SimplePaintEditor"), "The player profile picker should offer drawing and presets");
   assert(!avatarPicker.includes('type="file"') && !avatarPicker.includes("UploadAvatarIcon"), "The Join picker should not duplicate the drawing editor's upload control");
-  assert(joinScreen.includes("upload an image here"), "The custom profile drawing editor should explain where image upload now lives");
+  assert(drawingSource.includes("Upload image") && !joinScreen.includes("upload an image here") && !drawingSource.includes("Ready to draw."), "The paint editor owns image upload and no longer shows a subtitle or an idle status");
   const socialHub = functionSection(appSource, "RoomSocialHub");
   assert(socialHub.includes("WaitingRoomSocial"), "The app should connect its waiting rooms to WaitingRoomSocial");
   // Chat stays in RoomSocialHub; the shared drawing layer moved to the lobby wall.
