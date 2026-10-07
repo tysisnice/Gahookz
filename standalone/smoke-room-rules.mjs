@@ -143,6 +143,12 @@ const scoreOf = (snapshot, playerId) => Number(snapshot.players.find((player) =>
   assert(poked.ok === false, "A Gahook must be refused outright while effects are off");
   const after = scoreOf(await state(), targetId);
   assert(after === before, "A refused Gahook must not move a score");
+  // The in-question button and the host's Gahook are separate routes; Off
+  // must refuse them too, not only the lobby-style poke.
+  const roundPoked = await post("/api/player/round-poke", { playerKey: players[1], playerId: targetId });
+  assert(roundPoked.ok === false && /effects off/.test(roundPoked.error || ""), "The in-round Gahook must be refused while effects are off: " + JSON.stringify(roundPoked));
+  const hostPoked = await post("/api/host/poke", { playerId: targetId });
+  assert(hostPoked.ok === false && /effects off/.test(hostPoked.error || ""), "The host's Gahook must be refused while effects are off: " + JSON.stringify(hostPoked));
 }
 
 await post("/api/host/reset");

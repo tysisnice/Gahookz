@@ -40,3 +40,5 @@ only `/api/player/poke`). Not fixed (documentation-only pass).
 - `/api/player/shame-poke` is still served but the browser calls `final-poke`.
 - `GahookDash` has a `roomMode`, and the server a `/api/player/dash` route, but no
   screen mounts room mode.
+
+**Fixed 2026-10-07 by the orchestrator:** every in-round Gahook route now honours Off (`EFFECT_GATED_GAHOOK_ROUTES` in `server.js`), so the `lobby-rules.md` and `overview.md` statements above are now true.

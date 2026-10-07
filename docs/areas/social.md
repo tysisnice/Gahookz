@@ -119,15 +119,14 @@ and it is published as `gahookEffects`. Enforcement lives in `server.js`:
 - `gahookScoringAllowed` (policy is `chaos`) gates the steal in `pokePlayer`
   and the GET GOT penalty in `applyGetGot`. This is the "no points move" rule,
   and it holds for every route.
-- `gahookEffectsAllowed` (policy is not `off`) is checked **once**, in the
-  dispatcher for `/api/player/poke` during `reading`, `answering` and
-  `reveal`: error "The host has turned Gahook effects off for this game."
-  **`/api/player/round-poke` and `/api/host/poke` are not checked.** Verified in
-  a running disposable server on 2026-10-07 with policy `off` in the reading
-  phase: `/api/player/poke` was refused, while `round-poke` and `host/poke`
-  both returned `ok` (no score moved, because scoring needs Chaos). The browser
-  uses `round-poke` during a question, so "Off" does not currently stop
-  in-round Gahook animations. See Known issues.
+- `gahookEffectsAllowed` (policy is not `off`) is checked in the dispatcher
+  for every in-round Gahook route (`EFFECT_GATED_GAHOOK_ROUTES`:
+  `/api/player/poke`, `round-poke`, `counter-poke`, `shame-poke` and
+  `/api/host/poke`) during `reading`, `answering` and `reveal`: error "The
+  host has turned Gahook effects off for this game." Until 2026-10-07 only
+  `/api/player/poke` was checked, so the browser's in-question button still
+  sent Gahooks under Off; `smoke-room-rules` now covers `round-poke` and
+  `host/poke`.
 - Lobby and finale Gahooks ignore the policy.
 
 A separate switch, `room.lobbyArenaEnabled` (default true), makes
@@ -425,10 +424,6 @@ test (`smoke-room-rules` only exercises `/api/player/poke`).
 
 Backlog: see [the backlog](../backlog.md). Found while writing this guide:
 
-- **"Off" does not block every Gahook in a question.** The effects-off check
-  covers only `/api/player/poke`; `/api/player/round-poke` (what the browser
-  uses during reading and answering) and `/api/host/poke` still send. No points
-  move (Chaos is required for that). Reproduced on 2026-10-07.
 - **Chat and painting in Herd writing.** `app.jsx` enables the chat and paint
   layers in `herd-writing`; `social.mjs` accepts only `lobby` and `building`.
 - **Room Dash is dormant.** `/api/player/dash`, the `dash*` player fields and
