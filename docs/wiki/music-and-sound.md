@@ -38,5 +38,5 @@ Everything is generated in the browser: no recorded files.
 ## History
 
 - 2026-07-20 — Looping oscillator music and Gahook sounds exist from the first commit (`dd449f2`).
-- 2026-09-30 — Sad Pig replaces Airhorn Capy, with a new cry (`77534e0`).
+- 2026-09-30 — Sad Pig replaces Airhorn Capy (`77534e0`); its cry arrives with the new engine.
 - 2026-10-03 — A generated music engine, a Music switch, new effects and a game-end cheer replace the old music (`f997566`).
