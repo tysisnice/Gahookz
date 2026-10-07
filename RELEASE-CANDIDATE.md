@@ -1,5 +1,7 @@
 # Release readiness — Quiz/Herd overhaul
 
+> **Archived 2026-10-07.** The 2026-09-19 release-candidate assessment. Open work now lives in [the backlog](docs/backlog.md). Kept for history.
+
 **2026-09-19: NOT RELEASE-READY.** Review repairs exist and focused verification passes, but required implementation and acceptance gates remain open. No deployment is authorized.
 
 Branch `overhaul/quiz-herd-p00-p12`, HEAD `e31cdc88989a78d7e1dabb468f589f46f18546b2` plus uncommitted repairs; browser build `release-4a97d7b7c3b5edca`. This is not a clean immutable candidate. No current image ID/digest or previous recoverable image has been verified. Earlier `d0a7f5b`/image claims are historical and must not be attributed to this tree.

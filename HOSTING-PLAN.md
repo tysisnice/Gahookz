@@ -1,5 +1,7 @@
 # Hosting adaptions — investigation and implementation plan
 
+> **Archived 2026-10-07.** Investigation closed (docs/verification/2026-09-19-hosting/). Current hosting: [runbook](docs/operations/runbook.md), [architecture overview](docs/architecture/overview.md). Kept for history.
+
 Source: `/Vault/Hosting adaptions.md`. Repo:
 `/mnt/storage/syncthing/codex/2026-07-01/Gahookz`, branch `overhaul/quiz-herd-p00-p12`.
 

@@ -15,7 +15,6 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Engineering P0
 
-- Classic, Majority Rulez and Herd expose other players' picks during answering (`publicAnswerSelections`). The U23 brief fixes it in wave 2. (game-flow; [game-flow](areas/game-flow.md), [briefs](plans/2026-09-25-briefs.md)) Close this when U23 merges.
 - No browser control reports content: `/api/player/report` and `/api/host/remove-content` exist and are tested, but nothing under `standalone/public` calls them, while `client/legal.jsx` tells players to "use the report button". (ui-shell, systems; LEDGER docs-core-b)
 - Automated abuse handling for an open anonymous audience: no scanning, appeals, evidence retention or operator console. (systems; OPS section 10 P0)
 - Accounts are inert in production (no `DATABASE_URL`, Google client unset); needs the owner to provision both. (accounts; [accounts](areas/accounts.md), OPS section 10)
@@ -26,7 +25,6 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - `docker-deploy.sh` checks the running image against `gahookz:local` while compose defaults production to `gahookz:prod-local`. (platform; [platform](areas/platform.md))
 - `skipPhase` in `standalone/server.js` never checks `room.paused`, so a host can skip while paused. (game-flow; LEDGER docs-game-a)
 - A disconnected Herd writer blocks Start (Skip or force-start get past it). (game-flow; LEDGER docs-game-a)
-- Privacy text in `client/legal.jsx` says a room ends "a few minutes" after everyone leaves; it is 60 seconds. (ui-shell; LEDGER docs-core-b)
 - No install button: `usePwaInstall` in `client/offline.jsx` is exported but used nowhere. (ui-shell; LEDGER docs-core-b)
 - Tested rollback: rollback images exist (2026-10-02) but no rollback has been rehearsed; runbook says "revert and redeploy" first. (platform; OPS section 10, [runbook](operations/runbook.md))
 - Split the monoliths: `server.js` (5,612 lines), `app.jsx` (5,496), `styles.css` (11,414). (platform, ui-shell; OPS section 10, [typescript plan](plans/typescript-migration.md))
@@ -73,10 +71,9 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Journal-volume replacement probe (`standalone/verify-journal-volume.mjs`) has never been recorded as run; it needs an isolated `gahookz:review-*` image. (accounts, platform; RC, [accounts](areas/accounts.md))
 - PostgreSQL probe: passes since the 2026-09-25 accounts work (see Checked and closed), but only against a disposable database; production has none. Run it against the real provisioned database before enabling accounts. (accounts; [accounts record](verification/2026-09-25-update/accounts.md))
 - Rollback rehearsal on beta (monthly cadence in the runbook, never done). (platform; [runbook](operations/runbook.md))
-- `/srv/gahookz` is a stale clone (`81a70d2`), not production; production, beta and dev run from the Store repository since 2026-10-02. Older documents (`SERVER-COMMANDS.md`, `DEPLOY-FEDORA.md`) still show `cd /srv/gahookz`; either remove the clone or fix the documents. (platform; [docs audit](verification/2026-09-25-update/docs-audit.md))
+- `/srv/gahookz` is a stale clone (`81a70d2`), not production; production, beta and dev run from the Store repository since 2026-10-02. The documents were corrected on 2026-10-07; Tyson may want to remove the clone. (platform; [docs audit](verification/2026-09-25-update/docs-audit.md))
 - Rotate the Nginx Proxy Manager JWT signing key (`keys.json` was exposed to a terminal on 2026-09-05). (platform; OPS section 10)
 - Phone Syncthing can delete files in the Store working copy (happened 2026-09-30); make the phone receive-only or ignore `Projects/`. (platform; LEDGER)
-- The 2026-09-25 old-document moves and archive banners are pending with the orchestrator. (docs; [docs audit](verification/2026-09-25-update/docs-audit.md))
 
 ## Human and device testing
 
@@ -96,6 +93,10 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 ## Checked and closed
 
 - Herd authorship was a pure function of the question author's position: `packages/game-engine/src/herd.ts` now assigns answers least-loaded with a shuffled remainder.
+- Other players' picks visible before the reveal: fixed in every mode by U23 (`79d1f8b`, merged 2026-10-07).
+- Privacy text said rooms end "a few minutes" after everyone leaves: now "about a minute" (`09b0a1c`).
+- Gahook effects Off let in-round Gahooks through (`round-poke`, `host/poke`): every in-round route is gated (`05379cf`) and the buttons are hidden (`7769cd0`).
+- "Saved dialog closes" browser-flow failure: the rules dialog showed its previous draft for one frame; fixed (`2026-10-07`).
 - `dev.mjs` not watching `client/host-presence.jsx` and `client/legal.jsx`: both are in its watch list now.
 - `CLAUDE.md` deploy and status commands pointing at `/srv/gahookz`: it now uses the Store path and calls `/srv/gahookz` stale.
 - PostgreSQL probe failing with 57P01 (PP, RC): fixed in the accounts work (A8, A11).

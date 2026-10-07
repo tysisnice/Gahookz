@@ -33,7 +33,7 @@ which is what makes a deploy from that directory target the right container.
 ## Look without changing anything
 
 ```bash
-cd /srv/gahookz
+cd /mnt/storage/syncthing/Store/Projects/gahookz
 bash scripts/docker-status.sh          # container, health, release, revision
 docker compose ps
 
@@ -52,7 +52,7 @@ Only when you have been asked to. This ends every game in progress unless you
 give it a drain window.
 
 ```bash
-cd /srv/gahookz
+cd /mnt/storage/syncthing/Store/Projects/gahookz
 git status --porcelain                 # must be empty
 git pull --ff-only origin main
 
@@ -94,7 +94,7 @@ credentials from outside the LAN.
 ## Everyday container commands
 
 ```bash
-cd /srv/gahookz
+cd /mnt/storage/syncthing/Store/Projects/gahookz
 
 docker compose logs -f --tail=100 gahookz    # follow production logs
 docker compose restart gahookz               # restart the SAME image; ends rooms

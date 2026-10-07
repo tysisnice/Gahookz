@@ -134,9 +134,9 @@ the current browser source as part of the image build, so no separate frontend
 build is required on the Fedora laptop:
 
 ```bash
-# On the live server this is /srv/gahookz, the clean production clone --
-# never the Syncthing tree, which can hold uncommitted work.
-cd /srv/gahookz
+# On the live server production runs from the Store repository (since
+# 2026-10-02). It is also the Syncthing tree, so check it is clean first.
+cd /mnt/storage/syncthing/Store/Projects/gahookz
 git status --porcelain          # must be empty
 git pull --ff-only origin main
 GAHOOKZ_DRAIN_WAIT_SECONDS=300 bash scripts/docker-update.sh

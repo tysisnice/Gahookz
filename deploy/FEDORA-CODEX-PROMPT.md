@@ -1,5 +1,7 @@
 # Prompt to use with Codex on the Fedora server
 
+> **Archived 2026-10-07.** A one-time setup prompt. To deploy today, follow [the runbook](../docs/operations/runbook.md). Kept for history.
+
 Copy the text below into Codex on the Fedora laptop after replacing the project path if necessary.
 
 ---
