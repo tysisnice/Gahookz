@@ -2628,7 +2628,7 @@ function HerdAnswerWriter({ assignment, text, image, onChange, onImageChange, di
       <h2><PromptText text={assignment.question.text} names={assignment.question.namedPlayerNames} /></h2>
       {assignment.question.imageDataUrl ? <img src={assignment.question.imageDataUrl} alt="Question" /> : null}
       <label><span>Your answer</span><input value={text} disabled={disabled} onChange={(event) => onChange(event.target.value)} maxLength="80" placeholder="Make it the answer everyone wants to pick" /></label>
-      <ImageUploadDrawPicker compact value={image} onChange={onImageChange} disabled={disabled} label="Optional answer image" previewAlt="Answer image preview" />
+      <ImageUploadDrawPicker compact maxSide={960} maxChars={700000} value={image} onChange={onImageChange} disabled={disabled} label="Optional answer image" previewAlt="Your answer image" />
     </article>);
 }
 
@@ -4374,9 +4374,10 @@ function AnswerGrid({ answers, reveal, hideText = false, interactive = false, di
     <section className={gridClassName}>
       {answers.map((answer) => {
         const answerChoices = choicesByAnswer[answer.id] || [];
-        const className = ["answer-tile", "answer-" + answer.id, reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : ""].filter(Boolean).join(" ");
+        const showImage = Boolean(answer.imageDataUrl) && !hideText;
+        const className = ["answer-tile", "answer-" + answer.id, showImage ? "has-answer-image" : "", reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : ""].filter(Boolean).join(" ");
         const label = hideText ? "..." : answer.text || answer.label;
-        const content = <>{answer.imageDataUrl && !hideText ? <img className="answer-tile-image" src={answer.imageDataUrl} alt="" loading="lazy" /> : null}<span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
+        const content = <>{showImage ? <img className="answer-tile-image" src={answer.imageDataUrl} alt="Picture sent with this answer" loading="lazy" /> : null}<span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
         return interactive ?
         <button className={className} key={answer.id} type="button" disabled={disabled} onClick={() => onAnswer?.(answer.id)}>{content}</button> :
         <article className={className} key={answer.id}>{content}</article>;
@@ -4782,7 +4783,11 @@ function UploadMiniIcon() {
 
 }
 
-function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image", previewAlt = "Selected image preview", disabled = false, compact = false }) {
+// `compact` is the Herd answer variant: no frame, the two source buttons stay
+// side by side even on a phone, and the preview is a small thumbnail. Answer
+// images are shown at tile size and several are kept per room, so that caller
+// also asks for a smaller upload (maxSide / maxChars).
+function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image", previewAlt = "Selected image preview", disabled = false, compact = false, maxSide = 1500, maxChars = 2400000 }) {
   const dispatch = useDispatch();
   const fileInputRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
@@ -4798,7 +4803,7 @@ function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image",
       return;
     }
     try {
-      onChange?.(await shrinkImageFile(file, { maxSide: 1500, quality: 0.84, maxDataUrlChars: 2400000 }));
+      onChange?.(await shrinkImageFile(file, { maxSide, quality: 0.84, maxDataUrlChars: maxChars }));
     } catch (_error) {
       dispatch({ type: "ERROR", value: "Could not read that image." });
     } finally {
@@ -4811,8 +4816,8 @@ function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image",
       <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleImage} disabled={disabled} hidden />
       {value ? <div className="image-choice-preview"><img src={value} alt={previewAlt} /><button className="icon-button light" type="button" onClick={() => onChange?.("")} disabled={disabled} aria-label="Remove selected image">x</button></div> : null}
       <div className="image-source-actions">
-        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={disabled}><UploadMiniIcon /><span>{value ? "Choose upload" : "Upload image"}</span></button>
-        <button type="button" onClick={() => setDrawing(true)} disabled={disabled}><EditMiniIcon /><span>{value ? "Draw or edit" : "Draw image"}</span></button>
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={disabled}><UploadMiniIcon /><span>{value ? compact ? "Replace image" : "Choose upload" : "Upload image"}</span></button>
+        <button type="button" onClick={() => setDrawing(true)} disabled={disabled}><EditMiniIcon /><span>{value ? compact ? "Edit drawing" : "Draw or edit" : "Draw image"}</span></button>
       </div>
       {!value ? <small>{label}</small> : <small>Image selected. Upload another or draw to replace it.</small>}
       {drawing ? createPortal(<div className="creation-modal-backdrop" role="presentation" onPointerDown={(event) => {

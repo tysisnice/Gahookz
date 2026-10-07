@@ -57,6 +57,7 @@
     "test:browser:mobile": "node standalone/browser-mobile-ui.mjs",
     "test:browser:arena": "node standalone/browser-arena-1v1.mjs",
     "test:browser:navigation": "node standalone/browser-navigation.mjs",
+    "test:browser:herd-writing": "node standalone/browser-herd-writing.mjs",
     "clean:generated": "node standalone/clean-generated.mjs",
     "drill:resilience": "node standalone/drill-resilience.mjs",
     "standalone:smoke:shared": "npm run standalone:smoke:security && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:host-controls && npm run standalone:smoke:desktop-ui && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment && npm run standalone:smoke:review-repairs",
