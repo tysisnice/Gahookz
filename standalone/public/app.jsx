@@ -2158,9 +2158,15 @@ function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
   // Back cancels, like Escape: nothing in the dialog is saved by leaving it.
   useBackToClose(open, () => onCancel?.());
 
-  useEffect(() => {
+  // Reset the draft while rendering the frame that opens the dialog, not in an
+  // effect afterwards: the component stays mounted while closed, so an effect
+  // would show the previous (possibly rejected) draft for one frame, and a
+  // quick Save would send its stale revision.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) setDraft({ ...currentRules(lobby), settingsRevision: lobby.settingsRevision });
-  }, [open]);
+  }
 
   useEffect(() => {
     if (!open) return undefined;
