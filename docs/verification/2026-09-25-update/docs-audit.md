@@ -93,3 +93,21 @@ Move these documents to an archive or add a banner to the top:
 - **PLAN-PROGRESS.md** → merge into IMPLEMENTATION-PLAN.md execution ledger
 - **SERVER-COMMANDS.md** → merge into docs/operations/runbook.md or archive as historical duplicate
 
+
+---
+
+## Orchestrator corrections (2026-10-07)
+
+Checked against the plan and the documents before acting on this audit:
+
+- **`docs/product/accounts-plan.md`: keep, do not archive.** It is the proposal
+  written for Tyson's decisions on accounts (sign-in provider, persistence,
+  launch), which are still open. `docs/areas/accounts.md` describes the code;
+  the plan describes choices not yet made.
+- **`docs/architecture/0003-scoring-alternatives.md`: keep.** Its decision is
+  deferred to a playtest, not abandoned; a deferred ADR stays live.
+- **`DEPLOY-FEDORA.md`:** production does **not** run from `/srv/gahookz`. Since
+  2026-10-02 production, beta and dev all run from the Store repository;
+  `/srv/gahookz` is a stale clone.
+- Archiving the remaining recommended files is done by the orchestrator in one
+  pass after the wave-2 merges, so that inbound links are fixed once.
