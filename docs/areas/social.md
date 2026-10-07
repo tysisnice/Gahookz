@@ -185,7 +185,7 @@ lobby with the messages "ARENA CHAMPION" and "GET GOT".
 `monkey`, `gorilla`, `pig`, `koala`, `croc`, `chicken`; `custom` is a seventh
 form that is not in the picker list but is accepted. The labels are Classic
 Monkey, Rage Gorilla, Sad Pig, Chonky Koala, Cool Croc, Cymbal Chicken and
-"Your Custom Gahook". **Sad Pig replaced Airhorn Capy** on 2026-09-29; the
+"Your Custom Gahook". **Sad Pig replaced Airhorn Capy** (decided 2026-09-25, landed 2026-09-30 in `77534e0`); the
 legacy id `capybara` maps to `pig` in both `LEGACY_GAHOOK_FORMS` tables, on read
 and write, in saved accounts (`normaliseGahookForm` is passed to the account
 service) and in a browser's stored choice. Unknown ids become `monkey`.
@@ -251,9 +251,9 @@ A duel lives on `room.gahookDuel` (one per room) with `status` `challenge`,
    If the clock runs out with nobody six ahead it is a draw (`time`, no winner).
 4. **Finish.** `finishGahookDuel` records the result (winner's
    `gahookDuelWins` +1) and keeps the result open for `GAHOOK_DUEL_FINISH_MS`.
-   Spectators (not the two competitors) may react once per route call with
+   Anyone who is not one of the two competitors may react with
    `congrats` (at the winner) or `boo` (at the loser) via `duel-react` until
-   `reactionEndsAt`; there is no per-person cap beyond the normal route limits.
+   `reactionEndsAt`; the server sets no per-person cap on reactions.
    Then `clearGahookDuel`.
 5. **Cleanup.** A disconnect (`handleGahookDuelDisconnect`) ends an active duel
    as a win for the other player (`left`) and drops a pending challenge. A duel is
@@ -343,7 +343,7 @@ One place for every number above. Update here first.
 | `CUSTOM_GAHOOK_SOUND_IDS` | `bonk`, `honk`, `boing`, `airhorn`, `none`, `custom` | `server/custom-gahook.mjs` |
 | `CUSTOM_GAHOOK_BACKGROUND_COLORS` | 8 colours, `#ff3d8b` first | `server/custom-gahook.mjs` |
 | `MAX_CLOUD_CUSTOM_GAHOOK_SLOTS`, `MAX_SAVED_GAHOOK_CHARS` | 12, 1000000 | `server/accounts.mjs` |
-| Browser upload and recording limits | image 130000 bytes, audio 200000 bytes, recording 5000 ms (server's `limits` override them) | `client/custom-gahook.jsx` |
+| Browser upload and recording limits | image 130000 bytes, audio 200000 bytes, recording 5000 ms (defaults; the creator may be given the server's `limits` instead, unverified) | `client/custom-gahook.jsx` |
 | `MAX_CHAT_MESSAGES`, `MAX_CHAT_MESSAGE_CHARS` | 60, 240 | `server/social.mjs` |
 | `CHAT_RATE_MAX` per `CHAT_RATE_WINDOW_MS` | 6 per 10000 | `server/social.mjs` |
 | `MAX_WHITEBOARD_STROKES`, `MAX_WHITEBOARD_POINTS_PER_STROKE` | 160, 128 | `server/social.mjs` |
