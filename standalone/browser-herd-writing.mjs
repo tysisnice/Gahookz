@@ -123,7 +123,7 @@ try {
       assert.deepEqual(row.buttons.map(button => button.text), ['Upload image', 'Draw image']);
       assert(Math.abs(row.buttons[0].top - row.buttons[1].top) < 2, `${vp.name}: buttons are not side by side ${JSON.stringify(row.buttons)}`);
       assert(row.buttons[0].right <= row.buttons[1].left + 1, `${vp.name}: buttons overlap`);
-      for (const button of row.buttons) assert(button.left >= 0 && button.right <= row.width && !button.clipped && button.height >= 40, `${vp.name}: button clipped, off screen or too short ${JSON.stringify(button)}`);
+      for (const button of row.buttons) assert(button.left >= 0 && button.right <= row.width && !button.clipped && button.height >= 40 && button.height <= 52, `${vp.name}: button clipped, off screen, wrapped or too short ${JSON.stringify(button)}`);
       assert(row.gap >= 0 && row.gap < 16, `${vp.name}: the picker should sit just under the answer box, gap ${row.gap}px`);
     }
     await noOverflow(page, `writing ${vp.name}`);
@@ -259,7 +259,6 @@ try {
   await noOverflow(voter, 'voting');
   await voter.$eval('.answer-grid', node => node.scrollIntoView({ block: 'center' }));
   await shot(voter, 'voting-tile-image-390x844');
-  await shot(voter, 'voting-full-390x844', { fullPage: true });
   await shot(host, 'party-voting-1280x800');
   const hostTiles = await host.$$eval('.answer-grid .answer-tile-image', images => images.map(image => ({ loaded: image.complete && image.naturalWidth > 0, height: image.getBoundingClientRect().height })));
   assert(hostTiles.length >= 1 && hostTiles.every(image => image.loaded && image.height <= 155), 'party screen tiles show bounded images ' + JSON.stringify(hostTiles));
@@ -290,7 +289,6 @@ try {
   await noOverflow(voter, 'reveal');
   await voter.$eval('.herd-reveal-breakdown', node => node.scrollIntoView({ block: 'start' }));
   await shot(voter, 'reveal-image-390x844');
-  await shot(voter, 'reveal-full-390x844', { fullPage: true });
   await host.waitForSelector('.herd-reveal-breakdown .answer-tile-image');
   await host.$eval('.herd-reveal-breakdown', node => node.scrollIntoView({ block: 'start' }));
   await shot(host, 'reveal-1280x800');

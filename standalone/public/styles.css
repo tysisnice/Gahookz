@@ -11830,8 +11830,9 @@ button.answer-tile {
 }
 .image-upload-draw-picker.is-compact .image-source-actions svg { flex-basis: 20px; width: 20px; height: 20px; }
 @media (max-width: 359px) {
-  .image-upload-draw-picker.is-compact .image-source-actions > button { gap: 4px; padding: 4px 5px; font-size: 0.78rem; }
-  .image-upload-draw-picker.is-compact .image-source-actions svg { flex-basis: 16px; width: 16px; height: 16px; }
+  /* At 320px each button is about 120px wide: drop the icon so the label stays on one line. */
+  .image-upload-draw-picker.is-compact .image-source-actions > button { padding: 4px 5px; font-size: 0.8rem; }
+  .image-upload-draw-picker.is-compact .image-source-actions svg { display: none; }
 }
 .image-upload-draw-picker.is-compact .image-choice-preview {
   justify-self: start;
