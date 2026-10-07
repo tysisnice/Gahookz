@@ -73,7 +73,7 @@ export function LegalHub() {
 
         <article className="information-report" aria-labelledby="legal-title">
           <header className="information-report-heading">
-            <span>Last updated 6 September 2026</span>
+            <span>Last updated 7 October 2026</span>
             <h2 id="legal-title" tabIndex="-1">{doc.title}</h2>
             <p>{doc.summary}</p>
           </header>
@@ -202,7 +202,7 @@ function Privacy() {
         <ul className="information-list">
           <li><strong>Held in memory while the room exists:</strong> the display name and avatar you chose, your score, and the questions, answers, chat, drawings and images you put in the room.</li>
           <li><strong>Held in your own browser:</strong> a random key identifying your seat in the room, your display preferences, and — for the current tab only — a room password if you entered one. None of this is sent anywhere except to the game server.</li>
-          <li><strong>All of it disappears</strong> when the room ends, which happens a few minutes after everyone leaves, or immediately when the server restarts. There is no backup.</li>
+          <li><strong>All of it disappears</strong> when the room ends, which happens about a minute after everyone leaves, or immediately when the server restarts. There is no backup.</li>
         </ul>
       </Section>
 
