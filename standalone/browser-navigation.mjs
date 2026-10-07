@@ -113,13 +113,27 @@ async function measureTips(page, scope = 'body') {
   const boxes = [];
   for (let index = 0; index < count; index += 1) {
     const button = (await page.$$(`${scope} .info-tip-button`))[index];
-    if (!(await button.isIntersectingViewport().catch(() => false))) {
-      await button.evaluate((element) => element.scrollIntoView({ block: 'center' }));
-      await wait(150);
-    }
+    // Centre it even when it is already on screen: near the bottom edge a
+    // docked panel (the room's chat strip) can sit on top of it, and a finger
+    // would scroll before tapping too.
+    await button.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+    await wait(150);
     const visible = await button.evaluate((element) => element.getClientRects().length > 0);
     if (!visible) continue;
     await button.click();
+    // Wait for the bubble rather than a fixed delay: on a fast machine the
+    // click can land before React has rendered the popover.
+    const opened = await button.evaluate((element) => new Promise((resolve) => {
+      const deadline = Date.now() + 2000;
+      const check = () => {
+        const id = element.getAttribute('aria-describedby');
+        if (id && document.getElementById(id)) return resolve(true);
+        if (Date.now() > deadline) return resolve(false);
+        requestAnimationFrame(check);
+      };
+      check();
+    }));
+    assert(opened, `tooltip "${await button.evaluate((element) => element.getAttribute('aria-label'))}" did not open when tapped`);
     await wait(120);
     boxes.push(await button.evaluate((element) => {
       const bubble = document.getElementById(element.getAttribute('aria-describedby'));
