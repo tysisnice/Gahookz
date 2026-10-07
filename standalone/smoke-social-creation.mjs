@@ -177,7 +177,7 @@ function runStaticUiSmoke() {
   assert(customCreatorSource.includes("export function CustomGahookCreator"), "The custom Gahook creator should be exported");
   assert(customCreatorSource.includes("<SimplePaintEditor"), "Custom Gahook frames should use the shared paint editor");
   assert(customCreatorSource.includes("MAX_CUSTOM_GAHOOK_FRAMES = 3") && customCreatorSource.includes("Add pose") && customCreatorSource.includes("Remove pose {activeFrame + 1}"), "Custom Gahooks need up to three editable poses");
-  assert(customCreatorSource.includes("Choose background color") && customCreatorSource.includes('type="color"') && customCreatorSource.includes("CUSTOM_GAHOOK_EFFECTS") && customCreatorSource.includes("CUSTOM_GAHOOK_SOUNDS"), "Custom Gahooks need a visible color picker plus motion and sound choices");
+  assert(customCreatorSource.includes("BackgroundColourPicker") && customCreatorSource.includes("BACKGROUND_PICKER_SWATCHES") && !customCreatorSource.includes('type="color"') && customCreatorSource.includes("Hue") && customCreatorSource.includes("Shade") && customCreatorSource.includes("CUSTOM_GAHOOK_EFFECTS") && customCreatorSource.includes("CUSTOM_GAHOOK_SOUNDS"), "Custom Gahooks need an in-app colour picker (palette, hue, shade, hex, live preview) plus motion and sound choices");
   assert(customCreatorSource.includes("MediaRecorder") && customCreatorSource.includes("Record sound") && customCreatorSource.includes("Upload audio"), "Custom Gahooks should support short recordings and audio uploads");
   assert(presentationSource.includes("CustomGahookVisual") && presentationSource.includes("slice(0, 3)") && presentationSource.includes("custom-gahook-frame"), "Incoming custom Gahooks should render and animate up to three poses");
   assert(audioSource.includes("playCustomGahookSound") && audioSource.includes("maxDurationMs") && audioSource.includes("stopCustomGahookAudio"), "Incoming recorded sounds should stop with the Gahook overlay");
@@ -190,7 +190,7 @@ function runStaticUiSmoke() {
   const joinScreen = functionSection(appSource, "JoinScreen");
   assert(/onDraw|draw-avatar/i.test(avatarPicker) && joinScreen.includes("SimplePaintEditor"), "The player profile picker should offer drawing and presets");
   assert(!avatarPicker.includes('type="file"') && !avatarPicker.includes("UploadAvatarIcon"), "The Join picker should not duplicate the drawing editor's upload control");
-  assert(joinScreen.includes("upload an image here"), "The custom profile drawing editor should explain where image upload now lives");
+  assert(drawingSource.includes("Upload image") && !joinScreen.includes("upload an image here") && !drawingSource.includes("Ready to draw."), "The paint editor owns image upload and no longer shows a subtitle or an idle status");
   const socialHub = functionSection(appSource, "RoomSocialHub");
   assert(socialHub.includes("WaitingRoomSocial"), "The app should connect its waiting rooms to WaitingRoomSocial");
   // Chat stays in RoomSocialHub; the shared drawing layer moved to the lobby wall.

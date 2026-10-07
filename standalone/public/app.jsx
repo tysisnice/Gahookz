@@ -1352,7 +1352,7 @@ function WelcomeScreen() {
         open={showTutorial}
         onClose={() => setShowTutorial(false)}
         includeHost
-        allowedModes={["overview", "quiz", "majority", "herd", "host"]}
+        allowedModes={["overview", "quiz", "herd", "host"]}
       />
       {wrongPasswordPoke ? <PokeJumpScare key={wrongPasswordPoke.id} poke={wrongPasswordPoke} /> : null}
     </main>);
@@ -1836,7 +1836,7 @@ function gameModeTitle(mode = "quiz") {
 }
 
 function ModeTutorialLauncher({ mode = "quiz", autoOpen = false, autoOpenMode = "", includeHost = false, showButton = true }) {
-  const normaliseMode = (value) => value === "host" ? "host" : value === "majority" ? "majority" : value === "herd" ? "herd" : "quiz";
+  const normaliseMode = (value) => value === "host" ? "host" : value === "herd" ? "herd" : "quiz";
   const selectedMode = normaliseMode(mode);
   const automaticMode = normaliseMode(autoOpenMode || selectedMode);
   const storageKey = "gahookz-how-to-play-seen-v2-" + automaticMode;
@@ -2389,6 +2389,7 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
+            <div className="lobby-paint-slot"></div>
           </div>
           <div className="player-grid">
             {lobby.players.map((player) => <PlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} showQuestionStatus={false} onPoke={onPoke} onKick={onKick} onMakeHost={onMakeHost} onRandomizeIdentity={onRandomizeIdentity} onRemoveSelf={player.id === lobby.ownPlayer?.id ? onExitAsPlayer : null} canChallenge={Boolean(lobby.ownPlayer) && lobby.lobbyArenaEnabled !== false && !lobby.gahookDuel} onChallenge={(target) => onChallenge?.(target)} />)}
@@ -2551,6 +2552,7 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
+            <div className="lobby-paint-slot"></div>
           </div>
           <div className="player-grid">
             {lobby.players.length ? lobby.players.map((player) => <PlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} onPoke={onPoke} onKick={onKick} onMakeHost={onMakeHost} onRandomizeIdentity={onRandomizeIdentity} canChallenge={Boolean(lobby.ownPlayer) && lobby.lobbyArenaEnabled !== false && !lobby.gahookDuel && player.id !== lobby.ownPlayer?.id} onChallenge={(target) => onChallenge?.(target)} />) : <div className="empty-state">Waiting for players</div>}
@@ -2604,7 +2606,7 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
           <LobbyPaintSurface lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />
           <HerdPreparationProgress preparation={lobby.herdPreparation} />
           <section className="herd-host-review">
-            <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span></div>
+            <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span><div className="lobby-paint-slot"></div></div>
             <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
               <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || "Waiting for an answer…"}</strong><small>Answer by {item.answerAuthor.name}</small>
             </article>)}</div>
@@ -3687,7 +3689,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
       }}>
         <section className="creation-modal avatar-paint-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-paint-title">
           <header className="avatar-paint-modal__header">
-            <div><span>Make it yours</span><h2 id="avatar-paint-title">Draw your profile picture</h2><p>Draw from scratch or upload an image here, then make it your own.</p></div>
+            <div><span>Make it yours</span><h2 id="avatar-paint-title">Draw your profile picture</h2></div>
             <button type="button" onClick={() => setDrawingAvatar(false)} aria-label="Close profile picture drawing">×</button>
           </header>
           <SimplePaintEditor
@@ -3755,6 +3757,7 @@ function PlayerWaitingLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
+            <div className="lobby-paint-slot"></div>
           </div>
           <div className="player-grid">
             {lobby.players.length ? lobby.players.map((player) => <ReadonlyPlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} showQuestionStatus={false} ownPlayer={ownPlayer} onPoke={pokePlayer} onVoteKick={voteKickPlayer} canChallenge={canChallengeInLobby} onChallenge={challengePlayer} />) : <div className="empty-state">Waiting for players</div>}
@@ -3857,6 +3860,7 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
           <div className="section-heading">
             <h1>Players</h1>
             <span>{lobby.players.filter((player) => player.connected).length}</span>
+            <div className="lobby-paint-slot"></div>
           </div>
           <div className="player-grid">
             {lobby.players.length ? lobby.players.map((player) => <ReadonlyPlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} ownPlayer={ownPlayer} onPoke={pokePlayer} onVoteKick={voteKickPlayer} canChallenge={canChallengeInLobby} onChallenge={challengePlayer} />) : <div className="empty-state">Waiting for players</div>}
@@ -4814,7 +4818,7 @@ function ImageUploadDrawPicker({ value = "", onChange, label = "Optional image",
       }}>
         <section className="creation-modal avatar-paint-modal answer-image-paint-modal" role="dialog" aria-modal="true" aria-label="Draw an image">
           <header className="avatar-paint-modal__header">
-            <div><span>Make it visual</span><h2>Draw an image</h2><p>Use the same brushes, colours, eraser, and upload tool as your profile picture.</p></div>
+            <div><span>Make it visual</span><h2>Draw an image</h2></div>
             <button type="button" onClick={() => setDrawing(false)} aria-label="Close image drawing">x</button>
           </header>
           <SimplePaintEditor

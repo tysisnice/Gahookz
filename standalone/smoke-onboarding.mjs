@@ -34,7 +34,7 @@ assert((welcome.match(/<input value=\{roomCode\}/g) || []).length === 1, "Join a
 assert(welcome.includes("intent: entryIntent"), "Welcome should send explicit Join or Host intent");
 assert(!welcome.includes("Install Gahookz"), "Welcome should not show a duplicate install action");
 assert(welcome.includes("How to play &amp; tutorials") && welcome.includes('mode="overview"'), "Welcome should open the Gahookz overview tutorial");
-assert(welcome.includes('allowedModes={["overview", "quiz", "majority", "herd", "host"]}'), "The welcome tutorial should expose all five guides");
+assert(welcome.includes('allowedModes={["overview", "quiz", "herd", "host"]}'), "The welcome tutorial should expose four guides (no Majority Rulz tab)");
 assert(!welcome.includes('href="/information"'), "Welcome should no longer send players to the reports page");
 assert(!welcome.includes("<AccountPanel"), "Account sign-in should not appear before a room is opened");
 assert((app.match(/<AccountPanel \/>/g) || []).length === 3, "Account sign-in should render only in the name picker and the two lobby views");
@@ -63,7 +63,7 @@ assert(socialHub.includes('send("/api/room/chat"') && socialHub.includes("/api/r
 assert(socialHub.includes("<AvatarBadge") && socialHub.includes("small />"), "Lobby chat should reuse a compact player-banner avatar");
 assert(styles.includes(".social-chat__message.is-own .social-chat__bubble") && styles.includes("word-break: break-word"), "Lobby chat bubbles should fit their messages and safely wrap long text");
 assert(!avatarPicker.includes('type="file"') && !avatarPicker.includes("UploadAvatarIcon"), "Join should not show a separate profile-picture upload control");
-assert(joinScreen.includes("<SimplePaintEditor") && joinScreen.includes("upload an image here"), "Profile-picture uploads should remain available inside the custom drawing editor");
+assert(joinScreen.includes("<SimplePaintEditor") && fs.readFileSync(new URL("./public/client/drawing.jsx", import.meta.url), "utf8").includes("Upload image") && !joinScreen.includes("upload an image here"), "Profile-picture uploads should remain available inside the custom drawing editor");
 assert(joinScreen.includes("<AccountPanel"), "Account sign-in should be available while choosing a player name");
 assert(hostLobby.includes("<AccountPanel"), "Account sign-in should be available in the host lobby");
 assert(playerWaitingLobby.includes("<AccountPanel"), "Account sign-in should be available in the player lobby");
@@ -74,9 +74,9 @@ assert(accountPanel.includes("if (!status.googleAvailable && !status.devLoginAva
 assert(accountPanel.includes("useBackToClose(true, onCancel)"), "Back must close the delete-account confirmation, not leave the room");
 
 const sentenceGroups = [...tutorial.matchAll(/sentences:\s*Object\.freeze\(\[([\s\S]*?)\]\)/g)].map((match) => stringValues(match[1]));
-assert(sentenceGroups.length === 5 && sentenceGroups.every((sentences) => sentences.length === 3), "Gahookz, Quiz, Majority Rulz, Herd, and Host tutorials should each contain exactly three explanations");
+assert(sentenceGroups.length === 4 && sentenceGroups.every((sentences) => sentences.length === 3), "Gahookz, Quiz, Herd, and Host tutorials should each contain exactly three explanations");
 assert(tutorial.includes("<h2 id={titleId}>How to play</h2>"), "The tutorial should use a clear centered How to play heading");
-assert(tutorial.includes('TUTORIAL_MODE_ORDER = Object.freeze(["overview", "quiz", "majority", "herd", "host"])') && tutorial.includes("tutorial-mode-tab--${tutorialMode}"), "Gahookz, Quiz, Majority Rulz, Herd, and Host should be switchable tutorial tabs");
+assert(tutorial.includes('TUTORIAL_MODE_ORDER = Object.freeze(["overview", "quiz", "herd", "host"])') && tutorial.includes("tutorial-mode-tab--${tutorialMode}"), "Gahookz, Quiz, Herd, and Host should be switchable tutorial tabs");
 assert(tutorial.includes('TUTORIAL_MODE_ORDER.filter(mode => mode !== "overview")'), "The Gahookz overview should stay exclusive to explicitly configured launchers such as Welcome");
 assert(tutorial.includes("Write the questions together, race to answer them") && tutorial.includes("tutorial-guide__summary"), "Each mode should have a concise explainer under the tutorial tabs");
 assert(tutorial.includes('label: "Gahookz"') && tutorial.includes('"Join your friends"') && tutorial.includes('"Make the game together"') && tutorial.includes('"Gahook for glory"'), "The welcome-only overview should explain joining, making games, and Gahooking");
@@ -95,7 +95,7 @@ assert(tutorial.includes("<h3>{content.stepTitles[index]}</h3>") && tutorial.inc
 assert(tutorial.includes("onClick={onClose}>Let's Go!</button>") && tutorial.includes('aria-label="Close how to play"'), "Quiz X and Let's Go controls should both close the tutorial");
 assert(styles.includes(".tutorial-dialog__steps") && styles.includes("grid-template-columns: repeat(3, minmax(0, 1fr))"), "Desktop tutorials should place the three explanations beneath their combined artwork");
 assert(styles.includes(".tutorial-dialog__step-copy h3") && styles.includes(".tutorial-dialog__step-copy p"), "Tutorial explanation headings and paragraphs should have dedicated styling");
-assert(tutorial.includes('"Ask for an opinion"') && tutorial.includes('"Predict the room"') && tutorial.includes('"Join the majority"'), "Majority Rulz tutorial should clearly name all three stages");
+assert(!tutorial.includes("majority: Object.freeze") && !tutorial.includes('"Ask for an opinion"') && tutorial.includes("In Majority Rulez, the most popular answer wins."), "Majority Rulz has no tutorial tab; Quiz step 2 explains it in one sentence");
 assert(tutorialArt.includes("<svg") && tutorialArt.includes('role="img" aria-label={label}'), "Each tutorial should include accessible Gahook-style artwork");
 assert(tutorial.includes('role="dialog"') && tutorial.includes('aria-modal="true"'), "How to play should be an accessible modal dialog");
 assert(app.includes("gahookz-how-to-play-seen-v2-") && app.includes('autoOpenMode="host"') && app.includes("showButton={false}"), "Host and selected game tutorials should have separate first-time triggers, including late joins");

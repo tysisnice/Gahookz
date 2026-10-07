@@ -116,7 +116,7 @@ try {
   await player.waitForSelector('.tutorial-dialog');
   await wait(300);
   const tabs = await player.evaluate(() => {
-    const wanted = ['quiz', 'majority', 'herd'];
+    const wanted = ['quiz', 'herd'];
     const found = wanted.map(mode => {
       const tab = document.querySelector(`[data-tutorial-mode="${mode}"]`);
       const box = tab.getBoundingClientRect();
@@ -129,14 +129,14 @@ try {
   // tab by a whole tab height (~45px), which this still catches easily.
   const tops = tabs.found.map(tab => tab.top);
   const spread = Math.max(...tops) - Math.min(...tops);
-  assert(spread < 5, `Quiz, Majority Rulz and Herd should share one row at 360px, saw a ${spread}px vertical spread: ${JSON.stringify(tabs.found)}`);
+  assert(spread < 5, `Quiz and Herd should share one row at 360px, saw a ${spread}px vertical spread: ${JSON.stringify(tabs.found)}`);
   for (const tab of tabs.found) {
     assert.equal(tab.clipped, false, `the ${tab.mode} tab label is clipped`);
     assert(tab.left >= -1 && tab.right <= tabs.viewport + 1, `the ${tab.mode} tab runs off screen`);
     assert(tab.height >= 40, `the ${tab.mode} tab is ${tab.height}px tall, below a 40px touch target`);
   }
   await capture(player, 'tutorial-tabs-360');
-  checked.push('all three game-mode tutorial tabs fit one row at 360px without clipping, still >=40px tall');
+  checked.push('both game-mode tutorial tabs fit one row at 360px without clipping, still >=40px tall');
   await player.click('.tutorial-dialog__close');
 
   // ---------------------------------------------------------------------
@@ -324,7 +324,7 @@ try {
     await desktop.click('.room-status-copy .how-to-play-button');
     await desktop.waitForSelector('.tutorial-dialog');
     await wait(300);
-    return desktop.evaluate(() => ['quiz', 'majority', 'herd'].map(mode => {
+    return desktop.evaluate(() => ['quiz', 'herd'].map(mode => {
       const box = document.querySelector(`[data-tutorial-mode="${mode}"]`).getBoundingClientRect();
       return { top: Math.round(box.top), width: Math.round(box.width) };
     }));

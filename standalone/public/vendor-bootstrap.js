@@ -14,4 +14,4 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/service-worker.js", { scope: "/" }).catch(() => {});
 }
 
-await import("/app.js?v=release-2d5dbc755b1e6f86");
+await import("/app.js?v=release-cfe4c2a82eb2de33");

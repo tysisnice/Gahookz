@@ -57,10 +57,10 @@ try {
   // All three tutorial modes must use the same desktop shell and centered digits.
   await wait(500); await player.bringToFront(); await player.click('.room-status-copy .how-to-play-button'); await player.waitForSelector('.tutorial-dialog');
   const widths=[];
-  for(const tutorial of ['quiz','majority','herd']) {
+  for(const tutorial of ['quiz','herd']) {
    await player.click(`[data-tutorial-mode="${tutorial}"]`);
    widths.push(await player.$eval('.tutorial-dialog',e=>e.getBoundingClientRect().width));
-   assert(await player.$eval('.tutorial-dialog__step-number',e=>getComputedStyle(e).justifyContent==='center'));
+   assert(await player.$eval('.tutorial-dialog__step-number',e=>getComputedStyle(e).justifyContent==='center'&&getComputedStyle(e).alignContent==='center'));
   }
   assert.equal(new Set(widths).size,1); await capture(player,mode+'-tutorial');
   await player.click('.tutorial-dialog__close');
