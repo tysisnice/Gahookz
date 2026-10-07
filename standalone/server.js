@@ -1144,6 +1144,14 @@ function getLobbyFromCode(value) {
   return code ? lobbies.get(code) : null;
 }
 
+// Join order decides host succession, the player list and score tie-breaks.
+// Two joins can land in the same millisecond, so the stamp never repeats.
+let lastJoinedAt = 0;
+function nextJoinedAt() {
+  lastJoinedAt = Math.max(Date.now(), lastJoinedAt + 1);
+  return lastJoinedAt;
+}
+
 async function joinPlayer(room, payload, context = {}) {
   const code = normaliseRoomCode(payload?.code);
   const name = cleanText(payload?.name, 24);
@@ -1238,7 +1246,7 @@ async function joinPlayer(room, payload, context = {}) {
     counterOffer: null,
     gahookDuelWins: 0,
     avatarImageDataUrl,
-    joinedAt: Date.now()
+    joinedAt: nextJoinedAt()
   };
 
   if (room.phase === "lobby" || !existing) {
