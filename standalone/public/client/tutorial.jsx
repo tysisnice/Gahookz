@@ -17,7 +17,7 @@ export const TUTORIAL_CONTENT = Object.freeze({
     ]),
     sentences: Object.freeze([
       "One person hosts and shares the four-letter room word. Everyone else joins on their own phone or computer—no account or app required.",
-      "Quiz has real answers, Majority Rulz predicts the crowd, and Herd lets your friends write every answer choice.",
+      "Quiz has real answers, Majority Rulz rewards the most popular pick, and Herd lets your friends write every answer choice.",
       "Use your Gahook once per round to surprise a friend and steal 50 points. Laugh, climb the leaderboard, and see who wins the final showdown."
     ])
   }),
@@ -32,23 +32,8 @@ export const TUTORIAL_CONTENT = Object.freeze({
     ]),
     sentences: Object.freeze([
       "Everyone writes questions for the room—or uses the prompt button for inspiration. Mark the correct answer, then fill in believable wrong ones.",
-      "Choose the right colour before time runs out. Correct answers earn points, and quicker answers earn more.",
+      "Pick the right colour fast: quicker correct answers score more. In Majority Rulez, the most popular answer wins.",
       "Once per question, Gahook one friend to steal 50 points. Time it well—they can still answer."
-    ])
-  }),
-  majority: Object.freeze({
-    label: "Majority Rulz",
-    summary: "Make opinion questions, predict the room’s favourite, then score by choosing the answer most people pick.",
-    artworkLabel: "The complete Majority Rulz flow: writing an opinion question, predicting the crowd, and choosing the most popular answer",
-    stepTitles: Object.freeze([
-      "Ask for an opinion",
-      "Predict the room",
-      "Join the majority"
-    ]),
-    sentences: Object.freeze([
-      "Write a funny opinion question with two to four possible answers—or tap the suggestion button for a party-ready idea.",
-      "Mark the answer you predict everyone will choose. There is no factual correct answer; the room creates the result live.",
-      "Pick the answer you think will be most popular. Matching the majority scores up to 1,000 points, and a perfect author prediction earns 100 bonus points."
     ])
   }),
   herd: Object.freeze({
@@ -83,7 +68,7 @@ export const TUTORIAL_CONTENT = Object.freeze({
   })
 });
 
-const TUTORIAL_MODE_ORDER = Object.freeze(["overview", "quiz", "majority", "herd", "host"]);
+const TUTORIAL_MODE_ORDER = Object.freeze(["overview", "quiz", "herd", "host"]);
 
 function normaliseTutorialMode(mode) {
   return Object.prototype.hasOwnProperty.call(TUTORIAL_CONTENT, mode) ? mode : "quiz";
@@ -97,7 +82,7 @@ function availableTutorialModes(allowedModes, includeHost) {
     .map(normaliseTutorialMode)
     .filter((mode, index, values) => values.indexOf(mode) === index)
     .filter(mode => includeHost || mode !== "host");
-  return modes.length ? modes : ["quiz", "majority", "herd"];
+  return modes.length ? modes : ["quiz", "herd"];
 }
 
 export function GameTutorial({ mode = "quiz", open, onClose, includeHost = true, allowedModes = null }) {

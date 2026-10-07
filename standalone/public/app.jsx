@@ -1352,7 +1352,7 @@ function WelcomeScreen() {
         open={showTutorial}
         onClose={() => setShowTutorial(false)}
         includeHost
-        allowedModes={["overview", "quiz", "majority", "herd", "host"]}
+        allowedModes={["overview", "quiz", "herd", "host"]}
       />
       {wrongPasswordPoke ? <PokeJumpScare key={wrongPasswordPoke.id} poke={wrongPasswordPoke} /> : null}
     </main>);
@@ -1836,7 +1836,7 @@ function gameModeTitle(mode = "quiz") {
 }
 
 function ModeTutorialLauncher({ mode = "quiz", autoOpen = false, autoOpenMode = "", includeHost = false, showButton = true }) {
-  const normaliseMode = (value) => value === "host" ? "host" : value === "majority" ? "majority" : value === "herd" ? "herd" : "quiz";
+  const normaliseMode = (value) => value === "host" ? "host" : value === "herd" ? "herd" : "quiz";
   const selectedMode = normaliseMode(mode);
   const automaticMode = normaliseMode(autoOpenMode || selectedMode);
   const storageKey = "gahookz-how-to-play-seen-v2-" + automaticMode;
