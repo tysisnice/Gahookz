@@ -11803,3 +11803,34 @@ button.answer-tile {
   .custom-gahook-creator__header input,
   .custom-gahook-creator__header label { min-width: 0; max-width: 100%; box-sizing: border-box; }
 }
+
+
+/* Herd answer images: compact picker under the answer box, and a bounded image
+   in voting tiles and the reveal so a tall drawing never pushes the tile off a phone. */
+.image-upload-draw-picker.is-compact {
+  margin-top: 8px;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.image-upload-draw-picker.is-compact .image-source-actions > button {
+  min-height: 40px;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.86rem;
+}
+.image-upload-draw-picker.is-compact .image-source-actions svg { flex-basis: 20px; width: 20px; height: 20px; }
+.image-upload-draw-picker.is-compact .image-choice-preview img { max-height: 120px; }
+.image-upload-draw-picker.is-compact > small { display: none; }
+.answer-tile:has(.answer-tile-image) { flex-direction: column; }
+.answer-tile-image {
+  display: block;
+  width: min(100%, 320px);
+  max-height: 140px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+}
+.herd-review-image { width: 100%; max-height: 110px; object-fit: contain; border-radius: 8px; background: #fff; }
+@media (min-width: 900px) { .answer-tile-image { max-height: 200px; } }
