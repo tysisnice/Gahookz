@@ -4375,11 +4375,14 @@ function AnswerGrid({ answers, reveal, hideText = false, interactive = false, di
       {answers.map((answer) => {
         const answerChoices = choicesByAnswer[answer.id] || [];
         const showImage = Boolean(answer.imageDataUrl) && !hideText;
-        const className = ["answer-tile", "answer-" + answer.id, showImage ? "has-answer-image" : "", reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : ""].filter(Boolean).join(" ");
+        // In Herd a player may not vote for an answer they wrote; the server
+        // refuses it, so the tile says so instead of offering the tap.
+        const ownTile = Boolean(answer.ownAnswer) && !reveal;
+        const className = ["answer-tile", "answer-" + answer.id, showImage ? "has-answer-image" : "", reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : "", ownTile ? "is-own-answer" : ""].filter(Boolean).join(" ");
         const label = hideText ? "..." : answer.text || answer.label;
-        const content = <>{showImage ? <img className="answer-tile-image" src={answer.imageDataUrl} alt="Picture sent with this answer" loading="lazy" /> : null}<span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
+        const content = <>{showImage ? <img className="answer-tile-image" src={answer.imageDataUrl} alt="Picture sent with this answer" loading="lazy" /> : null}<span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{ownTile && !hideText ? <small className="own-answer-note">Your answer</small> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
         return interactive ?
-        <button className={className} key={answer.id} type="button" disabled={disabled} onClick={() => onAnswer?.(answer.id)}>{content}</button> :
+        <button className={className} key={answer.id} type="button" disabled={disabled || ownTile} onClick={() => onAnswer?.(answer.id)}>{content}</button> :
         <article className={className} key={answer.id}>{content}</article>;
       })}
     </section>);

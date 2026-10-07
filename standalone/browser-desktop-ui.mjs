@@ -83,7 +83,7 @@ try {
    assert.equal(await player.$$eval('.herd-writing-roster .player-card',a=>a.length),3);
    assert.equal(await player.$('.herd-preparation-progress'),null,'The separate progress card is gone');
    assert((await player.$$eval('.herd-writing-roster .player-card p',a=>a.map(n=>n.textContent))).every(t=>/^\d+\/\d+ answered$/.test(t)),'Player cards show per-player Herd progress');
-   await player.$$eval('.herd-answer-writer input',inputs=>inputs.forEach((input,i)=>{
+   await player.$$eval('.herd-answer-writer input:not([type=file])',inputs=>inputs.forEach((input,i)=>{
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'Browser answer '+i);
     input.dispatchEvent(new Event('input',{bubbles:true}));
    }));
@@ -104,7 +104,7 @@ try {
    if(phase==='answering') {
     await player.waitForSelector('.answer-grid button:not(:disabled)');
     await player.click('.answer-grid button:not(:disabled)');
-    await wait(200); assert((await state()).answerCount>=1);
+    let answered=false; for(let i=0;i<30&&!answered;i++){ await wait(100); answered=(await state()).answerCount>=1; } assert(answered,'the clicked answer should reach the server within 3 s');
     const labels=await player.$$eval('.leaderboard-gahook',a=>a.map(e=>e.textContent)); assert(labels.every(t=>t==='Gahook'));
    }
    await capture(player,mode+'-'+phase);
@@ -114,7 +114,7 @@ try {
     assert(Math.abs(widths[0]-widths[1])<=2,JSON.stringify(widths));
     await capture(player,mode+'-results');
    }
-   await host.click('.host-skip-phase-button');
+   await host.click('.skip-phase-button');
   }
   for(let i=0;i<20&&(await state()).phase!=='finished';i++) await post(code,'/api/host/skip',{playerKey:hostKey});
   await player.waitForSelector('.finale-winner-stage');
