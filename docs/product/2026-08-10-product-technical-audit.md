@@ -1,5 +1,7 @@
 # Gahookz product and technical audit
 
+> **Archived 2026-10-07.** A snapshot from before the September overhaul. Current state: [architecture overview](../architecture/overview.md), [backlog](../backlog.md). Kept for history.
+
 - Review date: 10 August 2026
 - Scope: active game modes, UI and flow, maintainability, security, hosting,
   identity, persistence, monetisation readiness, competitor position, and

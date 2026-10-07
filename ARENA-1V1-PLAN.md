@@ -1,5 +1,7 @@
 # Gahookz 1v1 (Gahook Arena) changes — implementation plan
 
+> **Archived 2026-10-07.** Done and verified (docs/verification/2026-09-19-arena-1v1/). The Arena as it works today: [area guide](docs/areas/social.md), [wiki](docs/wiki/gahook-arena.md). Kept for history; paths below are the old checkout's.
+
 Source: `/Vault/Gahookz 1v1 changes.md` (2 screenshots, both present in
 `/Vault/Archive/attachments/`). Repo: `/mnt/storage/syncthing/codex/2026-07-01/Gahookz`,
 branch `overhaul/quiz-herd-p00-p12`.

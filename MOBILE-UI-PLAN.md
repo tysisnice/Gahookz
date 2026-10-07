@@ -1,5 +1,7 @@
 # Mobile UI changes — implementation plan
 
+> **Archived 2026-10-07.** Done and verified (docs/verification/2026-09-19-mobile-ui/). Current shell layout: [UI shell guide](docs/areas/ui-shell.md). Kept for history.
+
 Source: `/Vault/Mobile UI changes.md` (3 screenshots, all present in
 `/Vault/Archive/attachments/`). Repo: `/mnt/storage/syncthing/codex/2026-07-01/Gahookz`,
 branch `overhaul/quiz-herd-p00-p12`.
