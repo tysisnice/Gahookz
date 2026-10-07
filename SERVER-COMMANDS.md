@@ -26,9 +26,12 @@ behind any of it, see `OPERATIONS-AND-ROADMAP.md`; for the standing rules, see
 Rollback images from the 2026-10-02 move: `gahookz:rollback-prod-20261002`,
 `gahookz:rollback-beta-20261002`, `gahookz:rollback-dev-20261002`.
 
-Production runs under the Compose project `gahookz-prod`; development runs
-under `gahookz`. `/srv/gahookz/.env` sets `COMPOSE_PROJECT_NAME=gahookz-prod`,
-which is what makes a deploy from that directory target the right container.
+Production runs under the Compose project `gahookz-prod`; development and
+beta run under `gahookz`. All three were started from the Store repository on
+2026-10-02. Before any deploy (only when Tyson asks), confirm from the Store
+repository that `docker compose ps -q gahookz` prints the production container,
+as `docs/operations/runbook.md` section 4 describes; the deploy script refuses
+to continue when the production port belongs to a project it does not own.
 
 ## Look without changing anything
 
