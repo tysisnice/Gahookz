@@ -131,8 +131,12 @@ dev/beta/prod containers alone. CI runs the same isolated batches.
 
 ## Deploying, when you have been asked to
 
+Follow [the runbook, section 4](docs/operations/runbook.md#4-deploy-only-when-tyson-asks)
+first (clean tree, check who is playing, tag a rollback image, confirm the
+Compose project). Then, on the laptop:
+
 ```bash
-cd /srv/gahookz
+cd /mnt/storage/syncthing/Store/Projects/gahookz
 git pull --ff-only origin main
 GAHOOKZ_DRAIN_WAIT_SECONDS=300 bash scripts/docker-deploy.sh
 ```
@@ -147,7 +151,7 @@ Confirm what is actually live — the browser `release-...` hash covers only
 
 ```bash
 curl -fsS https://gahookz.com/api/health   # check "revision"
-bash scripts/docker-status.sh              # from /srv/gahookz
+bash scripts/docker-status.sh              # from the Store repository
 ```
 
 ## Which document answers what
@@ -182,7 +186,7 @@ never assume they are present.
   short-lived single-use ticket for the same reason.
 - **The Compose project name matters.** `compose.yaml` declares
   `name: gahookz`, which is the *development* project. Production sets
-  `COMPOSE_PROJECT_NAME=gahookz-prod` in `/srv/gahookz/.env`.
+  `COMPOSE_PROJECT_NAME=gahookz-prod` in its `.env` (see the runbook, section 4).
 - **The development container reports `revision: "unknown"`.** That is correct:
   it bind-mounts a continuously changing tree, so no single commit describes it.
 - **Syncthing conflict copies** (`*.sync-conflict-*`) must never be committed or
