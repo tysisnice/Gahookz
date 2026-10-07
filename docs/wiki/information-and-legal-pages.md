@@ -7,7 +7,7 @@
 ## What it is
 
 **`/information`** is a short library of player guides: a Gahookz overview, a
-Majority Rulz guide and a Herd guide, chosen from a list on the left (the choice
+Majority Rulez guide and a Herd guide, chosen from a list on the left (the choice
 is kept in the address, for example `/information#herd`). It once also held the
 product roadmap, launch checklist and operations notes. Those moved into the
 repository, and their old addresses now show a "has moved" notice so bookmarks

@@ -16,7 +16,7 @@ There are four tabs on the welcome screen: **Gahookz** (a general overview),
 **Quiz**, **Herd** and **Host**. Inside a room the Host tab shows only for the
 host, and the overview tab is only on the welcome screen. There is no Majority
 Rulez tab: it is a scoring switch on Quiz, so the Quiz guide's second step
-says "In Majority Rulz, the most popular answer wins." A room set to Majority
+says "In Majority Rulez, the most popular answer wins." A room set to Majority
 Rulez opens the Quiz guide.
 
 ## Rules and numbers
@@ -30,8 +30,6 @@ Rulez opens the Quiz guide.
   `gahookz-how-to-play-seen-v2-`).
 - The unused Majority picture still exists in the artwork file but no tab
   reaches it.
-- The sentences spell the mode "Majority Rulz" while the rest of the game says
-  "Majority Rulez"; the copy has not been unified.
 
 ## Where it lives
 
@@ -51,7 +49,8 @@ Rulez opens the Quiz guide.
 
 ## History
 
-- 2026-10-07 — The Majority Rulz tab was removed; Quiz step 2 now explains the majority rule in one line.
+- 2026-10-07 — The Majority Rulez tab was removed; Quiz step 2 now explains the majority rule in one line.
+- 2026-10-08 — The tutorial and information copy now spell the mode "Majority Rulez" everywhere.
 - 2026-09-30 — New tutorial artwork module and captures (U7).
 - 2026-08-26 — Majority Rulez and Herd modes added with their guides.
 - 2026-07-20 — First "How to play" dialog in the initial project.

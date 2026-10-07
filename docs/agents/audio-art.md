@@ -9,8 +9,10 @@ cartoon style.
 
 ## Owns
 
-`client/audio.js` (every sound and the music engine), `client/presentation.jsx`
-(Gahook faces and overlay visuals), the artwork in `client/tutorial.jsx`,
+`client/audio.js` (every sound, and the wiring for music), the music engine in
+`client/music.ts` and `client/music-composer.ts`, `client/presentation.jsx`
+(Gahook faces and overlay visuals), the tutorial artwork in
+`client/tutorial-art.jsx`,
 `icons/`, avatar art helpers in `app.jsx` (`avatarArt`, `animalAvatarArt`),
 and the Gahook form CSS effects in `styles.css`.
 
@@ -35,6 +37,8 @@ and the Gahook form CSS effects in `styles.css`.
 ```bash
 flock /tmp/gahookz-verify.lock npm run check
 flock /tmp/gahookz-verify.lock npm run test:disposable -- bash -c "npm run standalone:smoke:gahooks && npm run standalone:smoke:onboarding && npm run standalone:smoke:pwa && npm run standalone:smoke:information"
+flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:browser:audio   # sound cues and the Music switch
+flock /tmp/gahookz-verify.lock npm run icons:render -- --check                         # icons match their SVG source
 ```
 
 Listen to every sound you change (render it to a WAV with an offline context

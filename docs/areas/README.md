@@ -67,8 +67,8 @@ their handoff (see [the working agreement](../agents/README.md)).
 | `client/reveal.jsx`, `client/reveal.css` | ui-game |
 | `app.jsx`: Gahook plumbing (`RoomGetGotOverlay`, `HostLobbyPokeEffects`, `CounterGahookPrompt`, `GahookRoster`, `GahookFormPicker`, `GahookDuel*`, `GahookArenaCrowdControls`, `RoomSocialHub`, `LobbyPaintSurface`, mini-Gahook layers inside `PlayerView`) | social |
 | `client/arena.jsx`, `client/arena.css`, `client/social.jsx`, `client/custom-gahook.jsx`, `client/offline.jsx` (Gahook Dash), `client/gahook-forms.js` | social |
-| `client/audio.js` (all sound and music) | audio-art |
-| `client/presentation.jsx` (Gahook faces and overlays), `icons/`, tutorial artwork inside `client/tutorial.jsx` | audio-art |
+| `client/audio.js`, `client/music.ts`, `client/music-composer.ts` (all sound and music) | audio-art |
+| `client/presentation.jsx` (Gahook faces and overlays), `icons/`, tutorial artwork in `client/tutorial-art.jsx` | audio-art |
 | `app.jsx`: `AccountPanel`, `CAREER_STATS` | accounts |
 
 `styles.css` follows the same map: each rule belongs to the area that owns the
