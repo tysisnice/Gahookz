@@ -31,3 +31,13 @@ describes only the three storage keys, not this difference.
 | `standalone/public/client/tutorial-art.jsx` | `MajorityTutorialArtwork` and the `mode === "majority"` branch | Unreachable since the Majority tab was removed (kept, and `smoke-onboarding` still asserts it exists) |
 | `standalone/public/client/tutorial.jsx` | "Majority Rulz" (three sentences) | The rest of the game and the wiki spell it "Majority Rulez" |
 | `standalone/smoke-layout.mjs` | "Ordinary live answer choices should show player identities" | Message predates U23 (identities show only at the reveal); the check itself still holds |
+
+## Added while writing `docs/areas/ui-lobby.md` and `docs/wiki/joining-and-profiles.md` (2026-10-08)
+
+| File | Quote | Correction |
+| --- | --- | --- |
+| `docs/verification/2026-09-25-update/lobby-setup/` notes and `styles.css` comment | "four [columns] on a phone, six or seven on a desktop" (`.avatar-picker > div`) | Not fixed counts: `repeat(auto-fill, minmax(var(--avatar-tile), 1fr))` with `--avatar-tile` 84 px (70/64/60 px in narrower queries); the count follows the width |
+| `docs/areas/README.md` ownership map | `client/custom-gahook.jsx` listed under social only; `LengthPresetSegments`, `useKeyboardInset`, `client/number-wheel.*` missing | The creator's look (U15 picker, form layout) and the Number wheel are ui-lobby concerns; add the rows |
+| `standalone/public/client/tutorial.jsx` | `document.body.style.overflow = "hidden"` | The only dialog in the area that does not use `useScrollLock`; not portalled |
+| `docs/verification/2026-09-25-update/lobby-creation/README.md` | "The paint editor's custom colour still uses the native input" | Still true on this branch (`simple-paint-editor__custom-input`) |
+| `HerdPreparationProgress` / `PlayerHerdPreparation` roster | `.section-heading` without `.lobby-paint-slot` | U9 says Draw / Erase mine render into the slot "of every lobby variant (... Herd writing)"; the player's Herd roster has none, so the buttons float. The host's Answer review heading does have one |

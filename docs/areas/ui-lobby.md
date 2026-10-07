@@ -254,9 +254,9 @@ answer images; update this section and the screen list when that work merges.
   `touch-action: none`; the status line is a `role="status"` that is visually
   hidden unless it is an error. The custom colour is still the native colour
   input (only the custom Gahook creator got the in-app picker, U15).
-- The avatar dialog is 384 px square, WebP 0.82, and
-  is the only place the paint editor is not portalled to `body` by a helper:
-  `JoinScreen` renders its `creation-modal-backdrop` in place.
+- The profile-picture dialog is 384 px square, WebP 0.82. Unlike the image
+  picker's dialog it is not portalled: `JoinScreen` renders its
+  `creation-modal-backdrop` in place (fixed positioning, `--z-modal`).
 - **Lobby paint** (Draw / Done / Erase mine over the wall) is social's
   `LobbyPaintLayer`; U9 only fixed where its buttons go: it portals them into the
   empty `.lobby-paint-slot` in the "Players" heading row. Every lobby screen
@@ -276,7 +276,7 @@ room's limits), 8 preset background colours, 4 effects (shake, spin, bounce,
 zoom), 6 sounds (bonk, honk, boing, airhorn, silent, My sound), a recording up to
 5 s (1 to 10 s allowed) or an uploaded sound under 200 KB. `BackgroundColourPicker`
 (U15) has 38 swatches (the 8 brand colours, 12 bright, 12 deep, 6 neutrals), Hue
-and Shade sliders, an editable hex box, and a preview using the first pose. Pose
+and Shade sliders, an editable hex box and a live preview of the Gahook. Pose
 frames are drawn with `SimplePaintEditor`. Wiki: [custom Gahooks](../wiki/custom-gahooks.md).
 
 ### The How to play dialog
