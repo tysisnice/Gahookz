@@ -6,19 +6,19 @@
 
 ## What it is
 
-Every player has a Gahook button beside each name. In the lobby and at the finale it is only a reaction: the target sees your character, hears a sound and sees your name. During a question it also **steals points**, so each player gets one Gahook per question.
+Every player has a Gahook button beside each name. In the lobby and at the finale it is only a reaction: the target sees your character and hears a sound. During a question it also **steals points**, so each player gets one Gahook per question.
 
-If many Gahooks pile onto one person quickly, they escalate into an **Ultimate Gahook**, and a big enough pile is a **GET GOT** that the whole room sees. In the lobby, a player who has been Gahooked 10 times in a row by the same person is offered a **Counter Gahook** and the chance to challenge them to the [Gahook Arena](gahook-arena.md). At the end of the game, [congratulations and boos](finale.md) use the same machinery.
+A fast pile of Gahooks becomes an **Ultimate Gahook**, and a big enough pile is a **GET GOT** the whole room sees. In the lobby, 10 Gahooks in a row from one person earn a **Counter Gahook** and a chance to challenge them to the [Gahook Arena](gahook-arena.md). [Congratulations and boos](finale.md) at the end use the same machinery.
 
 ## Rules and numbers
 
 - **One per question.** One Gahook per player per question, shared by reading, answering and reveal. A second one gets "You already used your Gahook for this question." Lobby and finale Gahooks are unlimited.
 - **Steal:** 50 points move from target to sender, in reading, answering and reveal. **GET GOT:** −1,000 for the target. Both need the host's Gahook effects rule to be **Chaos** (the default); on **Visual only** nothing moves ([Scoring](scoring.md), [Lobby rules](lobby-rules.md)).
-- **Ultimate:** a streak of Gahooks at one target, each within 1.2 s of the last, becomes Ultimate once it has lasted 5 s; each later Ultimate on that target needs 1 s longer. Each extra Gahook within 1 s adds one to the stack; at 50 it becomes GET GOT.
-- **Counter offer:** 10 Gahooks in a row from one sender (each within 2.2 s), then again at 12, 14 and so on. The offer lasts 6.5 s and works in the lobby only.
-- **Ultimate Congratulations:** 8 congratulations from at least 3 different players within 1.2 s gaps, or 5 s of steady congratulations (at least 4).
+- **Ultimate:** Gahooks at one target, each within 1.2 s of the last, become Ultimate after 5 s; each later one on that target needs 1 s longer. Each extra Gahook within 1 s adds one; at 50 it is GET GOT.
+- **Counter offer:** 10 Gahooks in a row from one sender (each within 2.2 s), again at 12, 14 and so on; lasts 6.5 s, lobby only.
+- **Ultimate Congratulations:** 8 congratulations from at least 3 players in quick succession (details in the [area guide](../areas/social.md)).
 - A Gahook needs a connected target. Being Gahooked wipes your own lobby paint ([Lobby painting](lobby-painting.md)).
-- **Known gap:** with effects set to **Off**, the in-question button still sends a Gahook that moves no points (details in the [area guide](../areas/social.md#known-issues)).
+- **Known gap:** with effects **Off**, the in-question button still sends a harmless Gahook ([area guide](../areas/social.md#known-issues)).
 
 ## Where it lives
 
