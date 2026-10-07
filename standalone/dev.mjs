@@ -20,6 +20,7 @@ const buildSources = new Set([
   "client/arena.jsx",
   "client/net.ts",
   "client/reveal.jsx",
+  "client/host-presence.jsx",
   "client/audio.js",
   "client/music.ts",
   "client/music-composer.ts",
@@ -34,6 +35,7 @@ const buildSources = new Set([
   "client/custom-gahook.jsx",
   "client/account.jsx",
   "client/information.jsx",
+  "client/legal.jsx",
   "client/controls.jsx",
   "client/history.jsx",
   "client/back-stack.ts",
@@ -46,6 +48,7 @@ const shellSources = new Set([
   "styles.css",
   "client/arena.css",
   "client/number-wheel.css",
+  "client/reveal.css",
   "vendor-bootstrap.js",
   "client/gahook-forms.js"
 ]);
