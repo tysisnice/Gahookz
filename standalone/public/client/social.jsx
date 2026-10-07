@@ -1,4 +1,6 @@
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+// The import map has no "react-dom" entry; use the global like client/account.jsx.
+const createPortal = (...args) => window.ReactDOM.createPortal(...args);
 
 export const SOCIAL_CHAT_LIMIT = 60;
 export const SOCIAL_CHAT_CHARACTER_LIMIT = 240;
@@ -308,6 +310,14 @@ export function LobbyPaintLayer({ snapshot = null, ownPlayer = null, disabled = 
   const canvasRef = useRef(null);
   const surfaceRef = useRef(null);
   const activeStrokeRef = useRef(null);
+  // The Draw / Erase buttons live in the "Players" heading row of the wall this
+  // layer covers (an empty .lobby-paint-slot); with no slot they fall back to
+  // floating at the wall's top-right corner.
+  const [toolsSlot, setToolsSlot] = useState(null);
+  useLayoutEffect(() => {
+    const slot = surfaceRef.current?.parentElement?.querySelector(".lobby-paint-slot") || null;
+    setToolsSlot((current) => (current === slot ? current : slot));
+  });
 
   const strokes = Array.isArray(snapshot?.whiteboardStrokes) ? snapshot.whiteboardStrokes : [];
   const boardRevision = Number(snapshot?.whiteboardRevision || 0);
@@ -364,7 +374,7 @@ export function LobbyPaintLayer({ snapshot = null, ownPlayer = null, disabled = 
   useEffect(() => {
     if (!drawing) return undefined;
     const handlePagePointerDown = (event) => {
-      if (drawing && !surfaceRef.current?.contains(event.target)) setDrawing(false);
+      if (drawing && !surfaceRef.current?.contains(event.target) && !event.target?.closest?.(".lobby-paint__tools")) setDrawing(false);
     };
     document.addEventListener("pointerdown", handlePagePointerDown);
     return () => document.removeEventListener("pointerdown", handlePagePointerDown);
@@ -444,6 +454,20 @@ export function LobbyPaintLayer({ snapshot = null, ownPlayer = null, disabled = 
     }
   };
 
+  const paintTools = <div className={toolsSlot ? "lobby-paint__tools is-in-heading" : "lobby-paint__tools"}>
+        {/* One option. Not a toolbar. */}
+        <button
+          className={drawing ? "lobby-paint__draw is-on" : "lobby-paint__draw"}
+          type="button"
+          aria-pressed={drawing}
+          style={{ "--lobby-paint-color": paintColor }}
+          onClick={() => setDrawing((was) => !was)}>
+          <span className="lobby-paint__swatch" aria-hidden="true" />
+          {drawing ? "Done" : "Draw"}
+        </button>
+        {hasOwnStrokes ? <button className="lobby-paint__erase" type="button" disabled={busy} onClick={eraseOwn}>Erase mine</button> : null}
+      </div>;
+
   return <div className={drawing ? "lobby-paint is-drawing" : "lobby-paint"} ref={surfaceRef}>
     <canvas
       ref={canvasRef}
@@ -454,19 +478,7 @@ export function LobbyPaintLayer({ snapshot = null, ownPlayer = null, disabled = 
       onPointerUp={finishStroke}
       onPointerCancel={finishStroke}
     />
-    {canPaint ? <div className="lobby-paint__tools">
-      {/* One option. Not a toolbar. */}
-      <button
-        className={drawing ? "lobby-paint__draw is-on" : "lobby-paint__draw"}
-        type="button"
-        aria-pressed={drawing}
-        style={{ "--lobby-paint-color": paintColor }}
-        onClick={() => setDrawing((was) => !was)}>
-        <span className="lobby-paint__swatch" aria-hidden="true" />
-        {drawing ? "Done" : "Draw"}
-      </button>
-      {hasOwnStrokes ? <button className="lobby-paint__erase" type="button" disabled={busy} onClick={eraseOwn}>Erase mine</button> : null}
-    </div> : null}
+    {canPaint ? (toolsSlot ? createPortal(paintTools, toolsSlot) : paintTools) : null}
     {status ? <p className="lobby-paint__status" role="status">{status}</p> : null}
   </div>;
 }

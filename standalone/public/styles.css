@@ -2123,6 +2123,34 @@ img {
   pointer-events: auto;
 }
 
+/* In the Players heading row the tools sit right-aligned beside the title and
+   count, in normal flow rather than floating over the banners above. */
+.lobby-paint-slot {
+  margin-left: auto;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.lobby-paint-slot:empty { display: none; }
+
+.lobby-paint__tools.is-in-heading {
+  /* Above the drawing canvas (z-index 5) so Done stays tappable while drawing. */
+  position: relative;
+  z-index: 6;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.section-heading .lobby-paint__swatch {
+  min-width: 13px;
+  height: 13px;
+  display: inline-block;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  background: var(--lobby-paint-color, #fff);
+}
+
 .lobby-paint__draw,
 .lobby-paint__erase {
   display: inline-flex;

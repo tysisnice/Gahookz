@@ -2383,6 +2383,7 @@ function HostLobby({ lobby, playerKey, connected, hostMenu, onLockSetup, onPoke,
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
+            <div className="lobby-paint-slot"></div>
           </div>
           <div className="player-grid">
             {lobby.players.map((player) => <PlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} showQuestionStatus={false} onPoke={onPoke} onKick={onKick} onMakeHost={onMakeHost} onRandomizeIdentity={onRandomizeIdentity} onRemoveSelf={player.id === lobby.ownPlayer?.id ? onExitAsPlayer : null} canChallenge={Boolean(lobby.ownPlayer) && lobby.lobbyArenaEnabled !== false && !lobby.gahookDuel} onChallenge={(target) => onChallenge?.(target)} />)}
@@ -2545,6 +2546,7 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
+            <div className="lobby-paint-slot"></div>
           </div>
           <div className="player-grid">
             {lobby.players.length ? lobby.players.map((player) => <PlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} onPoke={onPoke} onKick={onKick} onMakeHost={onMakeHost} onRandomizeIdentity={onRandomizeIdentity} canChallenge={Boolean(lobby.ownPlayer) && lobby.lobbyArenaEnabled !== false && !lobby.gahookDuel && player.id !== lobby.ownPlayer?.id} onChallenge={(target) => onChallenge?.(target)} />) : <div className="empty-state">Waiting for players</div>}
@@ -2598,7 +2600,7 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
           <LobbyPaintSurface lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />
           <HerdPreparationProgress preparation={lobby.herdPreparation} />
           <section className="herd-host-review">
-            <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span></div>
+            <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span><div className="lobby-paint-slot"></div></div>
             <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
               <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || "Waiting for an answer…"}</strong><small>Answer by {item.answerAuthor.name}</small>
             </article>)}</div>
@@ -3749,6 +3751,7 @@ function PlayerWaitingLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }
           <div className="section-heading">
             <h1>Players</h1>
             <span>{connectedPlayers.length}</span>
+            <div className="lobby-paint-slot"></div>
           </div>
           <div className="player-grid">
             {lobby.players.length ? lobby.players.map((player) => <ReadonlyPlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} showQuestionStatus={false} ownPlayer={ownPlayer} onPoke={pokePlayer} onVoteKick={voteKickPlayer} canChallenge={canChallengeInLobby} onChallenge={challengePlayer} />) : <div className="empty-state">Waiting for players</div>}
@@ -3851,6 +3854,7 @@ function PlayerLobby({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
           <div className="section-heading">
             <h1>Players</h1>
             <span>{lobby.players.filter((player) => player.connected).length}</span>
+            <div className="lobby-paint-slot"></div>
           </div>
           <div className="player-grid">
             {lobby.players.length ? lobby.players.map((player) => <ReadonlyPlayerCard player={player} key={player.id + "-" + (player.latestPokeId || "steady")} maxQuestions={lobby.maxQuestionsPerPlayer} ownPlayer={ownPlayer} onPoke={pokePlayer} onVoteKick={voteKickPlayer} canChallenge={canChallengeInLobby} onChallenge={challengePlayer} />) : <div className="empty-state">Waiting for players</div>}
