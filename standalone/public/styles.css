@@ -11850,12 +11850,13 @@ button.answer-tile {
 .answer-tile.has-answer-image { flex-direction: column; }
 .answer-tile-image {
   display: block;
-  width: min(100%, 320px);
+  width: auto;
+  height: auto;
+  max-width: 100%;
   max-height: 120px;
-  object-fit: contain;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.94);
 }
-@media (min-width: 900px) { .answer-tile-image { max-height: 190px; } }
-@media (min-width: 1400px) { .answer-tile-image { max-height: 260px; } }
-.herd-review-image { display: block; width: 100%; max-height: 110px; object-fit: contain; border-radius: 8px; background: #fff; }
+@media (min-width: 900px) { .answer-tile-image { max-height: 150px; } }
+@media (min-width: 1400px) { .answer-tile-image { max-height: 220px; } }
+.herd-review-image { display: block; width: auto; height: auto; max-width: 100%; max-height: 110px; border-radius: 8px; background: #fff; }

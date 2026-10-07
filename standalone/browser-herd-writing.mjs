@@ -204,6 +204,13 @@ try {
   assert(progress.some(text => /4\/4 answered|Done/.test(text)), 'player cards show per-player progress: ' + JSON.stringify(progress));
   assert.equal(await writer.$('.herd-preparation-progress'), null, 'the separate progress card is gone');
 
+  // The same answers on a desktop screen: the compact row under the box, with the saved images.
+  const desktopWriter = await pageFor(keys[0], { width: 1280, height: 800 });
+  await desktopWriter.waitForSelector('.herd-answer-writer .image-choice-preview img');
+  await noOverflow(desktopWriter, 'writing desktop');
+  await shot(desktopWriter, 'writing-image-attached-1280x800');
+  await desktopWriter.browserContext().close();
+
   // The other four players finish through the API, every answer with a picture.
   const hues = [0, 60, 120, 180, 240, 280, 320, 30];
   let hueIndex = 0;
@@ -220,6 +227,9 @@ try {
   const host = await pageFor(hostKey, { width: 1280, height: 800 });
   await host.waitForSelector('.herd-review-grid');
   await host.waitForSelector('.herd-review-image');
+  const review = await host.$$eval('.herd-review-image', images => images.map(image => ({ loaded: image.complete && image.naturalWidth > 0, height: image.getBoundingClientRect().height })));
+  assert(review.length >= 8 && review.every(image => image.loaded && image.height <= 112), 'the host review shows bounded answer images ' + JSON.stringify(review));
+  await host.$eval('.herd-host-review', node => node.scrollIntoView({ block: 'start' }));
   await shot(host, 'host-review-1280x800');
 
   // ---- Voting ---------------------------------------------------------------
@@ -252,7 +262,7 @@ try {
   await shot(voter, 'voting-full-390x844', { fullPage: true });
   await shot(host, 'party-voting-1280x800');
   const hostTiles = await host.$$eval('.answer-grid .answer-tile-image', images => images.map(image => ({ loaded: image.complete && image.naturalWidth > 0, height: image.getBoundingClientRect().height })));
-  assert(hostTiles.length >= 1 && hostTiles.every(image => image.loaded && image.height <= 195), 'party screen tiles show bounded images ' + JSON.stringify(hostTiles));
+  assert(hostTiles.length >= 1 && hostTiles.every(image => image.loaded && image.height <= 155), 'party screen tiles show bounded images ' + JSON.stringify(hostTiles));
 
   // ---- Reveal ---------------------------------------------------------------
   const ownView = await state('player', voterKey);
