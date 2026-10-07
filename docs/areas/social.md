@@ -69,7 +69,7 @@ Wiki pages: [Gahooks](../wiki/gahooks.md),
 | Custom Gahook creator | `standalone/public/client/custom-gahook.jsx` (`CustomGahookCreator`), drawing in `client/drawing.jsx` |
 | Chat bubble, lobby paint | `standalone/public/client/social.jsx` (`WaitingRoomSocial`, `LobbyPaintLayer`); mounted by `app.jsx` |
 | Roster, picker, counter prompt, rules dialog | `standalone/public/app.jsx`: `GahookRoster`, `GahookFormPicker`, `CounterGahookPrompt`, `GahookEffectsHelp`, `HostRulesModal`, `optimisticPokePayload` |
-| Gahook Dash | `standalone/public/client/offline.jsx`: `GahookDash`, `useServerConnection`, `OfflineScreen` |
+| Gahook Dash | `standalone/public/client/offline.jsx`: `GahookDash`, `useServerConnection`, `OfflineExperience` |
 
 ## How it works
 
@@ -296,14 +296,14 @@ hold for a full jump, Space or Arrow Up when focused. The speed is
 `min(540, 275 + score x 0.72)` pixels per second, score grows 12 per second,
 and the player's character is chosen from the same registry. The best score is
 kept in this browser under `gahookz-offline-high-score`. It is mounted only by
-`OfflineScreen` (the server-down screen, with "No lobby, still Gahooky.").
+`OfflineExperience` (the server-down screen, with "No lobby, still Gahooky.").
 The server also has `/api/player/dash` (`updatePlayerDash`: score clamped to
 0..999999, `playerY` to -260..0, lobby and building only) and public player
 fields `dashScore`, `dashTopScore` and so on, plus a `roomMode` prop on the
 component, but **nothing in the browser mounts the room mode today**. See
 Known issues.
 
-## Constants
+### Constants
 
 One place for every number above. Update here first.
 
