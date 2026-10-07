@@ -27,6 +27,6 @@ recorded only where a document or commit message says so. Live open work: [backl
 
 ## Notes
 
-- Deploy facts this history can vouch for: the 2026-09-06 drain-and-deploy work, the 2026-09-14 beta site, and the 2026-10-02 container move. The 2026-09-19 release candidate is not a recorded deploy.
+- Deploy facts this history can vouch for: the 2026-09-06 drain-and-deploy work, the 2026-09-14 beta site, and the 2026-10-02 container move. Production was also redeployed on or after 2026-09-19: on 2026-09-25 it reported revision `e3b6dde` (2026-09-19 23:20, "Fix compose project name"), though no document records that deploy.
 - The old plans (`ARENA-1V1-PLAN.md`, `DESKTOP-UI-PLAN.md`, `MOBILE-UI-PLAN.md`, `HOSTING-PLAN.md`) date from the 2026-09-19 verification cycle; their fate is in the audit linked above.
 - TypeScript migration status: [typescript-migration](plans/typescript-migration.md).
