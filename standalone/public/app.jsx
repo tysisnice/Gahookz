@@ -2899,8 +2899,8 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
       </section>
       {reveal && revealIntro ? <CorrectAnswerSpotlight question={question} gameMode={lobby.gameMode} answerSelections={lobby.answerSelections} players={lobby.players} /> : null}
       {!reveal ? <AnswerGrid answers={question?.answers || []} reveal={false} hideText={lobby.phase === "reading"} answerSelections={lobby.answerSelections} players={lobby.players} questionId={question?.id} /> : null}
-      {roundActive ? <GameLeaderboardPanel lobby={lobby} hint={lobby.ownPlayer ? "Choose one friend to Gahook this question" : "Live standings"} onPoke={lobby.ownPlayer ? onLeaderboardPoke : undefined} usedPokeIds={questionUseIds(lobby)} ownPlayerId={lobby.ownPlayer?.id || ""} /> : null}
-      {reveal && !revealIntro ? <RevealPanel question={question} lobby={lobby} onPoke={onLeaderboardPoke} readonly phaseEndsAt={lobby.phaseEndsAt} durationMs={revealVoteDuration} onProgressComplete={onProgressComplete} /> : null}
+      {roundActive ? <GameLeaderboardPanel lobby={lobby} hint={lobby.ownPlayer && lobby.gahookEffects !== "off" ? "Choose one friend to Gahook this question" : "Live standings"} onPoke={lobby.ownPlayer && lobby.gahookEffects !== "off" ? onLeaderboardPoke : undefined} usedPokeIds={questionUseIds(lobby)} ownPlayerId={lobby.ownPlayer?.id || ""} /> : null}
+      {reveal && !revealIntro ? <RevealPanel question={question} lobby={lobby} onPoke={lobby.gahookEffects !== "off" ? onLeaderboardPoke : undefined} readonly phaseEndsAt={lobby.phaseEndsAt} durationMs={revealVoteDuration} onProgressComplete={onProgressComplete} /> : null}
     </main>);
 
 }
@@ -4118,6 +4118,9 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
     });
   };
   const roundActive = lobby.phase === "reading" || lobby.phase === "answering";
+  // The server refuses every Gahook during a round when the host chose Off, so
+  // the buttons are not offered at all.
+  const gahooksOff = lobby.gahookEffects === "off";
   const revealVoteDuration = reveal ? Math.max(1000, duration - REVEAL_ANSWER_SPOTLIGHT_MS) : duration;
   const revealIntroEndsAt = reveal ? lobby.phaseEndsAt - revealVoteDuration : lobby.phaseEndsAt;
 
@@ -4159,9 +4162,9 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
         </section> :
       null}
       {roundActive ? <AnswerGrid answers={question?.answers || []} reveal={false} hideText={lobby.phase === "reading"} interactive={lobby.phase === "answering"} disabled={Boolean(ownAnswer)} selectedAnswerId={ownAnswer?.answerId} onAnswer={submitAnswer} answerSelections={visibleAnswerSelections} players={lobby.players} questionId={question?.id} /> : null}
-      {roundActive ? <GameLeaderboardPanel lobby={lobby} hint="Choose one friend to Gahook this question" onPoke={gahookPlayer} usedPokeIds={questionUseIds(lobby)} ownPlayerId={ownPlayer.id} /> : null}
+      {roundActive ? <GameLeaderboardPanel lobby={lobby} hint={gahooksOff ? "Live standings" : "Choose one friend to Gahook this question"} onPoke={gahooksOff ? undefined : gahookPlayer} usedPokeIds={questionUseIds(lobby)} ownPlayerId={ownPlayer.id} /> : null}
       {reveal && revealIntro ? <CorrectAnswerSpotlight question={question} gameMode={lobby.gameMode} answerSelections={lobby.answerSelections} players={lobby.players} /> : null}
-      {reveal && !revealIntro ? <RevealPanel question={question} lobby={lobby} playerKey={playerKey} onPoke={regularGahookPlayer} phaseEndsAt={lobby.phaseEndsAt} durationMs={revealVoteDuration} onProgressComplete={acknowledgeProgress} /> : null}
+      {reveal && !revealIntro ? <RevealPanel question={question} lobby={lobby} playerKey={playerKey} onPoke={gahooksOff ? undefined : regularGahookPlayer} phaseEndsAt={lobby.phaseEndsAt} durationMs={revealVoteDuration} onProgressComplete={acknowledgeProgress} /> : null}
     </main>);
 
 }
