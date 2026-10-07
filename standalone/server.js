@@ -2239,13 +2239,28 @@ function submitHerdAuthoredAnswer(room, payload) {
   if (!question || !answer) {
     return { ok: false, error: "That Herd question is not assigned to you." };
   }
+  // Text is required; the image is optional (a drawing or photo alongside the
+  // words keeps voting readable). Validated and stored exactly like question
+  // images. An omitted image keeps the one already stored, so re-saving text
+  // does not drop it; sending an empty string clears it.
+  let answerImage = answer.imageDataUrl || "";
+  if (payload && Object.prototype.hasOwnProperty.call(payload, "imageDataUrl")) {
+    try {
+      answerImage = validateImage(room, payload.imageDataUrl);
+    } catch (error) {
+      pruneRoomMedia(room);
+      return { ok: false, error: error.message || "That image is not valid." };
+    }
+  }
   answer.text = answerText;
+  answer.imageDataUrl = answerImage;
   answer.authorName = player.name;
   answer.authorAvatarId = player.avatarId;
   answer.authorAvatarImageDataUrl = player.avatarImageDataUrl || "";
   answer.submittedAt = Date.now();
   player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter((assignment) => assignment.text).length;
   player.ready = false;
+  pruneRoomMedia(room);
   broadcastState(room, { immediate: true });
   return { ok: true, questionId, answerId: answer.id, completed: player.herdAnswersSubmitted };
 }
@@ -2794,6 +2809,7 @@ function kickPlayer(room, payload, options = {}) {
     (question.answers || []).forEach((answer) => {
       if (answer.authorId === playerId) {
         answer.text = "";
+        answer.imageDataUrl = "";
         answer.removedByHost = true;
         answer.authorName = "Removed player";
         answer.authorAvatarImageDataUrl = "";
@@ -2803,6 +2819,7 @@ function kickPlayer(room, payload, options = {}) {
   removeChatMessagesForPlayer(room, playerId);
   delete room.game.answers[playerId];
   delete room.voteKicks[playerId];
+  pruneRoomMedia(room);
   Object.values(room.voteKicks).forEach((votes) => delete votes[playerId]);
 
   if (activeGamePhase && room.game.firstAnswerPlayerId === playerId) {
@@ -2845,6 +2862,7 @@ function removeContent(room, payload) {
         if (answer.id === targetId || answer.authorId === targetId) {
           if (answer.text) removed += 1;
           answer.text = "";
+          answer.imageDataUrl = "";
           answer.removedByHost = true;
         }
       }
@@ -2868,7 +2886,10 @@ function removeContent(room, payload) {
         question.imageDataUrl = "";
       }
       (question.answers || []).forEach((answer) => {
-        if (answer.authorId === player.id) answer.authorAvatarImageDataUrl = "";
+        if (answer.authorId === player.id) {
+          answer.authorAvatarImageDataUrl = "";
+          answer.imageDataUrl = "";
+        }
       });
     });
     player.customGahook = null;
@@ -3981,6 +4002,7 @@ function publicHerdAssignments(room, playerId = "") {
       questionId: question.id,
       answerId: answer.id,
       text: answer.text || "",
+      imageDataUrl: answer.imageDataUrl || "",
       submitted: Boolean(answer.text),
       question: {
         id: question.id,
@@ -5015,6 +5037,7 @@ function publicQuestion(room, question, role, phase, viewerPlayerId = "") {
       color: answer.color,
       shape: answer.shape,
       text: showAnswerText ? answer.text : "",
+      imageDataUrl: mode === "herd" && showAnswerText ? answer.imageDataUrl || "" : undefined,
       ownAnswer: mode === "herd" && Boolean(viewerPlayerId) && answer.authorId === viewerPlayerId,
       correct: revealAnswer ?
       mode === "majority" ? answer.id === majorityAnswerId :
@@ -5063,6 +5086,7 @@ function publicHerdResults(room, question) {
     groups: (results.groups || []).map((group) => ({
       answerId: group.id,
       text: group.text,
+      imageDataUrl: question.answers.find((answer) => answer.id === group.id)?.imageDataUrl || "",
       count: group.count || 0,
       fastestElapsedMs: group.fastestElapsedMs,
       averageElapsedMs: group.averageElapsedMs,
