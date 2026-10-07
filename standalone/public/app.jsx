@@ -2578,22 +2578,19 @@ function HostBuildingLobby({ lobby, playerKey, connected, hostMenu, onStart, onF
 
 }
 
-function HerdPreparationProgress({ preparation }) {
-  const progress = preparation || { completed: 0, total: 0, players: [] };
-  return (
-    <section className="herd-preparation-progress">
-      <header><span>Answer workshop</span><strong>{progress.completed}/{progress.total} answers written</strong></header>
-      <div className="herd-progress-meter" aria-label={progress.completed + " of " + progress.total + " answers written"}><span style={{ width: (progress.total ? progress.completed / progress.total * 100 : 0) + "%" }} /></div>
-      <div className="herd-writer-grid">
-        {(progress.players || []).map((entry) => <article className={entry.ready ? "herd-writer-card is-ready" : "herd-writer-card"} key={entry.player.id}>
-          <AvatarBadge player={entry.player} small />
-          <span><strong>{entry.player.name}</strong><small>{entry.completed}/{entry.total} answers · {entry.ready ? "ready" : "writing"}</small></span>
-        </article>)}
-      </div>
-    </section>);
+// Per-player Herd writing progress, shown in the player's own card status line.
+function herdProgressText(preparation, player) {
+  const entry = (preparation?.players || []).find((candidate) => candidate.player.id === player.id);
+  if (!entry || !entry.total) return "";
+  return entry.completed >= entry.total ? "Done" : entry.completed + "/" + entry.total + " answered";
 }
 
 function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, onForceStart }) {
+  const dispatch = useDispatch();
+  const poke = async (player) => {
+    const result = await api("/api/player/poke", { playerKey, playerId: player.id });
+    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+  };
   return (
     <main className="host-screen host-lobby herd-preparation-screen">
       <HostTopBar connected={connected} phase="Party View" code={lobby.code} hostMenu={hostMenu} />
@@ -2604,7 +2601,7 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
         <div className="player-wall">
           {/* Painting lives over the player wall now, not over the chat. */}
           <LobbyPaintSurface lobby={lobby} ownPlayer={lobby.ownPlayer} playerKey={playerKey} />
-          <HerdPreparationProgress preparation={lobby.herdPreparation} />
+          <div className="player-grid">{lobby.players.map((player) => <ReadonlyPlayerCard key={player.id} player={player} ownPlayer={lobby.ownPlayer} showQuestionStatus={false} statusText={herdProgressText(lobby.herdPreparation, player)} onPoke={poke} onVoteKick={() => {}} />)}</div>
           <section className="herd-host-review">
             <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span><div className="lobby-paint-slot"></div></div>
             <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
@@ -2681,7 +2678,6 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
           Keep them funny, short, and tempting. Nobody sees who wrote an answer until the vote is over.
         </RoomStatusBanner>
         <section className="herd-answer-workspace">
-          <HerdPreparationProgress preparation={lobby.herdPreparation} />
           {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} text={answerText(assignment)} disabled={saving} onChange={(text) => setDrafts((previous) => ({ ...previous, [assignment.questionId]: text }))} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
           {assignments.length ? <button className="primary-button herd-submit-all" type="button" disabled={saving || assignments.some((assignment) => !answerText(assignment).trim())} onClick={submitAll}>{saving ? "Submitting answers…" : "Submit all answers"}</button> : null}
           {allSubmitted ? <button className={ownPlayer.ready ? "ready-button is-ready" : "ready-button needs-ready"} type="button" onClick={toggleReady}>{ownPlayer.ready ? "Ready for the live vote" : "I’m done — ready up"}</button> : null}
@@ -2689,7 +2685,7 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
         </section>
         <div className="player-wall herd-writing-roster">
           <div className="section-heading"><h1>Players</h1><span>{lobby.players.length}</span></div>
-          <div className="player-grid">{lobby.players.map((player) => <ReadonlyPlayerCard key={player.id} player={player} ownPlayer={ownPlayer} showQuestionStatus={false} onPoke={poke} onVoteKick={async (target) => { const result = await api("/api/player/vote-kick", { playerKey, playerId: target.id }); if (!result.ok) dispatch({ type: "ERROR", value: result.error }); }} />)}</div>
+          <div className="player-grid">{lobby.players.map((player) => <ReadonlyPlayerCard key={player.id} player={player} ownPlayer={ownPlayer} showQuestionStatus={false} statusText={herdProgressText(lobby.herdPreparation, player)} onPoke={poke} onVoteKick={async (target) => { const result = await api("/api/player/vote-kick", { playerKey, playerId: target.id }); if (!result.ok) dispatch({ type: "ERROR", value: result.error }); }} />)}</div>
         </div>
         <RoomSocialHub lobby={lobby} ownPlayer={ownPlayer} playerKey={playerKey} />
       </section>
@@ -4227,7 +4223,7 @@ function Metric({ label, value }) {
   return <div className="metric-row"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, onKick, onMakeHost, onRandomizeIdentity, onRemoveSelf, onChallenge = null, canChallenge = false }) {
+function PlayerCard({ player, maxQuestions, showQuestionStatus = true, statusText = "", onPoke, onKick, onMakeHost, onRandomizeIdentity, onRemoveSelf, onChallenge = null, canChallenge = false }) {
   const [menuRef, closeMenu] = useDetailsMenu();
   const [activeAction, setActiveAction] = useState("");
   const dispatch = useDispatch();
@@ -4254,7 +4250,7 @@ function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, o
           <h2>{player.name}</h2>
           {player.isHost ? <span className="player-host-chip">Host</span> : null}
         </div>
-        <p>{showQuestionStatus ? player.ready ? "Ready" : player.questionsSubmitted + "/" + maxQuestions + " questions" : "In lobby"}</p>
+        <p>{statusText || (showQuestionStatus ? player.ready ? "Ready" : player.questionsSubmitted + "/" + maxQuestions + " questions" : "In lobby")}</p>
       </div>
       {!player.connected ? <span className="player-status">Offline</span> : null}
       <div className="player-card-actions">
@@ -4279,7 +4275,7 @@ function PlayerCard({ player, maxQuestions, showQuestionStatus = true, onPoke, o
 
 }
 
-function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, ownPlayer, onPoke, onVoteKick, onChallenge = null, canChallenge = false }) {
+function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, statusText = "", ownPlayer, onPoke, onVoteKick, onChallenge = null, canChallenge = false }) {
   const [menuRef, closeMenu] = useDetailsMenu();
   const [challenging, setChallenging] = useState(false);
   const voteKick = () => {
@@ -4311,7 +4307,7 @@ function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, o
           <h2>{player.name}</h2>
           {player.isHost ? <span className="player-host-chip">Host</span> : null}
         </div>
-        <p>{showQuestionStatus ? player.ready ? "Ready" : player.questionsSubmitted + "/" + maxQuestions + " questions" : "In lobby"}</p>
+        <p>{statusText || (showQuestionStatus ? player.ready ? "Ready" : player.questionsSubmitted + "/" + maxQuestions + " questions" : "In lobby")}</p>
       </div>
       {!player.connected ? <span className="player-status">Offline</span> : null}
       <div className="player-card-actions">
