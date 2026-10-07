@@ -2885,6 +2885,7 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
         <div className="question-copy">
           <span className="phase-chip">{phaseLabel}</span>
           <h1>{question?.text || "Loading question"}</h1>
+          {roundActive ? <AnsweredPlayersRow selections={lobby.answerSelections} players={lobby.players} /> : null}
           {question?.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}
         </div>
         {question?.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}
@@ -4143,6 +4144,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
           <div className="question-copy">
             <span className="phase-chip">{questionNumberLabel}</span>
             <h1><PromptText text={question.text} names={question.namedPlayerNames} /></h1>
+            {roundActive ? <AnsweredPlayersRow selections={visibleAnswerSelections} players={lobby.players} /> : null}
             {question.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}
           </div>
           {question.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}
@@ -4370,6 +4372,20 @@ function AnswerGrid({ answers, reveal, hideText = false, interactive = false, di
         <article className={className} key={answer.id}>{content}</article>;
       })}
     </section>);
+
+}
+
+// Before the reveal only who has answered is public, never which option they
+// chose, so answered players appear here instead of on an answer tile.
+function AnsweredPlayersRow({ selections = [], players = [] }) {
+  const playerById = new Map(players.map((player) => [player.id, player]));
+  const answered = selections.map((selection) => playerById.get(selection.playerId)).filter(Boolean);
+  if (!answered.length) return null;
+  return (
+    <div className="answered-players-row" role="status" aria-label={"Answered: " + answered.map((player) => player.name).join(", ")}>
+      <span className="answered-players-label">Answered</span>
+      <span className="answered-players-avatars">{answered.map((player) => <span className="answered-player" key={player.id} title={player.name}><AvatarBadge player={player} small /></span>)}</span>
+    </div>);
 
 }
 

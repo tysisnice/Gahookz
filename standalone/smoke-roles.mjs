@@ -57,6 +57,16 @@ async function state(roomCode, role = "host", playerKey = "") {
   return data;
 }
 
+
+// Pre-reveal privacy: no snapshot may say which option another player chose.
+function assertNoOtherChoicesVisible(snapshot, viewerPlayerId, label) {
+  for (const selection of snapshot.answerSelections || []) {
+    if (selection.playerId === viewerPlayerId) continue;
+    assert(!("answerId" in selection), label + ": another player's choice leaked before the reveal");
+  }
+  assert(JSON.stringify(snapshot.answerSelections || []).includes("answerId") === (viewerPlayerId ? (snapshot.answerSelections || []).some((s) => s.playerId === viewerPlayerId) : false), label + ": unexpected answerId in selections");
+}
+
 async function runRoleSmoke() {
   const roomCode = code("R");
   const hostKey = key("host-player");
@@ -202,13 +212,24 @@ async function runRoleSmoke() {
   assert(liveJoinSnapshot.leaderboard.some((player) => player.name === "Live Jenny" && player.score === 0), "A live joiner should enter the leaderboard at zero points");
 
   await post("/api/answer", { code: roomCode, playerKey: hostKey, answerId: "red" });
-  await post("/api/answer", { code: roomCode, playerKey: guestKey, answerId: "red" });
+  await post("/api/answer", { code: roomCode, playerKey: guestKey, answerId: "blue" });
   await post("/api/answer", { code: roomCode, playerKey: secondGuestKey, answerId: "red" });
+  {
+    const hostView = await state(roomCode, "host", hostKey);
+    const partyView = await state(roomCode, "party", "");
+    const guestView = await state(roomCode, "player", guestKey);
+    assert(hostView.answerSelections.length >= 3, "Classic pre-reveal snapshots still list who has answered");
+    assertNoOtherChoicesVisible(partyView, "", "classic party");
+    assertNoOtherChoicesVisible(guestView, guestView.ownPlayer.id, "classic player");
+    assertNoOtherChoicesVisible(hostView, hostView.ownPlayer?.id || "", "classic host");
+    assert(guestView.answerSelections.find((s) => s.isOwn)?.answerId === "blue", "A Classic player still sees their own choice");
+  }
   await post("/api/answer", { code: roomCode, playerKey: lateBuildKey, answerId: "red" });
   await post("/api/answer", { code: roomCode, playerKey: liveJoinKey, answerId: "red" });
   await post("/api/host/skip", { code: roomCode, playerKey: hostKey });
   const revealSnapshot = await state(roomCode, "player", guestKey);
   assert(revealSnapshot.phase === "reveal", "Players should see reveal after host-as-player skip");
+  assert(revealSnapshot.answerSelections.some((selection) => selection.answerId === "blue"), "Classic reveal shows every player's choice");
   assert(revealSnapshot.leaderboard.length === 5, "Reveal leaderboard should include building-phase and live joiners");
 
   await post("/api/player/poke", { code: roomCode, playerKey: guestKey, playerId: hostKey });

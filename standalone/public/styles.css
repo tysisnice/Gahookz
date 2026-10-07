@@ -11412,3 +11412,45 @@ button.answer-tile {
 @media (prefers-reduced-motion: reduce) {
   .quick-menu-backdrop { animation: none; }
 }
+
+/* U23: who has answered, without saying what they chose. */
+.answered-players-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-top: 14px;
+  min-height: 34px;
+}
+
+.question-copy .answered-players-label {
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.answered-players-avatars {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.answered-player {
+  display: inline-flex;
+  animation: answer-player-pop 220ms cubic-bezier(0.2, 1.5, 0.35, 1) both;
+}
+
+.answered-player .avatar-badge.is-small {
+  width: 32px;
+  height: 32px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .answered-player {
+    animation: none;
+  }
+}

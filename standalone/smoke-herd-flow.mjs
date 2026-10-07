@@ -10,6 +10,16 @@ const players = Array.from({ length: 5 }, (_, index) => ({
   name: "Herd Player " + (index + 1)
 }));
 
+
+// Pre-reveal privacy: no snapshot may say which option another player chose.
+function assertNoOtherChoicesVisible(snapshot, viewerPlayerId, label) {
+  for (const selection of snapshot.answerSelections || []) {
+    if (selection.playerId === viewerPlayerId) continue;
+    assert.equal("answerId" in selection, false, label + ": another player's choice leaked before the reveal");
+  }
+  assert.equal(JSON.stringify(snapshot.answerSelections || []).includes("answerId"), viewerPlayerId ? (snapshot.answerSelections || []).some((s) => s.playerId === viewerPlayerId) : false, label + ": unexpected answerId in selections");
+}
+
 async function request(path, body) {
   const response = await fetch(BASE_URL + path, {
     method: "POST",
@@ -148,10 +158,21 @@ while ((snapshot = await state()).phase !== "finished") {
     await post("/api/answer", { code, playerKey: player.key, answerId: choice.id });
   }
   assert.equal(votesForTarget, 3, "Each round should be driven to an exact three-vote winning group");
+  if (rounds === 0) {
+    const hostView = await state();
+    const partyView = await state("party", "");
+    const ownView = await state("player", players[0].key);
+    assert(hostView.answerSelections.length >= 4, "Pre-reveal snapshots still list who has answered");
+    assertNoOtherChoicesVisible(hostView, "", "herd host");
+    assertNoOtherChoicesVisible(partyView, "", "herd party");
+    assertNoOtherChoicesVisible(ownView, ownView.ownPlayer.id, "herd player");
+    assert(ownView.answerSelections.find((s) => s.isOwn)?.answerId, "A player still sees their own choice");
+  }
   await post("/api/host/skip", { code, playerKey: hostKey });
   snapshot = await state();
   assert.equal(snapshot.phase, "reveal");
   assert(snapshot.currentQuestion.herdResults, "Herd reveal should publish its scoring result");
+  if (rounds === 0) assert.equal(snapshot.answerSelections.filter((selection) => selection.answerId).length, 5, "The reveal shows every player's choice");
   assert(snapshot.currentQuestion.answers.every((answer) => answer.author && Number.isInteger(answer.authoredPoints)), "Answer writers and authored points should appear only at reveal");
   if (rounds === 0) firstReveal = snapshot.currentQuestion.herdResults;
   await post("/api/host/skip", { code, playerKey: hostKey });
