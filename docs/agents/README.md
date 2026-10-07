@@ -67,6 +67,29 @@ another reason to do agent work in a worktree.
   push, never merge into `main`, never force-push.** The orchestrator merges
   and pushes `main` once a batch is verified.
 
+### Desktop workflow (since 2026-10-07)
+
+The laptop has two cores and runs the live game, and test runs there timed out
+under load. Agent work and verification now run on Tyson's desktop (28 cores),
+which reaches the laptop over the direct cable as `haukeye-laptop`:
+
+- Orchestrator checkout: `~/gahookz-dev` on the desktop, cloned from the Store
+  repository (remote `laptop`; `origin` is GitHub with pushing disabled).
+- Agent worktrees: `~/gahookz-agent-worktrees/<name>` on the desktop, made
+  with `scripts/agent-worktree.sh` from that checkout.
+- Node 24 lives at `~/.local/opt/node-v24.13.1-linux-x64/bin`; put it first
+  on `PATH` (the desktop's system Node is 22).
+- The orchestrator merges in `~/gahookz-dev`, pushes the integration branch
+  to the laptop as `agent/orchestrator`, fast-forwards the Store repository
+  there, and pushes GitHub `main` from the laptop. Nothing on the desktop
+  touches the live containers.
+- Tyson's screenshots are copied read-only to `~/gahookz-screenshots/`.
+- Never edit `~/Documents/Sync/Store` on the desktop: it is the Syncthing copy
+  of the live Store tree, so an edit there reaches dev at once.
+
+The lock and port rules below still apply on the desktop, because parallel
+agents share port 3199.
+
 ## Verifying — one heavy job at a time
 
 The server machine has two CPU cores, little free memory, and runs the live
