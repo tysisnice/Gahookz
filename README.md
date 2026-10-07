@@ -123,8 +123,9 @@ target the real dev/beta/prod containers. Individual smoke commands are in
 
 The lobby's Gahook Arena is a tap tug of war. Counter a Gahook, challenge back,
 and accept to start. After the countdown, each competitor chases one Gahook
-button around the lower half of their screen. A lead of **five taps** wins
-(for example, 11–6); 45 seconds without that lead is a draw. Everyone in the
+button around the lower half of their screen. A lead of **six** wins; the
+pulls at a lead of four and five each take two presses. 45 seconds without
+that lead is a draw (details in [the Arena wiki page](docs/wiki/gahook-arena.md)). Everyone in the
 room sees the tug bar, tap totals and profile-picture pulses. The existing
 Gahook forms and ten-second crowd celebration remain available.
 
