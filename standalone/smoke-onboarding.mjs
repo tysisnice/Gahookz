@@ -74,7 +74,7 @@ assert(accountPanel.includes("if (!status.googleAvailable && !status.devLoginAva
 assert(accountPanel.includes("useBackToClose(true, onCancel)"), "Back must close the delete-account confirmation, not leave the room");
 
 const sentenceGroups = [...tutorial.matchAll(/sentences:\s*Object\.freeze\(\[([\s\S]*?)\]\)/g)].map((match) => stringValues(match[1]));
-assert(sentenceGroups.length === 5 && sentenceGroups.every((sentences) => sentences.length === 3), "Gahookz, Quiz, Majority Rulz, Herd, and Host tutorials should each contain exactly three explanations");
+assert(sentenceGroups.length === 4 && sentenceGroups.every((sentences) => sentences.length === 3), "Gahookz, Quiz, Herd, and Host tutorials should each contain exactly three explanations");
 assert(tutorial.includes("<h2 id={titleId}>How to play</h2>"), "The tutorial should use a clear centered How to play heading");
 assert(tutorial.includes('TUTORIAL_MODE_ORDER = Object.freeze(["overview", "quiz", "herd", "host"])') && tutorial.includes("tutorial-mode-tab--${tutorialMode}"), "Gahookz, Quiz, Herd, and Host should be switchable tutorial tabs");
 assert(tutorial.includes('TUTORIAL_MODE_ORDER.filter(mode => mode !== "overview")'), "The Gahookz overview should stay exclusive to explicitly configured launchers such as Welcome");

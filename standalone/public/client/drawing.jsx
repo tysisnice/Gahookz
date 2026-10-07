@@ -560,7 +560,7 @@ export function SimplePaintEditor({
       <div className="simple-paint-editor__actions" role="group" aria-label="Canvas actions">
         <button type="button" onClick={handleUndo} disabled={!canUndo}><span className="simple-paint-editor__icon" aria-hidden="true">↶</span>Undo</button>
         <button type="button" onClick={handleClear}><span className="simple-paint-editor__icon" aria-hidden="true">🗑</span>{clearLabel}</button>
-        {allowUpload && <button type="button" onClick={() => uploadRef.current?.click()}><span className="simple-paint-editor__icon" aria-hidden="true">⭱</span>Upload image</button>}
+        {allowUpload && <button type="button" aria-label="Upload image" onClick={() => uploadRef.current?.click()}><span className="simple-paint-editor__icon" aria-hidden="true">⭱</span>Upload<span className="simple-paint-editor__more"> image</span></button>}
       </div>
 
       <div className="simple-paint-editor__drawrow">
@@ -662,7 +662,7 @@ export function SimplePaintEditor({
       {readOnly ? "A saved drawing preview." : "Draw with a mouse, pen or one finger. Choose a colour, brush size or eraser from the controls."}
     </p>
     {/* Status is announced to screen readers but only drawn when something went wrong. */}
-    <p id={statusId} className={statusIsError ? "simple-paint-editor__status is-error" : "simple-paint-editor__status"} style={statusIsError ? undefined : VISUALLY_HIDDEN_STYLE} role="status" aria-live="polite">{status}</p>
+    <p id={statusId} className={statusIsError ? "simple-paint-editor__status is-error" : "simple-paint-editor__status is-quiet"} style={statusIsError ? undefined : VISUALLY_HIDDEN_STYLE} role="status" aria-live="polite">{status}</p>
     {!readOnly && <input
       ref={uploadRef}
       className="simple-paint-editor__file-input"

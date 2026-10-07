@@ -82,6 +82,107 @@ function backgroundStageStyle(color) {
   return { "--custom-gahook-color": normaliseBackgroundColor(color) };
 }
 
+// In-app colour picker for the Gahook's background. A native colour dialog
+// looks different on every phone and cannot show the Gahook, so this offers a
+// palette, a hue slider and a shade slider, with the result previewed live.
+function hslToHex(hue, saturation, lightness) {
+  const s = saturation / 100;
+  const l = lightness / 100;
+  const k = n => (n + hue / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const channel = n => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)))));
+  return "#" + [channel(0), channel(8), channel(4)].map(value => value.toString(16).padStart(2, "0")).join("");
+}
+
+function hexToHsl(hex) {
+  const value = /^#[0-9a-f]{6}$/i.test(hex) ? hex : "#ff3d8b";
+  const [r, g, b] = [1, 3, 5].map(index => parseInt(value.slice(index, index + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  let h = 0;
+  let sat = 0;
+  if (d) {
+    sat = d / (1 - Math.abs(2 * l - 1));
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = Math.round((h * 60 + 360) % 360);
+  }
+  return { h, s: Math.round(sat * 100), l: Math.round(l * 100) };
+}
+
+const HUE_STEPS = Object.freeze([0, 30, 60, 90, 150, 180, 200, 220, 260, 280, 310, 335]);
+export const BACKGROUND_PICKER_SWATCHES = Object.freeze([
+  ...CUSTOM_GAHOOK_BACKGROUND_COLORS.map(entry => entry.color),
+  ...HUE_STEPS.map(hue => hslToHex(hue, 90, 62)),
+  ...HUE_STEPS.map(hue => hslToHex(hue, 75, 38)),
+  "#ffffff", "#d0d5dd", "#98a2b3", "#667085", "#344054", "#1d2939"
+]);
+
+function BackgroundColourPicker({ value, onChange, disabled = false, previewImage = "" }) {
+  const hsl = hexToHsl(value);
+  const [hexDraft, setHexDraft] = useState(null);
+  const pick = hex => {
+    setHexDraft(null);
+    onChange(hex.toLowerCase());
+  };
+  const baseSaturation = hsl.s < 15 ? 85 : hsl.s;
+  return <div className="colour-picker">
+    <div className="colour-picker__preview" style={backgroundStageStyle(value)} aria-hidden="true">
+      {previewImage ? <img src={previewImage} alt="" /> : <span>?</span>}
+    </div>
+    <div className="colour-picker__body">
+      <div className="colour-picker__swatches" role="group" aria-label="Background colours">
+        {BACKGROUND_PICKER_SWATCHES.map(color => <button
+          type="button"
+          key={color}
+          className={color === value.toLowerCase() ? "colour-picker__swatch is-selected" : "colour-picker__swatch"}
+          style={{ "--swatch": color }}
+          aria-label={`Use ${color}`}
+          aria-pressed={color === value.toLowerCase()}
+          disabled={disabled}
+          onClick={() => pick(color)}
+        />)}
+      </div>
+      <label className="colour-picker__slider">
+        <span>Hue</span>
+        <input
+          type="range" min="0" max="359" value={hsl.h} disabled={disabled}
+          className="colour-picker__range colour-picker__range--hue"
+          aria-label="Hue"
+          onChange={event => pick(hslToHex(Number(event.target.value), baseSaturation, hsl.l))}
+        />
+      </label>
+      <label className="colour-picker__slider">
+        <span>Shade</span>
+        <input
+          type="range" min="12" max="92" value={Math.min(92, Math.max(12, hsl.l))} disabled={disabled}
+          className="colour-picker__range colour-picker__range--shade"
+          style={{ "--shade-hue": `hsl(${hsl.h} ${baseSaturation}% 50%)` }}
+          aria-label="Shade, dark to light"
+          onChange={event => pick(hslToHex(hsl.h, baseSaturation, Number(event.target.value)))}
+        />
+      </label>
+      <label className="colour-picker__hex">
+        <span>Hex</span>
+        <input
+          value={hexDraft ?? value.toUpperCase()}
+          maxLength="7" spellCheck="false" autoComplete="off" disabled={disabled}
+          aria-label="Background colour hex value"
+          onChange={event => {
+            const text = event.target.value.trim();
+            setHexDraft(text);
+            if (/^#[0-9a-f]{6}$/i.test(text)) onChange(text.toLowerCase());
+          }}
+          onBlur={() => setHexDraft(null)}
+        />
+      </label>
+    </div>
+  </div>;
+}
+
 function formatBytes(bytes) {
   if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1_000))} KB`;
   return `${(bytes / 1_000_000).toFixed(1)} MB`;
@@ -431,14 +532,7 @@ export function CustomGahookCreator({
       </div>
       <fieldset className="custom-gahook-choice-group custom-gahook-background-picker">
         <legend>Choose background color</legend>
-        <input
-          className="custom-gahook-custom-color"
-          type="color"
-          value={backgroundColor}
-          onChange={event => setBackgroundColor(event.target.value)}
-          disabled={disabled || saving}
-          aria-label="Choose background color"
-        />
+        <BackgroundColourPicker value={backgroundColor} onChange={setBackgroundColor} disabled={disabled || saving} previewImage={previewFrames[previewFrame] || ""} />
       </fieldset>
       <fieldset className="custom-gahook-choice-group">
         <legend>Avatar motion</legend>

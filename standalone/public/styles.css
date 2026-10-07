@@ -11548,7 +11548,7 @@ button.answer-tile {
   }
 }
 
-@media (max-width: 350px) {
+@media (max-width: 420px) {
   .simple-paint-editor__actions .simple-paint-editor__icon {
     display: none;
   }
@@ -11556,4 +11556,162 @@ button.answer-tile {
   .simple-paint-editor__actions button {
     padding: 0 3px;
   }
+}
+
+/* In-app background colour picker for custom Gahooks. */
+.colour-picker {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.colour-picker__preview {
+  --custom-gahook-color: #ff3d8b;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 4px solid #111214;
+  border-radius: 12px;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 12px, color-mix(in srgb, var(--custom-gahook-color) 42%, transparent) 12px 24px),
+    color-mix(in srgb, var(--custom-gahook-color) 70%, #050507);
+  box-shadow: 0 5px 0 rgba(17, 18, 20, 0.18);
+}
+
+.colour-picker__preview img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+
+.colour-picker__preview span {
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 1000;
+}
+
+.colour-picker__body {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.colour-picker__swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
+  gap: 6px;
+}
+
+.colour-picker__swatch {
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  padding: 0;
+  background: var(--swatch);
+  box-shadow: 0 0 0 1px #b9c5d4;
+  cursor: pointer;
+}
+
+.colour-picker__swatch.is-selected {
+  box-shadow: 0 0 0 3px #246bfe;
+  transform: scale(1.08);
+}
+
+.colour-picker__slider,
+.colour-picker__hex {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: #063352;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.colour-picker__range {
+  width: 100%;
+  height: 26px;
+  margin: 0;
+  border-radius: 999px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 2px solid #111214;
+  cursor: pointer;
+}
+
+.colour-picker__range--hue {
+  background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+
+.colour-picker__range--shade {
+  background: linear-gradient(90deg, #000, var(--shade-hue, #f0f), #fff);
+}
+
+.colour-picker__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #111214;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.colour-picker__range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 3px solid #111214;
+  border-radius: 50%;
+  background: #ffffff;
+}
+
+.colour-picker__hex input {
+  min-width: 0;
+  min-height: 40px;
+  border: 2px solid #111214;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #111214;
+  font-family: ui-monospace, monospace;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 520px) {
+  .colour-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .colour-picker__preview {
+    width: 96px;
+    justify-self: center;
+  }
+}
+
+.simple-paint-editor__status.is-quiet { min-height: 0; }
+
+@media (max-width: 350px) {
+  .simple-paint-editor__more { display: none; }
+}
+
+/* The creator footer's fixed save width pushed the whole form wider than a
+   360px / 320px modal; let its buttons share the row instead. */
+@media (max-width: 480px) {
+  .custom-gahook-creator__footer { min-width: 0; flex-wrap: wrap; }
+  .custom-gahook-creator__footer > p { min-width: 0; flex: 1 1 100%; }
+  .custom-gahook-creator__footer > div { min-width: 0; flex: 1 1 100%; }
+  .custom-gahook-creator__footer > div > button { min-width: 0; flex: 1 1 0; padding: 0 10px; }
+}
+
+.custom-gahook-creator { grid-template-columns: minmax(0, 1fr); }
+
+@media (max-width: 760px) {
+  .custom-gahook-creator__header,
+  .custom-gahook-creator__workspace { grid-template-columns: minmax(0, 1fr); }
+  .custom-gahook-creator__header input,
+  .custom-gahook-creator__header label { min-width: 0; max-width: 100%; box-sizing: border-box; }
 }
