@@ -11029,8 +11029,10 @@ button.answer-tile {
 .player-settings-modal .rules-modal-footer button { flex: 0 1 180px; margin-left: auto; }
 
 /* Desktop F–H: shared question/roster proportions and readable results. */
-.question-creation-heading { flex-wrap: wrap; }
-.question-creation-heading > div { min-width: 0; flex: 1 1 220px; }
+/* "How to play" stays on the right of the heading row to save height. */
+.question-creation-heading { flex-wrap: nowrap; }
+.question-creation-heading > div { min-width: 0; flex: 1 1 0; }
+.question-creation-heading .how-to-play-button { flex: 0 0 auto; min-height: 34px; padding-inline: 13px; white-space: nowrap; }
 .question-builder .preset-question-button { margin-block: 10px; }
 .herd-builder-note { display: none; }
 .prompt-player-name { color: #174eb5; }
