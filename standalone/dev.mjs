@@ -36,6 +36,7 @@ const buildSources = new Set([
   "client/account.jsx",
   "client/information.jsx",
   "client/legal.jsx",
+  "client/report.jsx",
   "client/controls.jsx",
   "client/history.jsx",
   "client/back-stack.ts",

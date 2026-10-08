@@ -11876,3 +11876,44 @@ button.answer-tile {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+/* Reporting: a deliberately quiet control beside other people's content. */
+.report-button {
+  appearance: none;
+  min-height: 24px;
+  padding: 0 8px;
+  margin-left: 6px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.55;
+  cursor: pointer;
+}
+.report-button:hover, .report-button:focus-visible { opacity: 1; }
+.herd-writer-byline { display: flex; align-items: center; flex-wrap: wrap; }
+.social-chat__meta .report-button { margin-left: auto; }
+.report-modal { width: min(440px, 100%); }
+.report-modal .rules-modal-footer button { flex: 1 1 0; }
+.report-field { display: grid; gap: 6px; margin-bottom: 12px; font-size: 0.9rem; }
+.report-field > span { font-weight: 600; }
+.report-field select, .report-field textarea { width: 100%; padding: 10px 12px; font: inherit; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.28); background: rgba(255, 255, 255, 0.08); color: inherit; }
+.report-field textarea { resize: vertical; }
+.report-field option { color: #111; }
+.report-error { margin: 0; color: #ffb4b4; font-size: 0.88rem; }
+.host-report-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.host-report { display: grid; gap: 4px; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.08); }
+.host-report span { font-size: 0.82rem; opacity: 0.75; }
+.host-report q { font-style: italic; overflow-wrap: anywhere; }
+.host-report p { margin: 0; overflow-wrap: anywhere; }
+.host-report-actions { display: flex; gap: 8px; margin-top: 6px; }
+.host-report-actions button { min-height: 40px; flex: 1 1 0; }
+.host-report-empty { margin: 0; opacity: 0.75; }
+/* Herd reveal tiles stack their content (words, author, Report) in a column,
+   as image tiles already do; side by side they squeezed the author line. */
+.herd-reveal-breakdown .answer-tile { flex-direction: column; }
+.answer-tile .report-button { margin: 8px 0 0; }
