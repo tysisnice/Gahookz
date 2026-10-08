@@ -75,6 +75,22 @@ assert(chatSnapshot.chatMessages.length === 60, "Chat history must retain at mos
 assert(!chatSnapshot.chatMessages.some((message) => message.id === hostMessage.message.id), "Chat should discard the oldest message at its cap");
 assert(chatSnapshot.chatMessages.every((message) => !Object.values(message).includes(players[0].playerKey)), "Chat snapshots must not leak player credentials");
 
+// Reports: any joined player (a guest, no account) can report; only the host
+// sees them; the host can dismiss one.
+const reportedMessage = chatSnapshot.chatMessages[chatSnapshot.chatMessages.length - 1];
+await expectError("/api/player/report", { code, playerKey: "not-a-member", subjectKind: "room" }, "join the room");
+await post("/api/player/report", { code, playerKey: players[1].playerKey, subjectKind: "chat", subjectId: reportedMessage.id, subjectName: reportedMessage.senderName, reason: "spam", note: "  too   loud " });
+await post("/api/player/report", { code, playerKey: players[2].playerKey, subjectKind: "room", reason: "other", note: "" });
+const hostReports = (await state(code, hostKey, "host")).reports;
+assert(hostReports.length === 2, "The host should see both reports");
+const chatReport = hostReports.find((report) => report.subjectKind === "chat");
+assert(chatReport.subjectId === reportedMessage.id && chatReport.reason === "spam" && chatReport.note === "too loud" && chatReport.reporterName === "Social Player 1", "A chat report carries the message id, reason, tidy note and reporter name");
+assert(hostReports.some((report) => report.subjectKind === "room"), "A room report is stored");
+assert((await state(code, players[1].playerKey)).reports.length === 0, "Players must not see reports");
+await expectError("/api/host/report/resolve", { code, playerKey: players[1].playerKey, reportId: chatReport.id }, "host");
+await post("/api/host/report/resolve", { code, playerKey: hostKey, reportId: chatReport.id });
+assert((await state(code, hostKey, "host")).reports.length === 1, "Dismissing a report removes it from the host list");
+
 const basicStroke = {
   tool: "brush",
   color: "#e6383a",

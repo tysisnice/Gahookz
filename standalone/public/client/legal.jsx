@@ -128,8 +128,10 @@ function Rules() {
           from the room. Hosts are expected to use those controls rather than let a room get ugly.
         </p>
         <p>
-          If something in a room is not okay, use the report button. The host sees it. Reports
-          are private — other players are not told who raised one.
+          If something in a room is not okay, tap Report beside a chat message, a question or a
+          revealed answer, or choose Report a problem in the player menu to report the room.
+          You can add a reason and a note, and you do not need an account. The host sees it.
+          Reports are private — other players are not told who raised one.
         </p>
       </Section>
 
@@ -237,9 +239,10 @@ function Contact() {
     <>
       <Section title="Reporting something in a room">
         <p>
-          Use the report button in the room. It goes straight to the host, who can remove the
-          content or the player. This is the fastest route by a wide margin, because the host is
-          in the room right now and we are not.
+          In the room, tap Report beside a chat message, a question or a revealed answer, or open
+          the player menu and choose Report a problem. It goes straight to the host, who can
+          remove the message or the player. You do not need an account to report. This is the
+          fastest route by a wide margin, because the host is in the room right now and we are not.
         </p>
       </Section>
 

@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { ReportButton } from "./report.jsx";
 // The import map has no "react-dom" entry; use the global like client/account.jsx.
 const createPortal = (...args) => window.ReactDOM.createPortal(...args);
 
@@ -254,6 +255,7 @@ export function WaitingRoomSocial({
                 <strong>{String(message?.senderName || "Player")}</strong>
                 {time ? <time dateTime={String(message.createdAt)}>{time}</time> : null}
                 {isOwn ? <span>You</span> : null}
+                {!isOwn && senderId !== "host" && message?.id ? <ReportButton kind="chat" id={String(message.id)} name={String(message?.senderName || "")} /> : null}
               </div>
               <p>{String(message?.text || "")}</p>
             </div>

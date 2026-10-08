@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Provider, useDispatch, useSelector } from "react-redux";
 import { createStore } from "redux";
@@ -41,6 +41,7 @@ import { CustomGahookCreator } from "./client/custom-gahook.jsx";
 import { AccountPanelView, onAccountProfile, useAccountJoinPrefill } from "./client/account.jsx";
 import { InformationHub } from "./client/information.jsx";
 import { LegalHub } from "./client/legal.jsx";
+import { HostReportsDialog, ReportButton, ReportContext, ReportDialog } from "./client/report.jsx";
 
 const CLIENT_KEY = "gahookz-client-key";
 const createPortal = (...args) => window.ReactDOM.createPortal(...args);
@@ -1219,7 +1220,7 @@ function App() {
   return (
     <>
       {leaveGuard}
-      {mode === "information" ? <InformationHub /> : mode === "legal" ? <LegalHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}
+      {mode === "information" ? <InformationHub /> : mode === "legal" ? <LegalHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : <ReportProvider playerKey={playerKey}>{lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}</ReportProvider>}
       {mode === "room" && lobby.code === route.code ? <GahookArenaCrowdControls duel={lobby.gahookDuel} ownPlayer={lobby.ownPlayer} playerKey={playerKey} /> : null}
       {error ?
       <div className="toast" role="status" key={error}>
@@ -1560,6 +1561,59 @@ function RoomGetGotOverlay({ roomPoke, ignorePlayerId = "" }) {
     return undefined;
   }, [roomPoke?.id, ignorePlayerId]);
   return activePoke && !mini ? <PokeJumpScare key={activePoke.renderId} poke={activePoke} /> : null;
+}
+
+// Reporting: one dialog for the whole room screen, opened from small Report
+// controls beside other people's content and from the player menu. The host
+// gets the matching list (and a note when a new report arrives).
+function ReportProvider({ playerKey, children }) {
+  const lobby = useSelector((state) => state.lobby);
+  const dispatch = useDispatch();
+  const [subject, setSubject] = useState(null);
+  const [hostListOpen, setHostListOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+  const reports = lobby.isHost ? lobby.reports || [] : [];
+  const previousCount = useRef(reports.length);
+  useEffect(() => {
+    if (reports.length > previousCount.current) {
+      setNotice("New report. Open the menu, then Reports.");
+      const timer = window.setTimeout(() => setNotice(""), 6000);
+      previousCount.current = reports.length;
+      return () => window.clearTimeout(timer);
+    }
+    previousCount.current = reports.length;
+    return undefined;
+  }, [reports.length]);
+  const submit = (report) => api("/api/player/report", { playerKey, subjectKind: report.kind, subjectId: report.id, subjectName: report.name, reason: report.reason, note: report.note }, { refresh: false });
+  const hostCall = async (path, payload) => {
+    const result = await api(path, { playerKey, ...payload }, { refresh: false });
+    if (!result.ok) dispatch({ type: "ERROR", value: result.error });
+    window.gahookzRefreshSnapshot?.();
+    return result;
+  };
+  const value = {
+    canReport: Boolean(lobby.code && lobby.ownPlayer && !lobby.isHost),
+    isHost: Boolean(lobby.isHost),
+    reportCount: reports.length,
+    openReport: setSubject,
+    openHostReports: () => setHostListOpen(true)
+  };
+  return (
+    <ReportContext.Provider value={value}>
+      {children}
+      {subject ? <ReportDialog subject={subject} onClose={() => setSubject(null)} onSubmit={submit} /> : null}
+      <HostReportsDialog
+        open={hostListOpen && Boolean(lobby.isHost)}
+        reports={reports}
+        chatMessages={lobby.chatMessages || []}
+        onClose={() => setHostListOpen(false)}
+        onDismiss={(report) => hostCall("/api/host/report/resolve", { reportId: report.id })}
+        onRemoveChat={async (report, message) => {
+          const removed = await hostCall("/api/host/remove-content", { kind: "chat", targetId: message.id });
+          if (removed.ok) await hostCall("/api/host/report/resolve", { reportId: report.id });
+        }} />
+      {notice ? <div className="toast report-toast" role="status">{notice}</div> : null}
+    </ReportContext.Provider>);
 }
 
 function RoomSocialHub({ lobby, ownPlayer = null, playerKey = "" }) {
@@ -1955,6 +2009,7 @@ function MusicPreferenceButton() {
 // Actions that move to another screen close the menu first.
 function HostQuickMenu({ code, mode = "quiz", isPlayer, ownPlayer, customGahook, customGahookOptions, allowCustomGahooks = true, playerKey, onEditProfile, onExitAsPlayer, onReset }) {
   const [notice, setNotice] = useState("");
+  const reporter = useContext(ReportContext);
   const playerLink = buildRoomLink(code);
 
   const shareLink = async () => {
@@ -1974,6 +2029,7 @@ function HostQuickMenu({ code, mode = "quiz", isPlayer, ownPlayer, customGahook,
         {/* The host reaches this preference through Lobby rules, beside the
             room's own Gahook-effects setting, rather than from two places. */}
         {isPlayer ? <button type="button" onClick={() => { close(); onExitAsPlayer(); }}>Exit as Player</button> : null}
+        {reporter?.isHost ? <button type="button" onClick={() => { close({ restoreFocus: false }); reporter.openHostReports(); }}>{reporter.reportCount ? "Reports (" + reporter.reportCount + ")" : "Reports"}</button> : null}
         <button type="button" onClick={() => { close(); onReset(); }}>Reset Lobby</button>
         <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
       </>}
@@ -2619,7 +2675,7 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
           <section className="herd-host-review">
             <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span><div className="lobby-paint-slot"></div></div>
             <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
-              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || "Waiting for an answer…"}</strong>{item.imageDataUrl ? <img className="herd-review-image" src={item.imageDataUrl} alt="Answer image" loading="lazy" /> : null}<small>Answer by {item.answerAuthor.name}</small>
+              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || (item.imageDataUrl ? "Picture answer" : "Waiting for an answer…")}</strong>{item.imageDataUrl ? <img className="herd-review-image" src={item.imageDataUrl} alt="Answer image" loading="lazy" /> : null}<small>Answer by {item.answerAuthor.name}</small>
             </article>)}</div>
           </section>
         </div>
@@ -2638,11 +2694,11 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
 function HerdAnswerWriter({ assignment, text, image, onChange, onImageChange, disabled }) {
   return (
     <article className={assignment.submitted ? "herd-answer-writer is-submitted" : "herd-answer-writer"}>
-      <span>Question by {assignment.question.author.name}</span>
+      <span className="herd-writer-byline">Question by {assignment.question.author.name}<ReportButton kind="question" id={assignment.questionId} name={assignment.question.author.name} /></span>
       <h2><PromptText text={assignment.question.text} names={assignment.question.namedPlayerNames} /></h2>
       {assignment.question.imageDataUrl ? <img src={assignment.question.imageDataUrl} alt="Question" /> : null}
       <label><span>Your answer</span><input value={text} disabled={disabled} onChange={(event) => onChange(event.target.value)} maxLength="80" placeholder="Make it the answer everyone wants to pick" /></label>
-      <ImageUploadDrawPicker compact maxSide={960} maxChars={700000} value={image} onChange={onImageChange} disabled={disabled} label="Optional answer image" previewAlt="Your answer image" />
+      <ImageUploadDrawPicker compact maxSide={960} maxChars={700000} value={image} onChange={onImageChange} disabled={disabled} label="Answer image (optional if you write text)" previewAlt="Your answer image" />
     </article>);
 }
 
@@ -2654,8 +2710,10 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
   const [imageDrafts, setImageDrafts] = useState({});
   const answerText = (assignment) => drafts[assignment.questionId] ?? assignment.text ?? "";
   const answerImage = (assignment) => imageDrafts[assignment.questionId] ?? assignment.imageDataUrl ?? "";
+  // An answer is text, a picture, or both.
+  const hasAnswerContent = (assignment) => Boolean(answerText(assignment).trim() || answerImage(assignment));
   const submitAll = async () => {
-    if (saving || assignments.some((assignment) => !answerText(assignment).trim())) return;
+    if (saving || assignments.some((assignment) => !hasAnswerContent(assignment))) return;
     setSaving(true);
     try {
       // Keep drafts intact if any request fails; a retry safely updates saved answers.
@@ -2696,7 +2754,7 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
         </RoomStatusBanner>
         <section className="herd-answer-workspace">
           {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} text={answerText(assignment)} image={answerImage(assignment)} disabled={saving} onChange={(text) => setDrafts((previous) => ({ ...previous, [assignment.questionId]: text }))} onImageChange={(image) => setImageDrafts((previous) => ({ ...previous, [assignment.questionId]: image }))} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
-          {assignments.length ? <button className="primary-button herd-submit-all" type="button" disabled={saving || assignments.some((assignment) => !answerText(assignment).trim())} onClick={submitAll}>{saving ? "Submitting answers…" : "Submit all answers"}</button> : null}
+          {assignments.length ? <button className="primary-button herd-submit-all" type="button" disabled={saving || assignments.some((assignment) => !hasAnswerContent(assignment))} onClick={submitAll}>{saving ? "Submitting answers…" : "Submit all answers"}</button> : null}
           {allSubmitted ? <button className={ownPlayer.ready ? "ready-button is-ready" : "ready-button needs-ready"} type="button" onClick={toggleReady}>{ownPlayer.ready ? "Ready for the live vote" : "I’m done — ready up"}</button> : null}
           {lobby.isHost ? <div className="party-start-button"><ForceStartControl canStart={lobby.canStart} canForceStart={(lobby.herdPreparation?.total || 0) > 0} label="Start live Herd" onStart={() => hostStart(false)} onForceStart={() => hostStart(true)} forceTitle="Fill missing answers and start?" forceCopy="Any blank answer slots will get a safe generated answer before the live game begins." /></div> : null}
         </section>
@@ -3324,6 +3382,7 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
 
 function PlayerQuickMenu({ ownPlayer, mode = "quiz", customGahook, customGahookOptions, allowCustomGahooks = true, playerKey, onEditProfile }) {
   const [notice, setNotice] = useState("");
+  const reporter = useContext(ReportContext);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const shareLink = async () => {
     await shareRoomLink(buildRoomLink(getRoute().code));
@@ -3343,6 +3402,7 @@ function PlayerQuickMenu({ ownPlayer, mode = "quiz", customGahook, customGahookO
             host reaches from there get their own door here. It opens above
             the menu; closing it (or Back) returns to the menu. */}
         <button type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
+        {reporter?.canReport ? <button type="button" onClick={() => { close({ restoreFocus: false }); reporter.openReport({ kind: "room", id: "", name: "" }); }}>Report a problem</button> : null}
         <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
         <PlayerSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </>}
@@ -4195,7 +4255,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
             }} /></div> : null}
           </div> : null}
           <div className="question-copy">
-            <div className="question-copy-head"><span className="phase-chip">{questionNumberLabel}</span>{question.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}</div>
+            <div className="question-copy-head"><span className="phase-chip">{questionNumberLabel}</span>{question.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span>{question.author?.id !== ownPlayer.id ? <ReportButton kind="question" id={question.id} name={question.authorName} /> : null}</p> : null}</div>
             <h1><PromptText text={question.text} names={question.namedPlayerNames} /></h1>
             {roundActive && lobby.gameMode !== "quiz" ? <AnsweredPlayersRow selections={visibleAnswerSelections} players={lobby.players} /> : null}
           </div>
@@ -4424,8 +4484,9 @@ function AnswerGrid({ answers, reveal, hideText = false, interactive = false, di
         // refuses it, so the tile says so instead of offering the tap.
         const ownTile = Boolean(answer.ownAnswer) && !reveal;
         const className = ["answer-tile", "answer-" + answer.id, showImage ? "has-answer-image" : "", reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : "", ownTile ? "is-own-answer" : ""].filter(Boolean).join(" ");
-        const label = hideText ? "..." : answer.text || answer.label;
-        const content = <>{showImage ? <img className="answer-tile-image" src={answer.imageDataUrl} alt="Picture sent with this answer" loading="lazy" /> : null}<span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{ownTile && !hideText ? <small className="own-answer-note">Your answer</small> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
+        const imageOnly = showImage && !answer.text;
+        const label = hideText ? "..." : answer.text || (imageOnly ? "" : answer.label);
+        const content = <>{showImage ? <img className="answer-tile-image" src={answer.imageDataUrl} alt={imageOnly ? "Picture answer " + answer.label : "Picture sent with this answer"} loading="lazy" /> : null}{label ? <span>{label}</span> : null}{reveal && answer.correct ? <strong>OK</strong> : null}{ownTile && !hideText ? <small className="own-answer-note">Your answer</small> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{!interactive && reveal && answer.author && !answer.ownAnswer ? <ReportButton kind="answer" id={questionId + ":" + answer.id} name={answer.author.name} /> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
         return interactive ?
         <button className={className} key={answer.id} type="button" disabled={disabled || ownTile} onClick={() => onAnswer?.(answer.id)}>{content}</button> :
         <article className={className} key={answer.id}>{content}</article>;
@@ -4646,7 +4707,7 @@ function getRevealAnswer(question, gameMode = "quiz") {
   const revealedAnswers = answers.filter((answer) => answer.correct || answer.id === question?.correctAnswerId);
   return {
     label: mode === "majority" ? "Majority rules" : mode === "herd" ? "The Herd favourite" : "Correct answer",
-    text: revealedAnswers.map((answer) => answer.text).filter(Boolean).join(" / ") || "Answer revealed",
+    text: revealedAnswers.map((answer) => answer.text).filter(Boolean).join(" / ") || (revealedAnswers.some((answer) => answer.imageDataUrl) ? "A picture answer" : "Answer revealed"),
     colorId: revealedAnswers[0]?.id || "neutral"
   };
 }

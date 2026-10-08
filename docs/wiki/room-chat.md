@@ -8,11 +8,11 @@
 
 While the room is waiting, a round chat button floats in the corner. Tap it to open the chat, type a message and press Send. While it is closed it shows how many messages you have not read, and brief notifications of new messages from other people pop up beside it. Tapping anywhere outside the chat, or the × button, tucks it away again. It starts closed.
 
-Players and the host can both chat; the host appears as "Host". Chat is for waiting only: once the game starts the bubble goes away.
+Players and the host can both chat; the host appears as "Host". Chat is for waiting only (the lobby, question writing and Herd answer writing): once the game starts the bubble goes away. Beside every message from another player is a small **Report** button ([Moderation](moderation.md)).
 
 ## Rules and numbers
 
-- **Open only in the lobby and while questions are being written.** The server refuses chat in any other phase. The browser also shows it during Herd answer writing, where sending fails with "Chat is available while the room is waiting." (see the [area guide](../areas/social.md#known-issues)).
+- **Open in the lobby, while questions are being written and during Herd answer writing.** The server refuses chat in any other phase ("Chat is available while the room is waiting."). Herd writing was added on 2026-10-08, matching what the browser already offered.
 - Up to **240 characters** per message; control characters and extra spaces are removed; an empty message is refused.
 - At most **6 messages per 10 seconds** per player ("Chat is moving quickly").
 - The room keeps the latest **60** messages.
@@ -25,7 +25,7 @@ Players and the host can both chat; the host appears as "Host". Chat is for wait
 | --- | --- |
 | Server | `standalone/server/social.mjs` — `addChatMessage`, `removeChatMessage`, `publicChatMessages`; `standalone/server.js` — `postRoomChat` |
 | Browser | `standalone/public/client/social.jsx` — `WaitingRoomSocial`; mounted in `app.jsx` |
-| Tests | `standalone/smoke-social-creation.mjs` |
+| Tests | `standalone/smoke-social-creation.mjs` (refused once the game runs), `smoke-herd-flow.mjs` (accepted in Herd writing), `smoke-social-media.mjs`, `browser-herd-report.mjs` |
 
 ## Related
 
@@ -35,4 +35,5 @@ Players and the host can both chat; the host appears as "Host". Chat is for wait
 
 - 2026-07-20 — Room chat exists from the first commit (`dd449f2`).
 - 2026-09-06 — Host can remove messages, leaving a tombstone (`815c7e4`).
+- 2026-10-08 — Chat accepted during Herd answer writing; Report button on other players' messages.
 - 2026-09-19 — Chat becomes the floating bubble; drawing leaves it for the lobby wall (`78a1382`).

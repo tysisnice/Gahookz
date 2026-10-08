@@ -28,7 +28,7 @@ offline and update screens skip them.
 
 - `/information` shows its guide as "reviewed 10 August 2026" and `/legal` says "Last updated 6 September 2026". Both dates are typed into the source and do not update themselves.
 - Known stale or wrong statements (also recorded in the verification file):
-  the Contact document says "use the report button in the room", but the browser has no report button yet (see [Moderation](moderation.md));
+  (fixed 2026-10-08: the Contact and rules wording now describes the real Report controls, see [Moderation](moderation.md));
   the privacy notice says a room ends "a few minutes after everyone leaves", while the server keeps an abandoned room for 60 seconds (see [Rooms and room codes](rooms-and-codes.md)).
 
 ## Where it lives

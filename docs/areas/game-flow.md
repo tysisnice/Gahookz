@@ -31,8 +31,10 @@ receive finished results afterwards and are never part of starting or playing.
 - **Herd answer writing.** Each player is handed a few prompts from other
   players to answer. "Every assigned Herd answer needs to be written first." and
   "Every Herd answer writer needs to mark ready." explain why Start is refused.
-  An answer needs text and may also carry one picture (`/api/herd/answer`,
-  optional `imageDataUrl`: omitted keeps the stored one, `""` clears it). It is
+  An answer needs text or one picture, or both (`/api/herd/answer`, optional
+  `imageDataUrl`: omitted keeps the stored one, `""` clears it; neither is
+  refused). `herdAnswerWritten` is the one test for "this answer is written"
+  (progress, ready, `getStartCheck`, force-start fill, host review). It is
   validated and stored like a question image (`validateImage`, the room media
   store) and shown to the writer, the host's review, voters (`publicQuestion`,
   once answering opens) and the reveal (`publicHerdResults` groups); host
@@ -482,6 +484,14 @@ weaken a check to get a pass.
 
 ## Known issues
 
+- **Removing a Herd answer by id hits every prompt.** `removeContent` kind
+  `herd-answer` matches `answer.id === targetId`, but answer ids are the colour
+  names (`red`, `blue`, ...), shared by every prompt, so removing one blanks that
+  colour on all prompts (the author-id form is unaffected). Found while adding
+  report controls; the browser never calls it, so it is not triggered. Not fixed.
+- **Image-only Herd answers** (allowed 2026-10-08): nothing groups answers by
+  text (the engine groups by answer id), so two empty-text answers stay separate;
+  `smoke-herd-flow` asserts it.
 - **Other players' picks are visible before the reveal.** In `answering`,
   `publicAnswerSelections` sends every other player's chosen answer id in all
   three modes (Classic too, though correctness stays hidden), so Majority Rulez
