@@ -45,7 +45,7 @@ export function addReport(room, reporter, input, rateKey, now = Date.now()) {
   }
   const reason = REPORT_REASONS.has(String(input?.reason || "")) ? String(input.reason) : "other";
   const note = String(input?.note ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
-  const subjectKind = ["player", "chat", "answer", "drawing"].includes(String(input?.subjectKind || "")) ?
+  const subjectKind = ["player", "chat", "answer", "drawing", "question", "room"].includes(String(input?.subjectKind || "")) ?
     String(input.subjectKind) : "player";
   const report = {
     id: crypto.randomUUID(),
