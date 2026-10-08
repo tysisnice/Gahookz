@@ -3360,7 +3360,8 @@ function PlayerSettingsDialog({ open, onClose }) {
   const dialogRef = useRef(null);
   const [muted, toggleMuted] = useMutePreference();
   const [musicOn, setMusicOn] = useMusicPreference();
-  const [reducedPreferred] = useReducedEffectsPreference();
+  // The same switch, through the same hook, as the join screen and Lobby rules.
+  const [reducedEffects, setReducedEffects] = useReducedEffects();
   const systemReduced = systemPrefersReducedEffects();
   useModalBodyLock(open);
   useBackToClose(open, onClose);
@@ -3391,9 +3392,9 @@ function PlayerSettingsDialog({ open, onClose }) {
             <legend>Accessibility</legend>
             <RuleToggleRow
               label="Reduce Gahook effects"
-              on={reducedPreferred}
-              onChange={(next) => setEffectsReducedPreference(next)}
-              help="Gahooks still happen and still score. They arrive without the full-screen animation, the shaking and the flashing." />
+              on={reducedEffects}
+              onChange={setReducedEffects}
+              help="Gahooks still happen and still score. They arrive without the full-screen animation, the shaking and the flashing, and the sound is muted." />
             <RuleToggleRow
               label="Mute sound effects"
               on={muted}
