@@ -151,7 +151,8 @@ for (const player of players) {
 // writes it again so the game can start.
 {
   const review = (await state()).herdAnswerReview;
-  const target = review.find((item) => item.submitted && review.some((other) => other.answerId === item.answerId && other.questionId !== item.questionId && other.submitted));
+  // A text answer, so the image answers checked later in voting stay intact.
+  const target = review.find((item) => item.submitted && !item.imageDataUrl && review.some((other) => other.answerId === item.answerId && other.questionId !== item.questionId && other.submitted));
   assert(target, "Precondition: some colour is answered on two prompts");
   const others = review.filter((item) => item.answerId === target.answerId && item.questionId !== target.questionId && item.submitted);
   await post("/api/host/remove-content", { code, playerKey: hostKey, kind: "herd-answer", targetId: target.answerId, questionId: target.questionId });
