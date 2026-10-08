@@ -109,25 +109,37 @@ covers reading, answering and reveal of the same question; the map is reset
 when the next question starts. A failed `pokePlayer` releases the claim.
 Lobby and finale Gahooks are not limited.
 
-### Effects policy: off, visual, chaos
+### Effects policy: off, mini, visual, chaos
 
-`room.gahookEffects` is one of `GAHOOK_EFFECT_POLICIES = ["off", "visual",
-"chaos"]`, default `DEFAULT_GAHOOK_EFFECTS = "chaos"`; the host sets it in the
-Lobby rules dialog (`HostRulesModal`, `/api/host/settings`, lobby phases only)
-and it is published as `gahookEffects`. Enforcement lives in `server.js`:
+`room.gahookEffects` is one of `GAHOOK_EFFECT_POLICIES = ["off", "mini",
+"visual", "chaos"]` (also in `packages/contracts/src/host-settings.ts`), default
+`DEFAULT_GAHOOK_EFFECTS = "chaos"`; the host sets it in the Lobby rules dialog
+(`HostRulesModal`, `/api/host/settings`, lobby phases only; picker order Off,
+Mini, Visual only, Chaos) and it is published as `gahookEffects`. Enforcement
+lives in `server.js`:
 
+- **Off means no gahooking.** `gahookEffectsAllowed` (policy is not `off`) is
+  checked in the dispatcher for every Gahook route in every phase
+  (`EFFECT_GATED_GAHOOK_ROUTES`: `/api/player/poke`, `round-poke`,
+  `counter-poke`, `shame-poke`, `final-poke` and `/api/host/poke`,
+  `/api/host/final-poke`): error "The host has turned Gahook effects off for
+  this game." Finale congratulations and boos travel through `final-poke`
+  (`finalPokeTarget`), so they are refused too. The client hides every Gahook
+  button (`useGahooksOff`: player cards, leaderboards, reveal, finale cards,
+  roster, counter prompt). `smoke-room-rules` covers a lobby Gahook and the
+  finale pokes under Off.
+- **Mini** allows Gahooks but every client draws them as the small pop-up
+  (`MiniGahookLayer`, the style a host gets in the lobby) instead of the
+  `PokeJumpScare` takeover: `PlayerView` routes every incoming Gahook to
+  `showMiniPoke`, and Get Got room overlays and counter-offer takeovers are
+  skipped (the counter offer stays as `CounterGahookPrompt`). No points move.
 - `gahookScoringAllowed` (policy is `chaos`) gates the steal in `pokePlayer`
-  and the GET GOT penalty in `applyGetGot`. This is the "no points move" rule,
-  and it holds for every route.
-- `gahookEffectsAllowed` (policy is not `off`) is checked in the dispatcher
-  for every in-round Gahook route (`EFFECT_GATED_GAHOOK_ROUTES`:
-  `/api/player/poke`, `round-poke`, `counter-poke`, `shame-poke` and
-  `/api/host/poke`) during `reading`, `answering` and `reveal`: error "The
-  host has turned Gahook effects off for this game." Until 2026-10-07 only
-  `/api/player/poke` was checked, so the browser's in-question button still
-  sent Gahooks under Off; `smoke-room-rules` now covers `round-poke` and
-  `host/poke`.
-- Lobby and finale Gahooks ignore the policy.
+  and the GET GOT penalty in `applyGetGot`: the "no points move" rule for
+  Mini and Visual only, on every route.
+
+The three "Reduce Gahook effects" switches (join screen, Lobby rules, player
+Settings) all use `useReducedEffects`, so they reduce effects and mute sound
+together.
 
 A separate switch, `room.lobbyArenaEnabled` (default true), makes
 `/api/player/duel-challenge` answer "The host has turned off lobby duels." and

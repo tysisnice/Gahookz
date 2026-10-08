@@ -80,7 +80,7 @@ browser drops anything older than what it has already shown.
 2. **Gate.** Same-origin check, body read, rate-limit buckets, then
    `handleAction` finds the room by code and `handleRoomAction` routes to
    `pokeFromPlayer`. Nothing here reads an account.
-3. **Rules.** In a live game the host may have turned Gahook effects off, which
+3. **Rules.** In a live game the host may have turned Gahooks off (in any phase), which
    refuses the request. Otherwise the sender must be joined and connected, the
    target connected and not the sender, and during a live round each sender
    gets one Gahook per question. In the lobby there is no such limit.
