@@ -76,13 +76,14 @@ assert.equal(snapshot.phase, "herd-writing");
 assert.equal(snapshot.herdPreparation.total, 20, "Five players should create four answers for each of five prompts");
 assert.equal(snapshot.totalQuestions, 5);
 
-// Herd answers: text required, image optional. Images go through the same
+// Herd answers: text or image required (image-only allowed). Images go through the same
 // validation and room media store as question images.
 const PNG_A = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
 const PNG_B = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/F5gQ3wAAAABJRU5ErkJggg==";
 const mediaStatus = async (url) => (await fetch(BASE_URL + url)).status;
 let imageAnswer = null;
 let moderatedImageUrl = "";
+let secondImageAnswerId = "";
 
 for (const player of players) {
   const playerState = await state("player", player.key);
@@ -101,8 +102,10 @@ for (const player of players) {
       assert.equal(oversize.data.ok, false, "An oversize Herd answer image must be rejected");
       const invalid = await request("/api/herd/answer", { ...base, imageDataUrl: "data:text/html;base64,PGI+aGk8L2I+" });
       assert.equal(invalid.data.ok, false, "A non-image Herd answer image must be rejected");
-      const noText = await request("/api/herd/answer", { ...base, text: "", imageDataUrl: PNG_A });
-      assert.equal(noText.data.ok, false, "An image-only Herd answer must be rejected: text is required");
+      const empty = await request("/api/herd/answer", { ...base, text: "", imageDataUrl: "" });
+      assert.equal(empty.data.ok, false, "A Herd answer with no text and no image must be rejected");
+      const emptyKeepsNothing = await request("/api/herd/answer", { code, playerKey: player.key, questionId: assignment.questionId, text: "   " });
+      assert.equal(emptyKeepsNothing.data.ok, false, "A whitespace-only Herd answer without an image must be rejected");
       const accepted = await post("/api/herd/answer", { ...base, imageDataUrl: PNG_A });
       imageAnswer = { questionId: assignment.questionId, answerId: accepted.answerId };
       const own = await state("player", player.key);
@@ -118,8 +121,17 @@ for (const player of players) {
       assert.equal(await mediaStatus(moderatedImageUrl), 404, "Moderation must delete the Herd answer image");
       const review = (await state()).herdAnswerReview.find((item) => item.answerId === accepted.answerId);
       assert.equal(review.imageDataUrl, "", "Moderation clears the image from the snapshot");
-      // The author writes a fresh answer with an image for the rest of the game.
-      await post("/api/herd/answer", { ...base, imageDataUrl: PNG_A });
+      // The author writes a fresh image-only answer for the rest of the game.
+      const imageOnly = await post("/api/herd/answer", { ...base, text: "", imageDataUrl: PNG_A });
+      assert.equal(imageOnly.answerId, accepted.answerId);
+      const stillReview = (await state()).herdAnswerReview.find((item) => item.questionId === assignment.questionId && item.answerId === accepted.answerId);
+      assert.equal(stillReview.text, "", "An image-only answer has empty text");
+      assert(stillReview.submitted && stillReview.imageDataUrl, "An image-only answer counts as written: " + JSON.stringify(stillReview).slice(0, 300));
+    } else if (imageAnswer && !secondImageAnswerId && assignment.questionId === imageAnswer.questionId) {
+      // A second image-only answer on the same prompt: both have empty text and
+      // must stay distinct answers in voting and results.
+      const second = await post("/api/herd/answer", { code, playerKey: player.key, questionId: assignment.questionId, text: "", imageDataUrl: PNG_B });
+      secondImageAnswerId = second.answerId;
     }
   }
   await post("/api/player/ready", { code, playerKey: player.key, ready: true });
@@ -146,9 +158,12 @@ while ((snapshot = await state()).phase !== "finished") {
     const withImage = choices.find((answer) => answer.id === imageAnswer.answerId);
     assert(withImage.imageDataUrl.startsWith("/media/"), "Voting shows the answer image as a media URL");
     assert.equal(withImage.author, null, "The author stays hidden while voting");
-    assert(choices.filter((answer) => answer.id !== imageAnswer.answerId).every((answer) => !answer.imageDataUrl), "Only the answer with an image carries one");
+    assert(choices.filter((answer) => ![imageAnswer.answerId, secondImageAnswerId].includes(answer.id)).every((answer) => !answer.imageDataUrl), "Only the answers with an image carry one");
     const viewer = await state("player", players[1].key);
     assert.equal(viewer.currentQuestion.answers.find((answer) => answer.id === imageAnswer.answerId).author, null);
+    const imageChoices = choices.filter((answer) => !answer.text && answer.imageDataUrl);
+    assert.equal(imageChoices.length, 2, "Two image-only answers are two separate voting tiles");
+    assert.notEqual(imageChoices[0].id, imageChoices[1].id);
     sawImageVoting = true;
   }
 
@@ -224,6 +239,13 @@ while ((snapshot = await state()).phase !== "finished") {
     assert(revealed.imageDataUrl.startsWith("/media/") && revealed.author?.id, "The reveal shows the image and then names the author");
     revealedImageUrl = revealed.imageDataUrl;
     assert(snapshot.currentQuestion.herdResults.groups.find((group) => group.answerId === imageAnswer.answerId).imageDataUrl, "Reveal groups carry the image");
+    assert.equal(revealed.text, "", "An image-only answer reveals with empty text");
+    if (secondImageAnswerId) {
+      const imageGroups = snapshot.currentQuestion.herdResults.groups.filter((group) => !group.text && group.imageDataUrl);
+      assert.equal(imageGroups.length, 2, "Two image-only answers stay two separate result groups");
+      assert.notEqual(imageGroups[0].answerId, imageGroups[1].answerId);
+      assert.equal(snapshot.currentQuestion.herdResults.authorResults.filter((r) => [imageAnswer.answerId, secondImageAnswerId].includes(r.answerId)).length, 2, "Both image-only answers score their authors separately");
+    }
   }
   if (rounds === 0) firstReveal = snapshot.currentQuestion.herdResults;
   await post("/api/host/skip", { code, playerKey: hostKey });

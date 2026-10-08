@@ -2605,7 +2605,7 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
           <section className="herd-host-review">
             <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span><div className="lobby-paint-slot"></div></div>
             <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
-              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || "Waiting for an answer…"}</strong>{item.imageDataUrl ? <img className="herd-review-image" src={item.imageDataUrl} alt="Answer image" loading="lazy" /> : null}<small>Answer by {item.answerAuthor.name}</small>
+              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || (item.imageDataUrl ? "Picture answer" : "Waiting for an answer…")}</strong>{item.imageDataUrl ? <img className="herd-review-image" src={item.imageDataUrl} alt="Answer image" loading="lazy" /> : null}<small>Answer by {item.answerAuthor.name}</small>
             </article>)}</div>
           </section>
         </div>
@@ -2628,7 +2628,7 @@ function HerdAnswerWriter({ assignment, text, image, onChange, onImageChange, di
       <h2><PromptText text={assignment.question.text} names={assignment.question.namedPlayerNames} /></h2>
       {assignment.question.imageDataUrl ? <img src={assignment.question.imageDataUrl} alt="Question" /> : null}
       <label><span>Your answer</span><input value={text} disabled={disabled} onChange={(event) => onChange(event.target.value)} maxLength="80" placeholder="Make it the answer everyone wants to pick" /></label>
-      <ImageUploadDrawPicker compact maxSide={960} maxChars={700000} value={image} onChange={onImageChange} disabled={disabled} label="Optional answer image" previewAlt="Your answer image" />
+      <ImageUploadDrawPicker compact maxSide={960} maxChars={700000} value={image} onChange={onImageChange} disabled={disabled} label="Answer image (optional if you write text)" previewAlt="Your answer image" />
     </article>);
 }
 
@@ -2640,8 +2640,10 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
   const [imageDrafts, setImageDrafts] = useState({});
   const answerText = (assignment) => drafts[assignment.questionId] ?? assignment.text ?? "";
   const answerImage = (assignment) => imageDrafts[assignment.questionId] ?? assignment.imageDataUrl ?? "";
+  // An answer is text, a picture, or both.
+  const hasAnswerContent = (assignment) => Boolean(answerText(assignment).trim() || answerImage(assignment));
   const submitAll = async () => {
-    if (saving || assignments.some((assignment) => !answerText(assignment).trim())) return;
+    if (saving || assignments.some((assignment) => !hasAnswerContent(assignment))) return;
     setSaving(true);
     try {
       // Keep drafts intact if any request fails; a retry safely updates saved answers.
@@ -2682,7 +2684,7 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
         </RoomStatusBanner>
         <section className="herd-answer-workspace">
           {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} text={answerText(assignment)} image={answerImage(assignment)} disabled={saving} onChange={(text) => setDrafts((previous) => ({ ...previous, [assignment.questionId]: text }))} onImageChange={(image) => setImageDrafts((previous) => ({ ...previous, [assignment.questionId]: image }))} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
-          {assignments.length ? <button className="primary-button herd-submit-all" type="button" disabled={saving || assignments.some((assignment) => !answerText(assignment).trim())} onClick={submitAll}>{saving ? "Submitting answers…" : "Submit all answers"}</button> : null}
+          {assignments.length ? <button className="primary-button herd-submit-all" type="button" disabled={saving || assignments.some((assignment) => !hasAnswerContent(assignment))} onClick={submitAll}>{saving ? "Submitting answers…" : "Submit all answers"}</button> : null}
           {allSubmitted ? <button className={ownPlayer.ready ? "ready-button is-ready" : "ready-button needs-ready"} type="button" onClick={toggleReady}>{ownPlayer.ready ? "Ready for the live vote" : "I’m done — ready up"}</button> : null}
           {lobby.isHost ? <div className="party-start-button"><ForceStartControl canStart={lobby.canStart} canForceStart={(lobby.herdPreparation?.total || 0) > 0} label="Start live Herd" onStart={() => hostStart(false)} onForceStart={() => hostStart(true)} forceTitle="Fill missing answers and start?" forceCopy="Any blank answer slots will get a safe generated answer before the live game begins." /></div> : null}
         </section>
@@ -4379,8 +4381,9 @@ function AnswerGrid({ answers, reveal, hideText = false, interactive = false, di
         // refuses it, so the tile says so instead of offering the tap.
         const ownTile = Boolean(answer.ownAnswer) && !reveal;
         const className = ["answer-tile", "answer-" + answer.id, showImage ? "has-answer-image" : "", reveal && answer.correct ? "is-correct" : "", reveal && !answer.correct ? "is-dimmed" : "", selectedAnswerId === answer.id ? "is-selected" : "", answerChoices.length ? "has-answer-players" : "", ownTile ? "is-own-answer" : ""].filter(Boolean).join(" ");
-        const label = hideText ? "..." : answer.text || answer.label;
-        const content = <>{showImage ? <img className="answer-tile-image" src={answer.imageDataUrl} alt="Picture sent with this answer" loading="lazy" /> : null}<span>{label}</span>{reveal && answer.correct ? <strong>OK</strong> : null}{ownTile && !hideText ? <small className="own-answer-note">Your answer</small> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
+        const imageOnly = showImage && !answer.text;
+        const label = hideText ? "..." : answer.text || (imageOnly ? "" : answer.label);
+        const content = <>{showImage ? <img className="answer-tile-image" src={answer.imageDataUrl} alt={imageOnly ? "Picture answer " + answer.label : "Picture sent with this answer"} loading="lazy" /> : null}{label ? <span>{label}</span> : null}{reveal && answer.correct ? <strong>OK</strong> : null}{ownTile && !hideText ? <small className="own-answer-note">Your answer</small> : null}{reveal && answer.author ? <small className="herd-answer-author"><AvatarBadge player={answer.author} small />by {answer.author.name} · +{answer.authoredPoints || 0} author pts</small> : null}{answerChoices.length ? <AnswerChoicePlayers players={answerChoices} /> : null}</>;
         return interactive ?
         <button className={className} key={answer.id} type="button" disabled={disabled || ownTile} onClick={() => onAnswer?.(answer.id)}>{content}</button> :
         <article className={className} key={answer.id}>{content}</article>;
@@ -4591,7 +4594,7 @@ function getRevealAnswer(question, gameMode = "quiz") {
   const revealedAnswers = answers.filter((answer) => answer.correct || answer.id === question?.correctAnswerId);
   return {
     label: mode === "majority" ? "Majority rules" : mode === "herd" ? "The Herd favourite" : "Correct answer",
-    text: revealedAnswers.map((answer) => answer.text).filter(Boolean).join(" / ") || "Answer revealed",
+    text: revealedAnswers.map((answer) => answer.text).filter(Boolean).join(" / ") || (revealedAnswers.some((answer) => answer.imageDataUrl) ? "A picture answer" : "Answer revealed"),
     colorId: revealedAnswers[0]?.id || "neutral"
   };
 }

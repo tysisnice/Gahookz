@@ -2187,7 +2187,7 @@ function setReady(room, payload) {
   const ready = Boolean(payload?.ready);
   if (room.phase === "herd-writing") {
     const required = herdAssignmentsForPlayer(room, player.id);
-    const completed = required.filter((assignment) => assignment.text).length;
+    const completed = required.filter(herdAnswerWritten).length;
     if (ready && completed < required.length) {
       return { ok: false, error: "Write an answer for every assigned Herd question before marking ready." };
     }
@@ -2221,6 +2221,10 @@ function herdAssignmentsForPlayer(room, playerId) {
   );
 }
 
+function herdAnswerWritten(answer) {
+  return Boolean(answer && (answer.text || answer.imageDataUrl));
+}
+
 function submitHerdAuthoredAnswer(room, payload) {
   const player = getPayloadPlayer(room, payload);
   if (!player?.connected) {
@@ -2231,16 +2235,14 @@ function submitHerdAuthoredAnswer(room, payload) {
   }
   const questionId = cleanText(payload?.questionId, 80);
   const answerText = cleanText(payload?.text, 80);
-  if (!answerText) {
-    return { ok: false, error: "Write an answer before submitting it." };
-  }
   const question = room.quizQuestions.find((candidate) => candidate.id === questionId);
   const answer = question?.answers?.find((candidate) => candidate.authorId === player.id);
   if (!question || !answer) {
     return { ok: false, error: "That Herd question is not assigned to you." };
   }
-  // Text is required; the image is optional (a drawing or photo alongside the
-  // words keeps voting readable). Validated and stored exactly like question
+  // An answer needs text or a picture (or both): an image-only answer is
+  // allowed. Answer ids, never text, identify answers in voting and results, so
+  // two empty-text answers are never merged. Validated and stored exactly like question
   // images. An omitted image keeps the one already stored, so re-saving text
   // does not drop it; sending an empty string clears it.
   let answerImage = answer.imageDataUrl || "";
@@ -2252,13 +2254,16 @@ function submitHerdAuthoredAnswer(room, payload) {
       return { ok: false, error: error.message || "That image is not valid." };
     }
   }
+  if (!answerText && !answerImage) {
+    return { ok: false, error: "Write an answer or add a picture before submitting it." };
+  }
   answer.text = answerText;
   answer.imageDataUrl = answerImage;
   answer.authorName = player.name;
   answer.authorAvatarId = player.avatarId;
   answer.authorAvatarImageDataUrl = player.avatarImageDataUrl || "";
   answer.submittedAt = Date.now();
-  player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter((assignment) => assignment.text).length;
+  player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter(herdAnswerWritten).length;
   player.ready = false;
   pruneRoomMedia(room);
   broadcastState(room, { immediate: true });
@@ -2860,7 +2865,7 @@ function removeContent(room, payload) {
     for (const question of room.quizQuestions) {
       for (const answer of question.answers || []) {
         if (answer.id === targetId || answer.authorId === targetId) {
-          if (answer.text) removed += 1;
+          if (herdAnswerWritten(answer)) removed += 1;
           answer.text = "";
           answer.imageDataUrl = "";
           answer.removedByHost = true;
@@ -4003,7 +4008,7 @@ function publicHerdAssignments(room, playerId = "") {
       answerId: answer.id,
       text: answer.text || "",
       imageDataUrl: answer.imageDataUrl || "",
-      submitted: Boolean(answer.text),
+      submitted: herdAnswerWritten(answer),
       question: {
         id: question.id,
         text: question.text,
@@ -4021,13 +4026,13 @@ function publicHerdPreparation(room) {
   const eligibleIds = new Set(room.game.eligiblePlayerIds || []);
   const assignments = room.quizQuestions.flatMap((question) => question.answers || []);
   return {
-    completed: assignments.filter((answer) => answer.text).length,
+    completed: assignments.filter(herdAnswerWritten).length,
     total: assignments.length,
     players: Object.values(room.players).filter((player) => eligibleIds.has(player.id)).map((player) => {
       const required = herdAssignmentsForPlayer(room, player.id);
       return {
         player: publicPlayer(room, player),
-        completed: required.filter((assignment) => assignment.text).length,
+        completed: required.filter(herdAnswerWritten).length,
         total: required.length,
         ready: Boolean(player.ready)
       };
@@ -4142,7 +4147,7 @@ function publicAnswerSelections(room, viewerPlayerId = "") {
 function getStartCheck(room) {
   if (room.phase === "herd-writing" && room.gameMode === "herd") {
     const assignments = room.quizQuestions.flatMap((question) => question.answers || []);
-    if (!assignments.length || assignments.some((answer) => !answer.text)) {
+    if (!assignments.length || assignments.some((answer) => !herdAnswerWritten(answer))) {
       return { ok: false, error: "Every assigned Herd answer needs to be written first." };
     }
     const eligibleIds = new Set(room.game.eligiblePlayerIds || []);
@@ -4235,7 +4240,7 @@ function forceStartGame(room) {
     let generatedAnswerCount = 0;
     room.quizQuestions.forEach((question, questionIndex) => {
       (question.answers || []).forEach((answer, answerIndex) => {
-        if (answer.text) return;
+        if (herdAnswerWritten(answer)) return;
         answer.text = GENERATED_HERD_ANSWERS[(questionIndex * 4 + answerIndex) % GENERATED_HERD_ANSWERS.length];
         answer.generated = true;
         answer.submittedAt = Date.now();
@@ -4243,7 +4248,7 @@ function forceStartGame(room) {
       });
     });
     Object.values(room.players).forEach((player) => {
-      player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter((assignment) => assignment.text).length;
+      player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter(herdAnswerWritten).length;
       player.ready = true;
     });
     startGame(room, { preparedQuestions: true });
