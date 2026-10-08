@@ -15,7 +15,8 @@ const STROKE_RATE_WINDOW_MS = 10_000;
 const STROKE_RATE_MAX = 60;
 const CLEAR_RATE_WINDOW_MS = 2_000;
 const CLEAR_RATE_MAX = 1;
-const WAITING_PHASES = new Set(["lobby", "building"]);
+// Chat and painting are open while the room waits: lobby, question making and Herd answer writing.
+const WAITING_PHASES = new Set(["lobby", "building", "herd-writing"]);
 const WHITEBOARD_SIZES = new Map([
   ["small", 3],
   ["medium", 7],

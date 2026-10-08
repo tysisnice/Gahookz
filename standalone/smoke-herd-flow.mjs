@@ -73,6 +73,13 @@ for (const [index, player] of players.entries()) {
 await post("/api/host/start", { code, playerKey: hostKey });
 snapshot = await state();
 assert.equal(snapshot.phase, "herd-writing");
+// Chat and the shared whiteboard stay open while answers are being written.
+const writingChat = await post("/api/room/chat", { code, playerKey: players[0].key, text: "Chat works while writing" });
+assert.equal(writingChat.message.text, "Chat works while writing");
+const writingStroke = await post("/api/room/whiteboard/stroke", { code, playerKey: players[0].key, stroke: { tool: "brush", color: "#e6383a", size: 7, points: [{ x: 0.1, y: 0.2 }, { x: 0.3, y: 0.4 }] } });
+assert(writingStroke.stroke?.id, "A whiteboard stroke is accepted during Herd answer writing");
+const writingView = await state("player", players[1].key);
+assert(writingView.chatMessages.some((message) => message.text === "Chat works while writing") && writingView.whiteboardStrokes.length >= 1, "Players see chat and strokes made during Herd writing");
 assert.equal(snapshot.herdPreparation.total, 20, "Five players should create four answers for each of five prompts");
 assert.equal(snapshot.totalQuestions, 5);
 
