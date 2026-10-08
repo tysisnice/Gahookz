@@ -903,6 +903,7 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
       beginHerdAnswerWriting(room);
       return { ok: true, phase: room.phase };
     }
+    if (room.phase === "herd-writing") fillUnwrittenHerdAnswers(room, true);
     startGame(room, { preparedQuestions: room.phase === "herd-writing" });
     return { ok: true, phase: room.phase };
   }
@@ -4157,12 +4158,15 @@ function publicAnswerSelections(room, viewerPlayerId = "") {
 
 function getStartCheck(room) {
   if (room.phase === "herd-writing" && room.gameMode === "herd") {
+    // A writer who has left the room cannot finish; their blanks are filled on
+    // start exactly as force-start fills them, so only connected writers gate it.
     const assignments = room.quizQuestions.flatMap((question) => question.answers || []);
-    if (!assignments.length || assignments.some((answer) => !herdAnswerWritten(answer))) {
+    const absent = (answer) => !room.players[answer.authorId]?.connected;
+    if (!assignments.length || assignments.some((answer) => !herdAnswerWritten(answer) && !absent(answer))) {
       return { ok: false, error: "Every assigned Herd answer needs to be written first." };
     }
     const eligibleIds = new Set(room.game.eligiblePlayerIds || []);
-    const waitingOn = Object.values(room.players).filter((player) => eligibleIds.has(player.id) && !player.ready);
+    const waitingOn = Object.values(room.players).filter((player) => player.connected && eligibleIds.has(player.id) && !player.ready);
     return waitingOn.length ? { ok: false, error: "Every Herd answer writer needs to mark ready." } : { ok: true };
   }
   if (room.phase !== "building") {
@@ -4246,20 +4250,29 @@ function makeGeneratedQuestion(room, player, generatedIndex) {
   return question;
 }
 
+/** Fill unwritten Herd answers with generated text; the same fill force-start uses. */
+function fillUnwrittenHerdAnswers(room, onlyAbsentWriters = false) {
+  let generatedAnswerCount = 0;
+  room.quizQuestions.forEach((question, questionIndex) => {
+    (question.answers || []).forEach((answer, answerIndex) => {
+      if (herdAnswerWritten(answer)) return;
+      if (onlyAbsentWriters && room.players[answer.authorId]?.connected) return;
+      answer.text = GENERATED_HERD_ANSWERS[(questionIndex * 4 + answerIndex) % GENERATED_HERD_ANSWERS.length];
+      answer.generated = true;
+      answer.submittedAt = Date.now();
+      generatedAnswerCount += 1;
+    });
+  });
+  Object.values(room.players).forEach((player) => {
+    player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter(herdAnswerWritten).length;
+  });
+  return generatedAnswerCount;
+}
+
 function forceStartGame(room) {
   if (room.phase === "herd-writing" && room.gameMode === "herd") {
-    let generatedAnswerCount = 0;
-    room.quizQuestions.forEach((question, questionIndex) => {
-      (question.answers || []).forEach((answer, answerIndex) => {
-        if (herdAnswerWritten(answer)) return;
-        answer.text = GENERATED_HERD_ANSWERS[(questionIndex * 4 + answerIndex) % GENERATED_HERD_ANSWERS.length];
-        answer.generated = true;
-        answer.submittedAt = Date.now();
-        generatedAnswerCount += 1;
-      });
-    });
+    const generatedAnswerCount = fillUnwrittenHerdAnswers(room);
     Object.values(room.players).forEach((player) => {
-      player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter(herdAnswerWritten).length;
       player.ready = true;
     });
     startGame(room, { preparedQuestions: true });
@@ -4768,6 +4781,11 @@ function skipPhase(room) {
   const decision = skipDecision(room.phase);
   if (!decision.ok) {
     return { ok: false, error: decision.error };
+  }
+  // A paused room has a frozen clock; skipping would silently restart the next
+  // phase's timer under a "paused" banner. Make the host resume first.
+  if (room.paused) {
+    return { ok: false, error: "Resume the game before skipping." };
   }
   if (decision.action === "begin-answering") {
     beginAnswering(room);

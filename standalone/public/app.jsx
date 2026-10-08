@@ -2959,7 +2959,7 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
       <section className="question-stage">
         {!reveal || revealIntro || onPause || onSkip ? <div className="game-timer-row">
           <TimerBar key={reveal ? "answer-reveal" : lobby.phase} phaseEndsAt={reveal ? revealIntroEndsAt : lobby.phaseEndsAt} durationMs={reveal ? REVEAL_ANSWER_SPOTLIGHT_MS : duration} waiting={!reveal && lobby.phaseWaitingForProgress} paused={lobby.paused} pausedRemainingMs={lobby.pausedRemainingMs} muted={lobby.phase === "reading"} onComplete={reveal ? undefined : onProgressComplete} />
-          {onPause || onSkip ? <div className="host-round-controls">{onPause ? <PauseButton paused={lobby.paused} onToggle={() => onPause(!lobby.paused)} /> : null}{onSkip ? <SkipPhaseButton onSkip={onSkip} /> : null}</div> : null}
+          {onPause || onSkip ? <div className="host-round-controls">{onPause ? <PauseButton paused={lobby.paused} onToggle={() => onPause(!lobby.paused)} /> : null}{onSkip ? <SkipPhaseButton onSkip={onSkip} paused={lobby.paused} /> : null}</div> : null}
         </div> : null}
         <div className="question-copy">
           <div className="question-copy-head"><span className="phase-chip">{phaseLabel}</span>{question?.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}</div>
@@ -4249,7 +4249,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
             {lobby.isHost ? <div className="host-round-controls"><PauseButton paused={lobby.paused} onToggle={async () => {
               const result = await api("/api/host/pause", { paused: !lobby.paused });
               if (!result.ok) dispatch({ type: "ERROR", value: result.error });
-            }} /><SkipPhaseButton onSkip={async () => {
+            }} /><SkipPhaseButton paused={lobby.paused} onSkip={async () => {
               const result = await api("/api/host/skip");
               if (!result.ok) dispatch({ type: "ERROR", value: result.error });
             }} /></div> : null}
@@ -5594,8 +5594,8 @@ function animalAvatarArt(kind, accent) {
 
 
 
-function SkipPhaseButton({ onSkip }) {
-  return <button className="skip-phase-button" type="button" onClick={onSkip} title="Skip to the next phase"><span>Skip</span><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3 4.5v11l7-5.5zM10 4.5v11l7-5.5z" fill="currentColor" /></svg></button>;
+function SkipPhaseButton({ onSkip, paused }) {
+  return <button className="skip-phase-button" type="button" onClick={onSkip} disabled={Boolean(paused)} title={paused ? "Resume the game before skipping" : "Skip to the next phase"}><span>Skip</span><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3 4.5v11l7-5.5zM10 4.5v11l7-5.5z" fill="currentColor" /></svg></button>;
 }
 
 function PauseButton({ paused, onToggle }) {

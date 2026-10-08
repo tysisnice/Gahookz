@@ -38,7 +38,7 @@ function makeRoom() {
   return Array.from({ length: 4 }, () => LETTERS[Math.floor(Math.random() * LETTERS.length)]).join("");
 }
 
-async function buildHerdRoom({ writeAnswers }) {
+async function buildHerdRoom({ writeAnswers, writers = players.length }) {
   const code = makeRoom();
   const post = async (path, body) => {
     const result = await request(path, { code, ...body });
@@ -57,7 +57,7 @@ async function buildHerdRoom({ writeAnswers }) {
   }
   await post("/api/host/start", { playerKey: hostKey });
   if (writeAnswers) {
-    for (const player of players) {
+    for (const player of players.slice(0, writers)) {
       const own = await request("/api/state", { code, role: "player", playerKey: player.key });
       for (const [index, assignment] of own.data.ownHerdAssignments.entries()) {
         await post("/api/herd/answer", { playerKey: player.key, questionId: assignment.questionId, text: player.name + " answer " + (index + 1) });
@@ -121,6 +121,50 @@ const phaseOf = async (code) => (await request("/api/state", { code, role: "host
   const answers = snapshot.data.currentQuestion.answers;
   assert.equal(answers.length, 4);
   assert(answers.every((answer) => String(answer.text || "").trim().length > 0), "Skipping Herd writing must fill unwritten answers");
+}
+
+// --- Skip is refused while paused, and works again after resuming. ---
+{
+  const { code, post } = await buildHerdRoom({ writeAnswers: true });
+  assert.equal(await phaseOf(code), "herd-writing");
+  await post("/api/host/start", { playerKey: hostKey });
+  assert.equal(await phaseOf(code), "reading");
+  await post("/api/host/pause", { playerKey: hostKey, paused: true });
+  const refused = await request("/api/host/skip", { code, playerKey: hostKey });
+  assert.equal(refused.status, 400, "Skip while paused should be refused");
+  assert.equal(refused.data.error, "Resume the game before skipping.");
+  assert.equal(await phaseOf(code), "reading", "A refused skip must not move the phase");
+  await post("/api/host/pause", { playerKey: hostKey, paused: false });
+  const accepted = await request("/api/host/skip", { code, playerKey: hostKey });
+  assert.equal(accepted.status, 200, "Skip after resuming should work: " + accepted.data.error);
+  assert.equal(await phaseOf(code), "answering");
+}
+
+// --- A disconnected Herd writer no longer blocks Start; a connected one still does. ---
+{
+  const { code, post } = await buildHerdRoom({ writeAnswers: true, writers: 3 });
+  assert.equal(await phaseOf(code), "herd-writing");
+  const blocked = await request("/api/host/start", { code, playerKey: hostKey });
+  assert.equal(blocked.data.ok, false, "A connected player who has not finished must still block Start");
+  assert.equal(blocked.data.error, "Every assigned Herd answer needs to be written first.");
+
+  // Open and close an event stream for the last player: the server marks the
+  // seat disconnected once its only stream has been gone for a moment.
+  const absent = players[3];
+  const issued = await request("/api/events/ticket", { code, role: "player", playerKey: absent.key });
+  const controller = new AbortController();
+  const stream = await fetch(BASE_URL + "/events?ticket=" + encodeURIComponent(issued.data.ticket) + "&room=" + code, { signal: controller.signal });
+  assert.equal(stream.status, 200);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  controller.abort();
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+
+  const started = await request("/api/host/start", { code, playerKey: hostKey });
+  assert.equal(started.data.ok, true, "Start should fill a disconnected writer's answers: " + started.data.error);
+  assert.equal(await phaseOf(code), "reading");
+  await request("/api/host/skip", { code, playerKey: hostKey });
+  const snapshot = await request("/api/state", { code, role: "host", playerKey: hostKey });
+  assert(snapshot.data.currentQuestion.answers.every((answer) => String(answer.text || "").trim().length > 0), "Every tile must be filled after Start");
 }
 
 // --- A phase with nothing to skip refuses with a reason, not a silent ok. ---
