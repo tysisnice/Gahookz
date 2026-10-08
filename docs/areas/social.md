@@ -269,9 +269,9 @@ Gahooks the sender back through `/api/player/poke`.
 
 Both live in `server/social.mjs` and are open to seated players and the host
 (`getSocialActor`; the host appears as "Host" with the crown). Both are refused
-unless the phase is `lobby` or `building` ("<Chat/The whiteboard> is available
-while the room is waiting."). **The browser also enables them in `herd-writing`,
-which the server rejects**; see Known issues.
+unless the phase is `lobby`, `building` or `herd-writing` ("<Chat/The whiteboard>
+is available while the room is waiting."; `WAITING_PHASES`). Every limit below
+applies unchanged in `herd-writing`.
 
 - **Chat.** `addChatMessage`: control characters stripped, whitespace collapsed,
   `MAX_CHAT_MESSAGE_CHARS` per message, empty refused, rate limited by
@@ -424,8 +424,15 @@ test (`smoke-room-rules` only exercises `/api/player/poke`).
 
 Backlog: see [the backlog](../backlog.md). Found while writing this guide:
 
-- **Chat and painting in Herd writing.** `app.jsx` enables the chat and paint
-  layers in `herd-writing`; `social.mjs` accepts only `lobby` and `building`.
+- **Reports in the browser** (resolved 2026-10-08). `ReportProvider` in `app.jsx`
+  and `client/report.jsx` add Report controls (chat messages, question authors,
+  revealed Herd answers), "Report a problem" in the player menu and a host
+  "Reports" list in the host menu, over the existing `/api/player/report`,
+  `/api/host/report/resolve` and (for chat) `/api/host/remove-content`. Report
+  subjects now include `question` and `room`. Voting tiles carry no Report
+  control (they are tap targets); an answer is reportable at the reveal.
+- **Chat and painting in Herd writing** (resolved 2026-10-08): the server now
+  accepts `herd-writing`, as the browser always offered.
 - **Room Dash is dormant.** `/api/player/dash`, the `dash*` player fields and
   `GahookDash`'s `roomMode` exist but no screen mounts room mode.
 - **`/api/player/shame-poke` is unused** by the browser.

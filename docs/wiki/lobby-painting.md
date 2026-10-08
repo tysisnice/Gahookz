@@ -12,7 +12,7 @@ A painted line also disappears when that player gets [Gahooked](gahooks.md), so 
 
 ## Rules and numbers
 
-- Available while the room is waiting (lobby and question-writing). The browser also offers it during Herd answer writing, where the server refuses strokes ([area guide](../areas/social.md#known-issues)).
+- Available while the room is waiting: the lobby, question-writing and Herd answer writing (the server accepted Herd writing from 2026-10-08, matching the browser). Every other limit is unchanged. A drawing is reported with "Report a problem" in the player menu ([Moderation](moderation.md)).
 - Brush width 7, opacity 0.6; the wall uses the player's profile colour. The server accepts three sizes (3, 7, 14), a brush or eraser, and any `#rrggbb` colour, but this screen only sends the one brush.
 - A stroke has 1 to 128 points, all inside the wall. At most **60 strokes per 10 seconds** per player. The room keeps the latest **160** strokes, newest last.
 - "Erase mine" can be used once every 2 seconds.

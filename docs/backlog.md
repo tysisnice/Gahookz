@@ -15,7 +15,7 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Engineering P0
 
-- No browser control reports content: `/api/player/report` and `/api/host/remove-content` exist and are tested, but nothing under `standalone/public` calls them, while `client/legal.jsx` tells players to "use the report button". (ui-shell, systems; LEDGER docs-core-b)
+- Reports now have browser controls (2026-10-08, see [Moderation](wiki/moderation.md)); the host can remove only chat from the Reports list. Other content removal (answers, questions, pictures) still has no browser button.
 - Automated abuse handling for an open anonymous audience: no scanning, appeals, evidence retention or operator console. (systems; OPS section 10 P0)
 - Accounts are inert in production (no `DATABASE_URL`, Google client unset); needs the owner to provision both. (accounts; [accounts](areas/accounts.md), OPS section 10)
 

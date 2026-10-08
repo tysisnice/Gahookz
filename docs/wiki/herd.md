@@ -9,7 +9,7 @@
 Herd is the second game on the host's setup screen, next to Quiz ([Game setup](game-setup.md)).
 
 1. **One prompt each.** Every player writes a single prompt.
-2. **Writing answers.** Each player is handed a few prompts from other players and writes a short answer for each (up to 80 characters). Every prompt ends up with up to four answers, all written by other people. Under each answer box are **Upload image** and **Draw image**, side by side, so an answer can carry a picture too (see below). In the player cards each writer's progress reads "0/4 answered" and then "Done".
+2. **Writing answers.** Each player is handed a few prompts from other players and writes a short answer for each (up to 80 characters). Every prompt ends up with up to four answers, all written by other people. Under each answer box are **Upload image** and **Draw image**, side by side, so an answer can carry a picture too, or be a picture alone (see below). In the player cards each writer's progress reads "0/4 answered" and then "Done".
 3. **Voting.** Each prompt is shown with its answers in four colours (Red, Blue, Yellow, Green). Everyone votes for their favourite, except that you cannot pick your own answer.
 4. **Reveal.** The winning answer, who wrote every answer, and the points.
 
@@ -17,7 +17,7 @@ Authors stay hidden until the reveal. The colour an answer appears in is reshuff
 
 ### Answer images
 
-- **Text is required, the picture is optional.** An answer with only a picture is refused ("Write an answer before submitting it."), which keeps voting readable and keeps screen readers useful.
+- **An answer needs text or a picture (or both).** A picture alone is allowed (decided 2026-10-08); an answer with neither is refused ("Write an answer or add a picture before submitting it."). An image-only tile shows just the picture, with the alt text "Picture answer" and its colour letter; the host review reads "Picture answer"; the Herd favourite spotlight reads "A picture answer". Answers are told apart by id, never by text, so two picture-only answers on one prompt stay two tiles and two result groups.
 - A player can upload a photo or draw one in the same paint editor as question images. Once a picture is attached the buttons read **Replace image** and **Edit drawing**, and the thumbnail has an **x** to remove it. Drafts (text and picture) stay on the screen when a player moves between their answers or when a live update arrives.
 - The browser shrinks an upload to at most 960 px and about 500 KB before sending, because a room stores many of them (a room holds at most about 9 MB of pictures in all). A drawing is exported at 900 px at most. The server accepts the same image types and the same 3,000,000-character limit as question images.
 - Voting tiles and the reveal show the picture above the answer text, no taller than 120 px on a phone, 150 px on a laptop and 220 px on a wide party screen. Its alt text is "Picture sent with this answer" and never names the writer.
@@ -43,7 +43,7 @@ Authors stay hidden until the reveal. The colour an answer appears in is reshuff
 | Server | `standalone/server.js` — `beginHerdAnswerWriting`, `scoreHerdRound` |
 | Server (answer images) | `standalone/server.js` — `submitHerdAuthoredAnswer`, `publicHerdAssignments`, `publicQuestion`, `publicHerdResults`; `standalone/server/media.mjs` — `pruneRoomMedia` |
 | Browser | `standalone/public/app.jsx` — `PlayerHerdPreparation`, `HerdAnswerWriter`, `ImageUploadDrawPicker` (`compact`), `AnswerGrid`, `HerdLengthSelector`; `standalone/public/client/reveal.jsx` — `HerdRevealBreakdown` |
-| Tests | `standalone/smoke-herd-flow.mjs`, `standalone/browser-herd-writing.mjs`, `packages/game-engine/test/herd.test.ts` |
+| Tests | `standalone/smoke-herd-flow.mjs`, `standalone/browser-herd-writing.mjs`, `standalone/browser-herd-report.mjs`, `packages/game-engine/test/herd.test.ts` |
 
 ## Related
 
@@ -51,6 +51,7 @@ Authors stay hidden until the reveal. The colour an answer appears in is reshuff
 
 ## History
 
+- 2026-10-08 — Image-only answers allowed; chat and painting stay open while writing; Report controls on revealed answers and prompts ([Moderation](moderation.md)).
 - 2026-08-26 — Herd arrives with the new game modes (`178d56b`).
 - 2026-09-11 — Answer colours stop naming their authors (`c7328c9`), and the writing is shared evenly (`db54127`).
 - 2026-10-08 — Per-player progress moves into the player cards (U18) and answers can carry an optional uploaded or drawn picture (U19).
