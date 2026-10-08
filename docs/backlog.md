@@ -71,8 +71,7 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Journal-volume replacement probe (`standalone/verify-journal-volume.mjs`) has never been recorded as run; it needs an isolated `gahookz:review-*` image. (accounts, platform; RC, [accounts](areas/accounts.md))
 - PostgreSQL probe: passes since the 2026-09-25 accounts work (see Checked and closed), but only against a disposable database; production has none. Run it against the real provisioned database before enabling accounts. (accounts; [accounts record](verification/2026-09-25-update/accounts.md))
 - Rollback rehearsal on beta (monthly cadence in the runbook, never done). (platform; [runbook](operations/runbook.md))
-- `/srv/gahookz` is a stale clone (`81a70d2`), not production; production, beta and dev run from the Store repository since 2026-10-02. The documents were corrected on 2026-10-07; Tyson may want to remove the clone. (platform; [docs audit](verification/2026-09-25-update/docs-audit.md))
-- Rotate the Nginx Proxy Manager JWT signing key (`keys.json` was exposed to a terminal on 2026-09-05). (platform; OPS section 10)
+- `/srv/gahookz`: files removed 2026-10-08 (its `.env` files backed up to `~/.config/gahookz/` on the laptop); the empty directory needs `sudo rmdir`. (platform)
 - Phone Syncthing can delete files in the Store working copy (happened 2026-09-30); make the phone receive-only or ignore `Projects/`. (platform; LEDGER)
 
 ## Human and device testing
@@ -91,6 +90,8 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Resume the separate Arena project once the update is verified on `main` (priority set 2026-10-04). (arena; LEDGER)
 
 ## Checked and closed
+
+- Nginx Proxy Manager JWT signing key rotated 2026-10-09 (new key pair; all sites checked).
 
 - Herd authorship was a pure function of the question author's position: `packages/game-engine/src/herd.ts` now assigns answers least-loaded with a shuffled remainder.
 - Other players' picks visible before the reveal: fixed in every mode by U23 (`79d1f8b`, merged 2026-10-07).
