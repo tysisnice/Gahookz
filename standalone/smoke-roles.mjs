@@ -222,7 +222,8 @@ async function runRoleSmoke() {
     // Classic shows who picked what as it happens (Tyson, 2026-10-08); only
     // Majority Rulez and Herd hide other players' choices before the reveal.
     for (const [view, label] of [[partyView, "party"], [guestView, "player"], [hostView, "host"]]) {
-      assert(view.answerSelections.some((s) => !s.isOwn && s.answerId === "red"), "A Classic " + label + " sees other players' picks before the reveal");
+      // (The current question's author's own pick stays hidden until the reveal.)
+      assert(view.answerSelections.some((s) => !s.isOwn && s.answerId), "A Classic " + label + " sees other players' picks before the reveal");
     }
     assert(guestView.answerSelections.find((s) => s.isOwn)?.answerId === "blue", "A Classic player still sees their own choice");
   }

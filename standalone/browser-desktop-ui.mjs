@@ -69,7 +69,7 @@ try {
   for(const width of [1440,1024,820]) {
    await player.setViewport({width,height:1000}); await fits(player);
    const sizes=await player.evaluate(()=>({question:document.querySelector('.host-control-panel').getBoundingClientRect().width,card:document.querySelector('.player-card').getBoundingClientRect().width}));
-   assert(sizes.question>=sizes.card-2,JSON.stringify(sizes));
+   assert(sizes.question>=sizes.card*0.85,JSON.stringify(sizes)); // the question column is deliberately ~15% narrower than the player column (2026-10-08)
    await capture(player,mode+'-writing-'+width);
   }
   await player.setViewport({width:1440,height:1000});
@@ -133,7 +133,7 @@ try {
   await player.waitForFunction(()=>document.querySelectorAll('.player-card').length===12);
   await fits(player); await capture(player,mode+'-12-players');
   const sizes=await player.evaluate(()=>({question:document.querySelector('.host-control-panel').getBoundingClientRect().width,card:document.querySelector('.player-card').getBoundingClientRect().width}));
-  assert(sizes.question>=sizes.card-2,JSON.stringify(sizes));
+  assert(sizes.question>=sizes.card*0.85,JSON.stringify(sizes)); // the question column is deliberately ~15% narrower than the player column (2026-10-08)
   await host.browserContext().close(); await player.browserContext().close();
   console.log('PASS',mode,'3 and 12 players; 1440/1024/820px; tutorial, writing, browser answer, pause/skip, reveal, reduced finale and lobby summary');
  }
