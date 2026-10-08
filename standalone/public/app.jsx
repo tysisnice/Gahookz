@@ -1522,7 +1522,19 @@ function HostMode({ playerKey, code }) {
 
 }
 
+// The small pop-up a Gahook lands as when the host picked Mini (and the way a
+// Gahook always lands on a host who is only watching the lobby): a little image
+// that pops up somewhere on screen, not the full takeover.
+function MiniGahookLayer({ pokes }) {
+  return (
+    <div className="host-mini-gahook-layer" aria-hidden="true">
+      {pokes.map((poke) => <div className="host-mini-gahook" key={poke.id} style={{ left: poke.left + "%", top: poke.top + "%", "--mini-rotate": poke.rotate + "deg" }}><GahookOverlayVisual form={poke.form} customGahook={poke.customGahook} small /><span>by {poke.from}</span></div>)}
+    </div>);
+
+}
+
 function RoomGetGotOverlay({ roomPoke, ignorePlayerId = "" }) {
+  const mini = useSelector((state) => state.lobby?.gahookEffects) === "mini";
   const [activePoke, setActivePoke] = useState(null);
   const seenIdRef = useRef("");
   const activeUntilRef = useRef(0);
@@ -1547,7 +1559,7 @@ function RoomGetGotOverlay({ roomPoke, ignorePlayerId = "" }) {
     }, remaining);
     return undefined;
   }, [roomPoke?.id, ignorePlayerId]);
-  return activePoke ? <PokeJumpScare key={activePoke.renderId} poke={activePoke} /> : null;
+  return activePoke && !mini ? <PokeJumpScare key={activePoke.renderId} poke={activePoke} /> : null;
 }
 
 function RoomSocialHub({ lobby, ownPlayer = null, playerKey = "" }) {
@@ -1646,6 +1658,7 @@ function GahookDuelOverlay({ duel, ownPlayer, ownPoke, playerKey }) {
 }
 
 function CounterGahookPrompt({ offer, busy = false, onCounter }) {
+  const gahooksOff = useGahooksOff();
   const [expired, setExpired] = useState(false);
   useEffect(() => {
     setExpired(false);
@@ -1653,7 +1666,7 @@ function CounterGahookPrompt({ offer, busy = false, onCounter }) {
     const timer = setTimeout(() => setExpired(true), Math.max(0, offer.expiresAt - Date.now()));
     return () => clearTimeout(timer);
   }, [offer?.id, offer?.expiresAt]);
-  if (!offer?.id || expired || offer.expiresAt <= Date.now()) return null;
+  if (gahooksOff || !offer?.id || expired || offer.expiresAt <= Date.now()) return null;
   return <aside className="counter-gahook-prompt" role="alert">
     <span>{offer.spamCount || 10} in a row!</span>
     <strong>{offer.senderName || "That spammer"} left an opening</strong>
@@ -2107,6 +2120,8 @@ function HostView({ playerKey, hostMenu, onPlayAsPlayer, onExitAsPlayer, rejoini
 // Deliberately NOT in here: the game selector and the game length. Those are
 // the two decisions a host makes constantly and they belong on the screen, not
 // behind a button.
+// Picker order: Off, Mini, Visual only, Chaos.
+const GAHOOK_EFFECT_OPTIONS = [["off", "Off"], ["mini", "Mini"], ["visual", "Visual only"], ["chaos", "Chaos"]];
 const RULES_FIELDS = ["approveQuestions", "promptStyle", "allowCustomProfiles", "allowCustomGahooks", "gahookEffects", "lobbyArenaEnabled"];
 
 function currentRules(lobby) {
@@ -2115,7 +2130,7 @@ function currentRules(lobby) {
     promptStyle: lobby.promptStyle === "education" ? "education" : "fun",
     allowCustomProfiles: lobby.allowCustomProfiles !== false,
     allowCustomGahooks: lobby.allowCustomGahooks !== false,
-    gahookEffects: ["off", "visual", "chaos"].includes(lobby.gahookEffects) ? lobby.gahookEffects : "chaos",
+    gahookEffects: GAHOOK_EFFECT_OPTIONS.some(([id]) => id === lobby.gahookEffects) ? lobby.gahookEffects : "chaos",
     lobbyArenaEnabled: lobby.lobbyArenaEnabled !== false
   };
 }
@@ -2127,8 +2142,9 @@ function GahookEffectsHelp({ lobby }) {
   const penalty = Number(lobby.getGotPenaltyPoints || 0);
   return (
     <ul className="rules-help-list">
-      <li><strong>Off</strong> — no Gahook interruptions during a round.</li>
-      <li><strong>Visual only</strong> — reactions still happen, but nobody loses points.</li>
+      <li><strong>Off</strong> — no gahooking at all, in any part of the game.</li>
+      <li><strong>Mini</strong> — Gahooks arrive as a small pop-up, not a full-screen takeover, and nobody loses points.</li>
+      <li><strong>Visual only</strong> — full-screen reactions still happen, but nobody loses points.</li>
       <li><strong>Chaos</strong> — a Gahook steals {steal} points, and GET GOT costs {penalty}.</li>
     </ul>);
 
@@ -2232,7 +2248,7 @@ function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
             <legend>Gahook effects</legend>
             <div className="rules-choice" role="group" aria-label="Gahook effects">
               <div>
-                {[["off", "Off"], ["visual", "Visual only"], ["chaos", "Chaos"]].map(([id, label]) =>
+                {GAHOOK_EFFECT_OPTIONS.map(([id, label]) =>
                 <button className={draft.gahookEffects === id ? "is-selected" : ""} type="button" key={id} aria-pressed={draft.gahookEffects === id} onClick={() => set({ gahookEffects: id })}>{label}</button>
                 )}
               </div>
@@ -2281,7 +2297,7 @@ function HostRulesModal({ lobby, open, saving, error, onCancel, onSave }) {
 function LockedRulesSummary({ lobby }) {
   const rules = lobby.lockedRules;
   if (!rules) return null;
-  const effects = { off: "Off", visual: "Visual only", chaos: "Chaos" }[lobby.gahookEffects] || "Chaos";
+  const effects = Object.fromEntries(GAHOOK_EFFECT_OPTIONS)[lobby.gahookEffects] || "Chaos";
   return (
     <section className="locked-rules-summary" aria-label="Rules for this game">
       <div className="locked-rules-heading"><strong>Lobby rules</strong><em>Locked for this game</em></div>
@@ -2512,9 +2528,7 @@ function HostLobbyPokeEffects({ lobby, ownPlayer, ownPoke, playerKey }) {
 
   return (
     <>
-      <div className="host-mini-gahook-layer" aria-hidden="true">
-        {miniPokes.map((poke) => <div className="host-mini-gahook" key={poke.id} style={{ left: poke.left + "%", top: poke.top + "%", "--mini-rotate": poke.rotate + "deg" }}><GahookOverlayVisual form={poke.form} customGahook={poke.customGahook} small /><span>by {poke.from}</span></div>)}
-      </div>
+      <MiniGahookLayer pokes={miniPokes} />
       {selfPoke ? <PokeJumpScare key={selfPoke.renderId} poke={selfPoke} action={action} /> : null}
       <GahookDuelOverlay duel={lobby.gahookDuel} ownPlayer={ownPlayer} ownPoke={ownPoke} playerKey={playerKey} />
     </>);
@@ -2983,6 +2997,8 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
   useBackToClose(Boolean(ownPlayer) && showPartyView, () => setShowPartyView(false));
   const playerMenu = hostMenu || (ownPlayer ? <PlayerQuickMenu ownPlayer={ownPlayer} mode={lobby.gameMode} customGahook={lobby.ownCustomGahook} customGahookOptions={lobby.customGahookOptions} allowCustomGahooks={lobby.allowCustomGahooks !== false} playerKey={playerKey} onEditProfile={() => setEditingLocalProfile(true)} onPartyView={() => setShowPartyView(true)} /> : null);
   const [activePoke, setActivePoke] = useState(null);
+  const [miniPokes, setMiniPokes] = useState([]);
+  const miniTimersRef = useRef([]);
   const [pokeActionBusy, setPokeActionBusy] = useState(false);
   const activePokeRef = useRef(null);
   const pokeTimeoutRef = useRef(null);
@@ -3029,8 +3045,25 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
 
   useEffect(() => () => {
     clearPokeTimeout();
+    miniTimersRef.current.forEach((timer) => clearTimeout(timer));
     stopCustomGahookAudio();
   }, []);
+
+  // Under the Mini rule every Gahook lands as a small pop-up, never a takeover.
+  const showMiniPoke = (poke) => {
+    const mini = {
+      id: poke.id || "mini-" + Date.now(),
+      form: getGahookForm(poke.gahookForm),
+      customGahook: poke.customGahook || null,
+      from: poke.from || "Someone",
+      left: 5 + Math.random() * 78,
+      top: 12 + Math.random() * 68,
+      rotate: -14 + Math.random() * 28
+    };
+    setMiniPokes((current) => [...current.slice(-9), mini]);
+    playGahookFormSound(poke.gahookForm, resetPokeSoundChannel(), poke.customGahook, 1450);
+    miniTimersRef.current.push(setTimeout(() => setMiniPokes((current) => current.filter((item) => item.id !== mini.id)), 1450));
+  };
 
   useEffect(() => {
     if (!ownPlayer) {
@@ -3071,6 +3104,11 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     // The ceremonial and interactive kinds -- Get Got, congratulations, boos,
     // counters, challenges -- keep their usual treatment.
     if (inActiveDuelRef.current && isArenaThrownGahook(incomingPoke)) {
+      return undefined;
+    }
+
+    if (lobby.gahookEffects === "mini" && !isCounter && !isDuelChallenge) {
+      showMiniPoke(incomingPoke);
       return undefined;
     }
 
@@ -3145,6 +3183,8 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
     // would only replay its sound from underneath the arena; if the offer is
     // still live when the match ends, CounterGahookPrompt shows it then.
     if (inActiveDuelRef.current) return undefined;
+    // Under Mini the offer stays a small prompt (CounterGahookPrompt).
+    if (lobby.gahookEffects === "mini") return undefined;
     const incomingPoke = lobby.ownPoke || {};
     const nextPoke = {
       ...incomingPoke,
@@ -3163,7 +3203,7 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
 
   useEffect(() => {
     const incomingPoke = lobby.roomPoke;
-    if (!roomPokeId || incomingPoke?.kind !== "get-got" || incomingPoke.targetId === ownPlayer?.id || seenRoomPokeIdRef.current === roomPokeId) return undefined;
+    if (lobby.gahookEffects === "mini" || !roomPokeId || incomingPoke?.kind !== "get-got" || incomingPoke.targetId === ownPlayer?.id || seenRoomPokeIdRef.current === roomPokeId) return undefined;
     seenRoomPokeIdRef.current = roomPokeId;
     const currentPoke = activePokeRef.current;
     if (currentPoke?.kind === "get-got" && (currentPoke.getGotUntil || 0) > Date.now()) return undefined;
@@ -3217,6 +3257,7 @@ function PlayerView({ playerKey, hostMenu, editingProfile = false, onProfileEdit
   }
   const effectsLayer = <>
     <HostPresenceNotices lobby={lobby} />
+    <MiniGahookLayer pokes={miniPokes} />
     {activePoke ? <PokeJumpScare key={activePoke.renderId || activePoke.id} poke={activePoke} action={pokeAction} /> : null}
     {!activePoke ? <CounterGahookPrompt
       offer={lobby.ownCounterOffer}
@@ -3319,7 +3360,8 @@ function PlayerSettingsDialog({ open, onClose }) {
   const dialogRef = useRef(null);
   const [muted, toggleMuted] = useMutePreference();
   const [musicOn, setMusicOn] = useMusicPreference();
-  const [reducedPreferred] = useReducedEffectsPreference();
+  // The same switch, through the same hook, as the join screen and Lobby rules.
+  const [reducedEffects, setReducedEffects] = useReducedEffects();
   const systemReduced = systemPrefersReducedEffects();
   useModalBodyLock(open);
   useBackToClose(open, onClose);
@@ -3350,9 +3392,9 @@ function PlayerSettingsDialog({ open, onClose }) {
             <legend>Accessibility</legend>
             <RuleToggleRow
               label="Reduce Gahook effects"
-              on={reducedPreferred}
-              onChange={(next) => setEffectsReducedPreference(next)}
-              help="Gahooks still happen and still score. They arrive without the full-screen animation, the shaking and the flashing." />
+              on={reducedEffects}
+              onChange={setReducedEffects}
+              help="Gahooks still happen and still score. They arrive without the full-screen animation, the shaking and the flashing, and the sound is muted." />
             <RuleToggleRow
               label="Mute sound effects"
               on={muted}
@@ -4169,6 +4211,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
 }
 
 function GahookRoster({ lobby, ownPlayer, title, onPoke, disabled = false, mode = "lobby", usedPokeIds = [] }) {
+  const gahooksOff = useGahooksOff();
   const inGame = mode === "game";
   const usedTargets = new Set(usedPokeIds);
   const questionUseSpent = inGame && usedTargets.size > 0;
@@ -4182,7 +4225,7 @@ function GahookRoster({ lobby, ownPlayer, title, onPoke, disabled = false, mode 
           <AvatarBadge player={player} small />
           <span>{player.name}</span>
           <em>{inGame ? player.score + " pts" : player.ready ? "Ready" : player.questionsSubmitted + "/" + lobby.maxQuestionsPerPlayer}</em>
-          <button className={player.id === ownPlayer.id ? "roster-poke is-self-poke" : "roster-poke"} type="button" title={inGame && player.id === ownPlayer.id ? "Choose another player to steal 50 points" : ""} disabled={!player.connected || disabled || questionUseSpent || inGame && player.id === ownPlayer.id} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>
+          {gahooksOff ? null : <button className={player.id === ownPlayer.id ? "roster-poke is-self-poke" : "roster-poke"} type="button" title={inGame && player.id === ownPlayer.id ? "Choose another player to steal 50 points" : ""} disabled={!player.connected || disabled || questionUseSpent || inGame && player.id === ownPlayer.id} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>}
         </div>
       )}
     </section>);
@@ -4230,6 +4273,7 @@ function Metric({ label, value }) {
 }
 
 function PlayerCard({ player, maxQuestions, showQuestionStatus = true, statusText = "", onPoke, onKick, onMakeHost, onRandomizeIdentity, onRemoveSelf, onChallenge = null, canChallenge = false }) {
+  const gahooksOff = useGahooksOff();
   const [menuRef, closeMenu] = useDetailsMenu();
   const [activeAction, setActiveAction] = useState("");
   const dispatch = useDispatch();
@@ -4275,13 +4319,14 @@ function PlayerCard({ player, maxQuestions, showQuestionStatus = true, statusTex
             <button type="button" disabled={actionBusy || player.isHost} onClick={() => runPlayerAction("kick", onKick)}>{activeAction === "kick" ? "Kicking..." : "Kick"}</button>
           </div>
         </details>
-        <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>
+        {gahooksOff ? null : <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>}
       </div>
     </article>);
 
 }
 
 function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, statusText = "", ownPlayer, onPoke, onVoteKick, onChallenge = null, canChallenge = false }) {
+  const gahooksOff = useGahooksOff();
   const [menuRef, closeMenu] = useDetailsMenu();
   const [challenging, setChallenging] = useState(false);
   const voteKick = () => {
@@ -4324,7 +4369,7 @@ function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, s
             {canChallengeThisPlayer ? <button type="button" disabled={challenging} onClick={challenge}>{challenging ? "Sending challenge..." : "Challenge to 1v1"}</button> : null}
           </div>
         </details>
-        <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>
+        {gahooksOff ? null : <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>}
       </div>
     </article>);
 
@@ -4417,6 +4462,12 @@ function AnswerChoicePlayers({ players, anonymous = false }) {
 
 }
 
+// "Off means no gahooking": the server refuses every Gahook in every phase, so
+// no Gahook button is drawn anywhere while the room rule is Off.
+function useGahooksOff() {
+  return useSelector((state) => state.lobby?.gahookEffects === "off");
+}
+
 function GahookLabel({ text = "Gahook" }) {
   return <span className="gahook-button-label"><span>{text || "Gahook"}</span></span>;
 }
@@ -4429,14 +4480,16 @@ function getPokeFlashClass(player) {
   return "is-gahooked";
 }
 
-function LeaderboardStrip({ leaderboard, onPoke }) {
+function LeaderboardStrip({ leaderboard, onPoke: requestedPoke }) {
+  const onPoke = useGahooksOff() ? undefined : requestedPoke;
   return <aside className="leaderboard-strip">{leaderboard.slice(0, 4).map((player) => {
       const rowClass = [getPokeFlashClass(player), onPoke ? "has-gahook-action" : ""].filter(Boolean).join(" ");
       return <div className={rowClass} key={player.id + "-" + (player.latestPokeId || "steady")}><span>{player.rank}</span><AvatarBadge player={player} small /><strong title={player.name}>{player.name}</strong><em>{player.score}</em>{onPoke ? <button className="leaderboard-gahook" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button> : null}</div>;
     })}</aside>;
 }
 
-function LeaderboardList({ leaderboard, large, onPoke, usedPokeIds = [], ownPlayerId = "", actionLabel = "" }) {
+function LeaderboardList({ leaderboard, large, onPoke: requestedPoke, usedPokeIds = [], ownPlayerId = "", actionLabel = "" }) {
+  const onPoke = useGahooksOff() ? undefined : requestedPoke;
   const usedTargets = new Set(usedPokeIds);
   const questionUseSpent = usedTargets.size > 0;
   return <ol className={large ? "leaderboard-list is-large" : "leaderboard-list"}>{leaderboard.map((player) => {
@@ -4538,7 +4591,9 @@ function FinalShameRow({ finals, apiPath = "", playerKey = "", readonly = false 
 
 }
 
-function FinalGahookCard({ player, role, apiPath, playerKey = "", buttonLabel = "GAHOOK", title = "", stat = "", detail = "", mediaImage = "", finalKind = "", readonly = false, compact = false }) {
+function FinalGahookCard({ player, role, apiPath, playerKey = "", buttonLabel = "GAHOOK", title = "", stat = "", detail = "", mediaImage = "", finalKind = "", readonly: requestedReadonly = false, compact = false }) {
+  const gahooksOff = useGahooksOff();
+  const readonly = requestedReadonly || gahooksOff;
   const dispatch = useDispatch();
 
   const sendGahook = () => {

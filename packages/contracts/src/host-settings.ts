@@ -30,11 +30,12 @@ export type PromptStyle = (typeof PROMPT_STYLES)[number];
 /**
  * How far Gahook interruptions may go during the main game.
  *
- * `off` blocks the effects entirely, `visual` permits the cosmetic reaction but
+ * `off` refuses every Gahook in every phase, `mini` allows them as small pop-ups
+ * with no points moving, `visual` permits the cosmetic reaction but
  * no point stealing or GET GOT penalty, and `chaos` is the existing behaviour.
  * Enforced on the server: hiding the button is not a policy.
  */
-export const GAHOOK_EFFECT_POLICIES = ["off", "visual", "chaos"] as const;
+export const GAHOOK_EFFECT_POLICIES = ["off", "mini", "visual", "chaos"] as const;
 export type GahookEffectPolicy = (typeof GAHOOK_EFFECT_POLICIES)[number];
 
 export const PromptStyleSchema = z.enum(PROMPT_STYLES);

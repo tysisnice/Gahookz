@@ -152,14 +152,14 @@ const ROOM_EXPIRE_MS = clamp(Number(process.env.GAHOOKZ_ROOM_EXPIRE_MS) || 5 * 6
 // the expiry regression test shortens it.
 const ROOM_ABANDON_GRACE_MS = resolveRoomAbandonGraceMs(process.env.GAHOOKZ_ROOM_ABANDON_GRACE_MS);
 const LIVE_GAME_PHASES = ["reading", "answering", "reveal"];
-const EFFECT_GATED_GAHOOK_ROUTES = new Set(["/api/player/poke", "/api/player/round-poke", "/api/player/counter-poke", "/api/player/shame-poke", "/api/host/poke"]);
+const EFFECT_GATED_GAHOOK_ROUTES = new Set(["/api/player/poke", "/api/player/round-poke", "/api/player/counter-poke", "/api/player/shame-poke", "/api/player/final-poke", "/api/host/poke", "/api/host/final-poke"]);
 
 // How far Gahook interruptions may go during the main game.
 //
 // Enforced here rather than by hiding a button: a client that keeps sending the
 // request must not be able to steal points the host has switched off. "chaos"
 // is the existing behaviour and stays the default so no room changes silently.
-const GAHOOK_EFFECT_POLICIES = ["off", "visual", "chaos"];
+const GAHOOK_EFFECT_POLICIES = ["off", "mini", "visual", "chaos"];
 const DEFAULT_GAHOOK_EFFECTS = "chaos";
 
 function gahookEffectsPolicy(room) {
@@ -832,9 +832,10 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
   if (pathname === "/api/player/dash") {
     return updatePlayerDash(room, payload);
   }
-  // "Off" refuses every Gahook during a round, whoever sends it and whichever
-  // button they use; lobby and finale Gahooks are not covered by the rule.
-  if (EFFECT_GATED_GAHOOK_ROUTES.has(pathname) && LIVE_GAME_PHASES.includes(room.phase) && !gahookEffectsAllowed(room)) {
+  // "Off means no gahooking": every Gahook is refused in every phase (lobby,
+  // building, writing, the round and the finale, congratulations and boos
+  // included), whoever sends it. The 1v1 Arena has its own switch.
+  if (EFFECT_GATED_GAHOOK_ROUTES.has(pathname) && !gahookEffectsAllowed(room)) {
     return { ok: false, error: "The host has turned Gahook effects off for this game." };
   }
   if (pathname === "/api/player/duel-challenge" && !lobbyArenaEnabled(room)) {

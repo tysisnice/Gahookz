@@ -149,6 +149,44 @@ const scoreOf = (snapshot, playerId) => Number(snapshot.players.find((player) =>
   assert(roundPoked.ok === false && /effects off/.test(roundPoked.error || ""), "The in-round Gahook must be refused while effects are off: " + JSON.stringify(roundPoked));
   const hostPoked = await post("/api/host/poke", { playerId: targetId });
   assert(hostPoked.ok === false && /effects off/.test(hostPoked.error || ""), "The host's Gahook must be refused while effects are off: " + JSON.stringify(hostPoked));
+
+  // Off means no gahooking in any phase: step the game to its finale and
+  // check the finale pokes, congratulations and boos are refused too.
+  for (let step = 0; step < 60 && (await state()).phase !== "finished"; step += 1) {
+    await post("/api/host/skip");
+  }
+  const finale = await state();
+  assert(finale.phase === "finished", "Expected to reach the finale, got " + finale.phase);
+  const finalTarget = finale.players[0].id;
+  for (const finalKind of ["", "congrats", "boo"]) {
+    const finalPoked = await post("/api/player/final-poke", { playerKey: players[1], playerId: finalTarget, finalKind });
+    assert(finalPoked.ok === false && /effects off/.test(finalPoked.error || ""), "A finale " + (finalKind || "poke") + " must be refused while Gahooks are off: " + JSON.stringify(finalPoked));
+    const hostFinal = await post("/api/host/final-poke", { playerId: finalTarget, finalKind });
+    assert(hostFinal.ok === false && /effects off/.test(hostFinal.error || ""), "The host's finale " + (finalKind || "poke") + " must be refused while Gahooks are off: " + JSON.stringify(hostFinal));
+  }
+}
+
+// Off also refuses a lobby Gahook, before any game has started.
+{
+  await post("/api/host/reset");
+  await post("/api/host/settings", { gahookEffects: "off" });
+  const lobby = await state();
+  assert(lobby.phase === "lobby" && lobby.gahookEffects === "off", "Expected an Off lobby, got " + lobby.phase + "/" + lobby.gahookEffects);
+  const targetId = lobby.players[0].id;
+  const lobbyPoked = await post("/api/player/poke", { playerKey: players[1], playerId: targetId });
+  assert(lobbyPoked.ok === false && /effects off/.test(lobbyPoked.error || ""), "A lobby Gahook must be refused while Gahooks are off: " + JSON.stringify(lobbyPoked));
+  const hostLobbyPoked = await post("/api/host/poke", { playerId: targetId });
+  assert(hostLobbyPoked.ok === false && /effects off/.test(hostLobbyPoked.error || ""), "The host's lobby Gahook must be refused while Gahooks are off");
+}
+
+// Mini: Gahooks are allowed and, like Visual only, move no points.
+{
+  const live = await playIntoLiveRound("mini");
+  const targetId = live.players[0].id;
+  const before = scoreOf(live, targetId);
+  const poked = await post("/api/player/poke", { playerKey: players[1], playerId: targetId });
+  assert(poked.ok, "A Gahook must be allowed under Mini: " + poked.error);
+  assert(scoreOf(await state(), targetId) === before, "Mini must not move anybody's score");
 }
 
 await post("/api/host/reset");
@@ -384,7 +422,8 @@ console.log(JSON.stringify({
     "a duel challenge is refused server-side while duels are off",
     "Chaos still steals 50 points",
     "Visual only allows the reaction but moves no score",
-    "Off refuses the Gahook outright",
+    "Off refuses the Gahook outright, in a lobby and at the finale too",
+    "Mini allows the Gahook and moves no score",
     "an ordinary player cannot change the room rules",
     "a player sees the policy but never a credential",
     "an opinion suggestion never arrives with a correct answer chosen",
