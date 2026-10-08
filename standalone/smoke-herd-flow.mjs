@@ -123,7 +123,9 @@ for (const player of players) {
       await post("/api/herd/answer", base);
       assert.equal((await state("player", player.key)).ownHerdAssignments.find((item) => item.answerId === accepted.answerId).imageDataUrl, stored.imageDataUrl, "Re-saving text must keep the image");
       // Host moderation removes the image, and the blob is pruned.
-      await post("/api/host/remove-content", { code, playerKey: hostKey, kind: "herd-answer", targetId: accepted.answerId });
+      const withoutPrompt = await request("/api/host/remove-content", { code, playerKey: hostKey, kind: "herd-answer", targetId: accepted.answerId });
+      assert.equal(withoutPrompt.data.ok, false, "An answer id alone (a colour shared by every prompt) must not remove anything");
+      await post("/api/host/remove-content", { code, playerKey: hostKey, kind: "herd-answer", targetId: accepted.answerId, questionId: assignment.questionId });
       moderatedImageUrl = stored.imageDataUrl;
       assert.equal(await mediaStatus(moderatedImageUrl), 404, "Moderation must delete the Herd answer image");
       const review = (await state()).herdAnswerReview.find((item) => item.answerId === accepted.answerId);
@@ -142,6 +144,29 @@ for (const player of players) {
     }
   }
   await post("/api/player/ready", { code, playerKey: player.key, ready: true });
+}
+
+// Answer ids are colours shared by every prompt: removing one prompt's answer
+// must leave the same colour on the other prompts alone. Then its author
+// writes it again so the game can start.
+{
+  const review = (await state()).herdAnswerReview;
+  const target = review.find((item) => item.submitted && review.some((other) => other.answerId === item.answerId && other.questionId !== item.questionId && other.submitted));
+  assert(target, "Precondition: some colour is answered on two prompts");
+  const others = review.filter((item) => item.answerId === target.answerId && item.questionId !== target.questionId && item.submitted);
+  await post("/api/host/remove-content", { code, playerKey: hostKey, kind: "herd-answer", targetId: target.answerId, questionId: target.questionId });
+  const after = (await state()).herdAnswerReview;
+  assert.equal(after.find((item) => item.questionId === target.questionId && item.answerId === target.answerId).submitted, false, "The named answer is removed");
+  for (const other of others) {
+    assert(after.find((item) => item.questionId === other.questionId && item.answerId === other.answerId).submitted, "Removing one answer must not blank the same colour on another prompt");
+  }
+  for (const player of players) {
+    const mine = (await state("player", player.key)).ownHerdAssignments.find((item) => item.questionId === target.questionId && item.answerId === target.answerId);
+    if (mine) {
+      await post("/api/herd/answer", { code, playerKey: player.key, questionId: target.questionId, text: "Rewritten after moderation" });
+      await post("/api/player/ready", { code, playerKey: player.key, ready: true });
+    }
+  }
 }
 
 snapshot = await state();

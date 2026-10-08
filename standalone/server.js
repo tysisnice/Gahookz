@@ -2862,10 +2862,14 @@ function removeContent(room, payload) {
   if (kind === "herd-answer") {
     // Blank the text but keep the answer slot, so the round's answer count and
     // scoring shape stay intact mid-game.
+    // Answer ids are colour names shared by every prompt, so an answer is
+    // named by its prompt too (questionId); a player id removes everything
+    // that player wrote.
+    const questionId = cleanText(payload?.questionId, 80);
     let removed = 0;
     for (const question of room.quizQuestions) {
       for (const answer of question.answers || []) {
-        if (answer.id === targetId || answer.authorId === targetId) {
+        if ((questionId && question.id === questionId && answer.id === targetId) || answer.authorId === targetId) {
           if (herdAnswerWritten(answer)) removed += 1;
           answer.text = "";
           answer.imageDataUrl = "";
