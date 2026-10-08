@@ -2892,7 +2892,7 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
         <div className="question-copy">
           <div className="question-copy-head"><span className="phase-chip">{phaseLabel}</span>{question?.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}</div>
           <h1>{question?.text || "Loading question"}</h1>
-          {roundActive ? <AnsweredPlayersRow selections={lobby.answerSelections} players={lobby.players} /> : null}
+          {roundActive && lobby.gameMode !== "quiz" ? <AnsweredPlayersRow selections={lobby.answerSelections} players={lobby.players} /> : null}
         </div>
         {question?.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}
       </section>
@@ -4155,7 +4155,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
           <div className="question-copy">
             <div className="question-copy-head"><span className="phase-chip">{questionNumberLabel}</span>{question.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}</div>
             <h1><PromptText text={question.text} names={question.namedPlayerNames} /></h1>
-            {roundActive ? <AnsweredPlayersRow selections={visibleAnswerSelections} players={lobby.players} /> : null}
+            {roundActive && lobby.gameMode !== "quiz" ? <AnsweredPlayersRow selections={visibleAnswerSelections} players={lobby.players} /> : null}
           </div>
           {question.imageDataUrl ? <img className="question-image" src={question.imageDataUrl} alt="Question" /> : null}
         </section> :

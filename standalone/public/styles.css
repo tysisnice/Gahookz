@@ -11089,9 +11089,12 @@ button.answer-tile {
   .final-gahook-card::before, .final-gahook-card::after { display: none; }
 }
 @media (min-width: 921px) {
-  .host-lobby-layout { width: min(1320px, 100%); margin-inline: auto; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+  /* The left column (question time, host controls) is about 15% narrower
+     than it was (Tyson, 2026-10-08); the page narrows with it so the player
+     column keeps its width. */
+  .host-lobby-layout { width: min(1220px, 100%); margin-inline: auto; grid-template-columns: minmax(0, 0.935fr) minmax(0, 1fr); }
   .host-lobby-layout .player-grid { grid-template-columns: 1fr; }
-  .host-lobby-layout:has(.player-card:nth-child(9)) { width: min(1700px, 100%); grid-template-columns: minmax(0, 1.1fr) minmax(0, 2fr); }
+  .host-lobby-layout:has(.player-card:nth-child(9)) { width: min(1600px, 100%); grid-template-columns: minmax(0, 0.935fr) minmax(0, 2fr); }
   .host-lobby-layout .player-grid:has(.player-card:nth-child(9)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 920px) {

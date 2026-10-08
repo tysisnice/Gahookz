@@ -219,9 +219,11 @@ async function runRoleSmoke() {
     const partyView = await state(roomCode, "party", "");
     const guestView = await state(roomCode, "player", guestKey);
     assert(hostView.answerSelections.length >= 2, "Classic pre-reveal snapshots still list who has answered");
-    assertNoOtherChoicesVisible(partyView, "", "classic party");
-    assertNoOtherChoicesVisible(guestView, guestView.ownPlayer.id, "classic player");
-    assertNoOtherChoicesVisible(hostView, hostView.ownPlayer?.id || "", "classic host");
+    // Classic shows who picked what as it happens (Tyson, 2026-10-08); only
+    // Majority Rulez and Herd hide other players' choices before the reveal.
+    for (const [view, label] of [[partyView, "party"], [guestView, "player"], [hostView, "host"]]) {
+      assert(view.answerSelections.some((s) => !s.isOwn && s.answerId === "red"), "A Classic " + label + " sees other players' picks before the reveal");
+    }
     assert(guestView.answerSelections.find((s) => s.isOwn)?.answerId === "blue", "A Classic player still sees their own choice");
   }
   await post("/api/answer", { code: roomCode, playerKey: lateBuildKey, answerId: "red" });

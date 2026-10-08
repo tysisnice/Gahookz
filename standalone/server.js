@@ -4127,10 +4127,16 @@ function publicAnswerSelections(room, viewerPlayerId = "") {
     answeredAt: answer.answeredAt || 0
   })).
   sort((a, b) => a.answeredAt - b.answeredAt);
+  // Classic Quiz shows who picked what as it happens (Tyson, 2026-10-08): the
+  // answer is a fact, and seeing friends commit is part of the fun.
   if (room.phase === "reveal") return selections;
-  // Before the reveal nobody may learn which option another player chose, in any
-  // mode (a late answerer could copy a friend). Other players' entries only say
-  // that they have answered; answerId is kept for the viewer's own pick.
+  if (room.gameMode === "quiz") {
+    return selections.map((selection) => ({ ...selection, isOwn: Boolean(viewerPlayerId) && selection.playerId === viewerPlayerId }));
+  }
+  // In Majority Rulez and Herd nobody may learn which option another player
+  // chose before the reveal (a late answerer could follow the crowd). Other
+  // players' entries only say that they have answered; answerId is kept for
+  // the viewer's own pick.
   return selections.map((selection) => {
     const isOwn = Boolean(viewerPlayerId) && selection.playerId === viewerPlayerId;
     return isOwn ?
