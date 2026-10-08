@@ -54,7 +54,7 @@ test("the response reports what survived, so a host is never quietly robbed", ()
 });
 
 test("Gahook effect policy has exactly the three documented levels", () => {
-  assert.deepEqual([...GAHOOK_EFFECT_POLICIES], ["off", "visual", "chaos"]);
+  assert.deepEqual([...GAHOOK_EFFECT_POLICIES], ["off", "mini", "visual", "chaos"]);
 });
 
 test("a Classic question is not ready until a human chooses the intended answer", () => {

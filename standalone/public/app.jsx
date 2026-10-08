@@ -1646,6 +1646,7 @@ function GahookDuelOverlay({ duel, ownPlayer, ownPoke, playerKey }) {
 }
 
 function CounterGahookPrompt({ offer, busy = false, onCounter }) {
+  const gahooksOff = useGahooksOff();
   const [expired, setExpired] = useState(false);
   useEffect(() => {
     setExpired(false);
@@ -1653,7 +1654,7 @@ function CounterGahookPrompt({ offer, busy = false, onCounter }) {
     const timer = setTimeout(() => setExpired(true), Math.max(0, offer.expiresAt - Date.now()));
     return () => clearTimeout(timer);
   }, [offer?.id, offer?.expiresAt]);
-  if (!offer?.id || expired || offer.expiresAt <= Date.now()) return null;
+  if (gahooksOff || !offer?.id || expired || offer.expiresAt <= Date.now()) return null;
   return <aside className="counter-gahook-prompt" role="alert">
     <span>{offer.spamCount || 10} in a row!</span>
     <strong>{offer.senderName || "That spammer"} left an opening</strong>
@@ -4169,6 +4170,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
 }
 
 function GahookRoster({ lobby, ownPlayer, title, onPoke, disabled = false, mode = "lobby", usedPokeIds = [] }) {
+  const gahooksOff = useGahooksOff();
   const inGame = mode === "game";
   const usedTargets = new Set(usedPokeIds);
   const questionUseSpent = inGame && usedTargets.size > 0;
@@ -4182,7 +4184,7 @@ function GahookRoster({ lobby, ownPlayer, title, onPoke, disabled = false, mode 
           <AvatarBadge player={player} small />
           <span>{player.name}</span>
           <em>{inGame ? player.score + " pts" : player.ready ? "Ready" : player.questionsSubmitted + "/" + lobby.maxQuestionsPerPlayer}</em>
-          <button className={player.id === ownPlayer.id ? "roster-poke is-self-poke" : "roster-poke"} type="button" title={inGame && player.id === ownPlayer.id ? "Choose another player to steal 50 points" : ""} disabled={!player.connected || disabled || questionUseSpent || inGame && player.id === ownPlayer.id} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>
+          {gahooksOff ? null : <button className={player.id === ownPlayer.id ? "roster-poke is-self-poke" : "roster-poke"} type="button" title={inGame && player.id === ownPlayer.id ? "Choose another player to steal 50 points" : ""} disabled={!player.connected || disabled || questionUseSpent || inGame && player.id === ownPlayer.id} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>}
         </div>
       )}
     </section>);
@@ -4230,6 +4232,7 @@ function Metric({ label, value }) {
 }
 
 function PlayerCard({ player, maxQuestions, showQuestionStatus = true, statusText = "", onPoke, onKick, onMakeHost, onRandomizeIdentity, onRemoveSelf, onChallenge = null, canChallenge = false }) {
+  const gahooksOff = useGahooksOff();
   const [menuRef, closeMenu] = useDetailsMenu();
   const [activeAction, setActiveAction] = useState("");
   const dispatch = useDispatch();
@@ -4275,13 +4278,14 @@ function PlayerCard({ player, maxQuestions, showQuestionStatus = true, statusTex
             <button type="button" disabled={actionBusy || player.isHost} onClick={() => runPlayerAction("kick", onKick)}>{activeAction === "kick" ? "Kicking..." : "Kick"}</button>
           </div>
         </details>
-        <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>
+        {gahooksOff ? null : <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>}
       </div>
     </article>);
 
 }
 
 function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, statusText = "", ownPlayer, onPoke, onVoteKick, onChallenge = null, canChallenge = false }) {
+  const gahooksOff = useGahooksOff();
   const [menuRef, closeMenu] = useDetailsMenu();
   const [challenging, setChallenging] = useState(false);
   const voteKick = () => {
@@ -4324,7 +4328,7 @@ function ReadonlyPlayerCard({ player, maxQuestions, showQuestionStatus = true, s
             {canChallengeThisPlayer ? <button type="button" disabled={challenging} onClick={challenge}>{challenging ? "Sending challenge..." : "Challenge to 1v1"}</button> : null}
           </div>
         </details>
-        <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>
+        {gahooksOff ? null : <button className="poke-hint" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button>}
       </div>
     </article>);
 
@@ -4417,6 +4421,12 @@ function AnswerChoicePlayers({ players, anonymous = false }) {
 
 }
 
+// "Off means no gahooking": the server refuses every Gahook in every phase, so
+// no Gahook button is drawn anywhere while the room rule is Off.
+function useGahooksOff() {
+  return useSelector((state) => state.lobby?.gahookEffects === "off");
+}
+
 function GahookLabel({ text = "Gahook" }) {
   return <span className="gahook-button-label"><span>{text || "Gahook"}</span></span>;
 }
@@ -4429,14 +4439,16 @@ function getPokeFlashClass(player) {
   return "is-gahooked";
 }
 
-function LeaderboardStrip({ leaderboard, onPoke }) {
+function LeaderboardStrip({ leaderboard, onPoke: requestedPoke }) {
+  const onPoke = useGahooksOff() ? undefined : requestedPoke;
   return <aside className="leaderboard-strip">{leaderboard.slice(0, 4).map((player) => {
       const rowClass = [getPokeFlashClass(player), onPoke ? "has-gahook-action" : ""].filter(Boolean).join(" ");
       return <div className={rowClass} key={player.id + "-" + (player.latestPokeId || "steady")}><span>{player.rank}</span><AvatarBadge player={player} small /><strong title={player.name}>{player.name}</strong><em>{player.score}</em>{onPoke ? <button className="leaderboard-gahook" type="button" disabled={!player.connected} onClick={() => onPoke(player)}><GahookLabel player={player} /></button> : null}</div>;
     })}</aside>;
 }
 
-function LeaderboardList({ leaderboard, large, onPoke, usedPokeIds = [], ownPlayerId = "", actionLabel = "" }) {
+function LeaderboardList({ leaderboard, large, onPoke: requestedPoke, usedPokeIds = [], ownPlayerId = "", actionLabel = "" }) {
+  const onPoke = useGahooksOff() ? undefined : requestedPoke;
   const usedTargets = new Set(usedPokeIds);
   const questionUseSpent = usedTargets.size > 0;
   return <ol className={large ? "leaderboard-list is-large" : "leaderboard-list"}>{leaderboard.map((player) => {
@@ -4538,7 +4550,9 @@ function FinalShameRow({ finals, apiPath = "", playerKey = "", readonly = false 
 
 }
 
-function FinalGahookCard({ player, role, apiPath, playerKey = "", buttonLabel = "GAHOOK", title = "", stat = "", detail = "", mediaImage = "", finalKind = "", readonly = false, compact = false }) {
+function FinalGahookCard({ player, role, apiPath, playerKey = "", buttonLabel = "GAHOOK", title = "", stat = "", detail = "", mediaImage = "", finalKind = "", readonly: requestedReadonly = false, compact = false }) {
+  const gahooksOff = useGahooksOff();
+  const readonly = requestedReadonly || gahooksOff;
   const dispatch = useDispatch();
 
   const sendGahook = () => {
