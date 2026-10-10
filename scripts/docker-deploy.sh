@@ -52,6 +52,13 @@ docker compose config --quiet
 # production on the old code with a broken container beside it.
 prod_port="$(grep -E '^GAHOOKZ_PROD_PORT=' .env 2>/dev/null | cut -d= -f2- || true)"
 prod_port="${prod_port:-3102}"
+
+# Verify the image the Compose file will actually run. compose.yaml resolves
+# the production image as ${GAHOOKZ_PROD_IMAGE:-gahookz:prod-local}; a hard-
+# coded tag here (the old gahookz:local) inspects an image that no longer
+# exists, so the running-image check fails on every deploy.
+prod_image="$(grep -E '^GAHOOKZ_PROD_IMAGE=' .env 2>/dev/null | cut -d= -f2- || true)"
+prod_image="${prod_image:-gahookz:prod-local}"
 owned_container="$(docker compose ps -q gahookz 2>/dev/null || true)"
 port_holder="$(docker ps --filter "publish=${prod_port}" --format '{{.ID}}' | head -1)"
 if [[ -n "$port_holder" && ( -z "$owned_container" || "$owned_container" != "$port_holder"* ) ]]; then
@@ -112,7 +119,7 @@ fi
 for _ in $(seq 1 30); do
   health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container_id" 2>/dev/null || true)"
   if [[ "$health" == "healthy" ]]; then
-    expected_image="$(docker image inspect --format '{{.Id}}' gahookz:local)"
+    expected_image="$(docker image inspect --format '{{.Id}}' "$prod_image")"
     running_image="$(docker inspect --format '{{.Image}}' "$container_id")"
     if [[ "$running_image" != "$expected_image" ]]; then
       echo "The running container does not use the image that was just built." >&2
