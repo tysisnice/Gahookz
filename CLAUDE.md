@@ -4,6 +4,10 @@ Read this first. It is the entry point for anyone — human or coding agent —
 picking the project up cold. It is deliberately short; it tells you the rules,
 the shape of the system, and which longer document answers which question.
 
+**Picking the project up now?** Read [docs/HANDOFF.md](docs/HANDOFF.md) first:
+what is finished, what is half-finished, and the fact that production is
+currently running older code than `main`.
+
 For the owner's approved next implementation work, read
 [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md). It contains the required
 reading list, ordered tasks, acceptance checks, 40 new prompt drafts and a
@@ -67,7 +71,13 @@ Browser ──HTTPS──> Cloudflare (DNS-only) ──> router ──> Nginx Pr
 | --- | --- | --- | --- |
 | Development | `127.0.0.1:3101` | bind-mounted checkout, hot reload | `dev.gahookz.com`, behind an access list |
 | Beta | `127.0.0.1:3103` | image `gahookz:local` | `beta.gahookz.com`, deliberately capped small |
-| Production | `127.0.0.1:3102` | immutable image, Compose project `gahookz-prod` | `gahookz.com`, changed only by a deliberate deploy |
+| Production | `127.0.0.1:3102` | immutable image `gahookz:prod-local` | `gahookz.com`, changed only by a deliberate deploy |
+
+**Since 2026-10-10 all three run under the one Compose project `gahookz-prod`**
+(`docker compose ls`), from the Store repository, which has
+`COMPOSE_PROJECT_NAME=gahookz-prod` in its `.env`. A bare `docker compose up -d`
+in that folder therefore recreates **production** as well as dev and beta. Name
+the service you mean.
 
 ### Where the repository lives (since 2026-09-30)
 
@@ -79,15 +89,16 @@ Browser ──HTTPS──> Cloudflare (DNS-only) ──> router ──> Nginx Pr
 - **Old checkout, kept as a backup:** `/mnt/storage/syncthing/codex/2026-07-01/Gahookz`.
   Do not edit or delete it.
 - **The running containers come from the Store repository** (since
-  2026-10-02, Tyson-approved redeploy at revision `f15af0b`): production
-  (Compose project `gahookz-prod`), beta and dev (project `gahookz`).
-  Rollback images: `gahookz:rollback-prod-20261002`,
+  2026-10-02), all three under the Compose project `gahookz-prod` since
+  2026-10-10. Rollback images: `gahookz:rollback-prod-20261002`,
   `gahookz:rollback-beta-20261002`, `gahookz:rollback-dev-20261002`.
+  **What is live is not `main`** — check `/api/health` and see
+  [docs/HANDOFF.md](docs/HANDOFF.md).
 - **Dev bind-mounts the Store working tree**, so saving a file in the Store
   checkout reloads `dev.gahookz.com` at once. Do agent work in the worktrees
   (`~/gahookz-agent-worktrees/`) and merge into Store only when verified.
-- `/srv/gahookz`, which older documents call the production clone, is at
-  `81a70d2` and is not the production source.
+- `/srv/gahookz`, which older documents call the production clone, was never
+  the production source and its files were removed on 2026-10-08.
 
 ## Where the code lives
 
