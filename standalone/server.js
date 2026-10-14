@@ -946,8 +946,11 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
       if (!target || !target.connected) return { ok: false, error: "That player is not connected." };
       if (target.id === hostPlayer.id) return { ok: false, error: "Choose someone else to Gahook." };
       const claim = claimQuestionGahookUse(room, hostPlayer.id, target.id);
+      if (process.env.GAHOOKZ_DEBUG_SPAM) console.log("HOSTPOKE " + JSON.stringify({ t: Date.now(), phase: room.phase, qIndex: room.game.currentQuestionIndex, claimOk: claim.ok, error: claim.ok ? "" : claim.error }));
       if (!claim.ok) return claim;
       claimKey = claim.key;
+    } else if (process.env.GAHOOKZ_DEBUG_SPAM) {
+      console.log("HOSTPOKE " + JSON.stringify({ t: Date.now(), phase: room.phase, qIndex: room.game.currentQuestionIndex, claimOk: "n/a (phase not live)" }));
     }
     const result = pokePlayer(room, payload, hostPlayer?.name || "Host", { allowPhases: ["lobby", "building", "reading", "answering", "reveal", "finished"], gahookForm: hostPlayer?.gahookForm || "monkey", senderPlayer: hostPlayer });
     if (!result.ok && claimKey) delete room.game.pokeUses[claimKey];
@@ -1761,6 +1764,7 @@ function pokePlayer(room, payload, fromName, options = {}) {
         expiresAt: now + COUNTER_GAHOOK_OFFER_MS
       };
     }
+    if (process.env.GAHOOKZ_DEBUG_SPAM) console.log("SPAMDBG " + JSON.stringify({ t: now, count: spam.count, elapsed: spam.elapsedMs, threshold: spam.thresholdMs, startedAt: player.gahookSpamStartedAt, lastAt: player.lastGahookAt }));
     const activeUltimate = (player.ultimateGahookUntil || 0) > now;
     if (activeUltimate) {
       kind = "ultimate";
