@@ -940,8 +940,13 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
       return hostCheck;
     }
     const hostPlayer = getPlayerByCredential(room, room.hostKey);
+    const phaseIsLive = LIVE_GAME_PHASES.includes(room.phase);
+    if (phaseIsLive && !hostPlayer) {
+      if (process.env.GAHOOKZ_DEBUG_SPAM) console.log("HOSTPOKE " + JSON.stringify({ t: Date.now(), phase: room.phase, qIndex: room.game.currentQuestionIndex, claimOk: "n/a (host not joined)", error: "Join the game before Gahooking during a round." }));
+      return { ok: false, error: "Join the game before Gahooking during a round." };
+    }
     let claimKey = "";
-    if (hostPlayer && LIVE_GAME_PHASES.includes(room.phase)) {
+    if (hostPlayer && phaseIsLive) {
       const target = resolvePlayer(room, cleanText(payload?.playerId, 80));
       if (!target || !target.connected) return { ok: false, error: "That player is not connected." };
       if (target.id === hostPlayer.id) return { ok: false, error: "Choose someone else to Gahook." };

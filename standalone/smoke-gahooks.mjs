@@ -315,6 +315,33 @@ async function runGahookSmoke() {
   const reactedArenaState = await state(roomCode, "host", hostKey);
   assert(reactedArenaState.gahookDuel.reactionCounts.congrats === 1 && reactedArenaState.gahookDuel.reactionCounts.boos === 1, "The crowd should be able to congratulate the winner and boo the loser");
 
+  // The ungated host Gahook now lives only outside a live round: during
+  // reading/answering/reveal a host who never joined the lobby is refused
+  // outright and a joined host gets one claim per question (see
+  // smoke-host-poke-claim.mjs). The lobby keeps the ungated host Gahook, so
+  // the time-threshold Ultimate and the Get Got stack cap are checked there.
+  const ultimateTrigger = await hostPokeUntilUltimate(roomCode, hostKey, target.key);
+  assert(ultimateTrigger.kind === "ultimate", "Spam for at least 5 seconds should trigger Ultimate Gahook");
+  let snapshot = await state(roomCode, "host", hostKey);
+  let targetState = findPlayer(snapshot, target.name);
+  assert(targetState.pokeCount >= 2, "Expected a spam count after time-threshold Ultimate trigger");
+  assert(targetState.latestPokeKind === "ultimate", "Expected Ultimate Gahook after the spam threshold");
+  assert(targetState.ultimateGahookUntil > snapshot.serverTime, "Ultimate should have an active end time");
+  assert(targetState.ultimateGahookUntil - snapshot.serverTime <= 1200, "Ultimate should last about one second after the latest Gahook");
+  assert(targetState.ultimateGahookStack >= 2, "Ultimate stack should reflect the spam streak");
+
+  const remainingToGetGot = Math.max(1, 50 - targetState.ultimateGahookStack);
+  const getGot = await hostPokeMany(roomCode, hostKey, target.key, remainingToGetGot);
+  assert(getGot.kind === "get-got", "Expected Get Got at Ultimate stack cap");
+  assert(getGot.scorePenalty === 0, "Get Got in the lobby carries no live score penalty");
+  snapshot = await state(roomCode, "host", hostKey);
+  targetState = findPlayer(snapshot, target.name);
+  assert(targetState.latestPokeKind === "get-got", "Latest poke should be Get Got");
+  assert(targetState.pokeCount === 0, "Get Got should reset hidden Gahook counter");
+  assert(targetState.ultimateGahookUntil === 0 && targetState.ultimateGahookStack === 0, "Get Got should clear Ultimate state");
+  assert(targetState.score === 0, "A lobby Get Got must not move the score; only the live-phase penalty does");
+  assert(snapshot.roomPoke?.id && snapshot.roomPoke.kind === "get-got" && snapshot.roomPoke.targetName === target.name, "GET GOT should be published as a room-wide event");
+
   await post("/api/host/lock-setup", { code: roomCode, playerKey: hostKey });
   await post("/api/question", {
     code: roomCode,
@@ -348,7 +375,7 @@ async function runGahookSmoke() {
   await post("/api/player/ready", { code: roomCode, playerKey: sender.key, ready: true });
   await post("/api/host/start", { code: roomCode, playerKey: hostKey });
 
-  let snapshot = await state(roomCode, "host", hostKey);
+  snapshot = await state(roomCode, "host", hostKey);
   assert(snapshot.phase === "reading", "Expected reading phase before Gahook smoke");
 
   const firstRoundPoke = await post("/api/player/round-poke", { code: roomCode, playerKey: sender.key, playerId: target.key });
@@ -365,34 +392,10 @@ async function runGahookSmoke() {
   assert(senderSnapshot.ownGahookUses.questionTargetId === targetPublicId, "Question-wide Gahook use should identify the one target");
   await expectError("/api/player/round-poke", { code: roomCode, playerKey: sender.key, playerId: target.key }, "already used your Gahook");
 
-  await sleep(1250);
-  const ultimateTrigger = await hostPokeUntilUltimate(roomCode, hostKey, target.key);
-  assert(ultimateTrigger.kind === "ultimate", "Spam for at least 5 seconds should trigger Ultimate Gahook");
-  snapshot = await state(roomCode, "host", hostKey);
-  let targetState = findPlayer(snapshot, target.name);
-  assert(targetState.pokeCount >= 2, "Expected a live spam count after time-threshold Ultimate trigger");
-  assert(targetState.latestPokeKind === "ultimate", "Expected Ultimate Gahook after the spam threshold");
-  assert(targetState.ultimateGahookUntil > snapshot.serverTime, "Ultimate should have an active end time");
-  assert(targetState.ultimateGahookUntil - snapshot.serverTime <= 1200, "Ultimate should last about one second after the latest Gahook");
-  assert(targetState.ultimateGahookStack >= 2, "Ultimate stack should reflect the spam streak");
-  const firstUltimateUntil = targetState.ultimateGahookUntil;
-
   await expectError("/api/player/round-poke", { code: roomCode, playerKey: sender.key, playerId: target.key }, "already used your Gahook");
   snapshot = await state(roomCode, "host", hostKey);
   targetState = findPlayer(snapshot, target.name);
-  assert(targetState.ultimateGahookUntil === firstUltimateUntil, "Ultimate state must not bypass the sender's question-wide limit");
-
-  const remainingToGetGot = Math.max(1, 50 - targetState.ultimateGahookStack);
-  const getGot = await hostPokeMany(roomCode, hostKey, target.key, remainingToGetGot);
-  assert(getGot.kind === "get-got", "Expected Get Got at Ultimate stack cap");
-  assert(getGot.scorePenalty === 1000, "Get Got should apply active-game score penalty");
-  snapshot = await state(roomCode, "host", hostKey);
-  targetState = findPlayer(snapshot, target.name);
-  assert(targetState.latestPokeKind === "get-got", "Latest poke should be Get Got");
-  assert(targetState.pokeCount === 0, "Get Got should reset hidden Gahook counter");
-  assert(targetState.ultimateGahookUntil === 0 && targetState.ultimateGahookStack === 0, "Get Got should clear Ultimate state");
-  assert(targetState.score === -1050, "Target should lose one 50-point steal plus the 1000-point GET GOT penalty");
-  assert(snapshot.roomPoke?.id && snapshot.roomPoke.kind === "get-got" && snapshot.roomPoke.targetName === target.name, "GET GOT should be published as a room-wide event");
+  assert(targetState.pokeCount === 1 && targetState.ultimateGahookUntil === 0, "A refused round Gahook must not change the target's Gahook state");
 
   await post("/api/host/start", { code: roomCode, playerKey: hostKey });
   snapshot = await state(roomCode, "host", hostKey);
