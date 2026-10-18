@@ -813,7 +813,9 @@ the client. That is text and client-side, so it suits the local model.
 
 - **Last updated:** 2026-10-19.
 - **Branch:** `agent/skip-while-paused` (from `main` @ `0291d3e`), worktree
-  `gahookz-worktrees/skip-while-paused`. Not merged, not pushed.
+  `gahookz-worktrees/skip-while-paused`. Merged to `main` on 2026-10-19
+  (night-shift orchestrator block, merge `d1c00fe`); backlog line removed on
+  merge. Not pushed.
 - **What changed:** `skipPhase` in `standalone/server.js` now refuses with
   `ok: false` ("Resume the game before skipping.") when `room.paused`, closing
   the backlog item "skipPhase never checks room.paused" (Engineering P1,
@@ -827,8 +829,7 @@ the client. That is text and client-side, so it suits the local model.
   `standalone:smoke:regressions` passes. Evidence:
   [the record](docs/verification/2026-10-19-skip-while-paused/README.md).
 - **Production touched:** no. No deploy, no container changed.
-- **Next exact task:** orchestrator review and merge to `main`; remove the
-  backlog line on merge. Deploy only with Tyson's approval.
+- **Next exact task:** deploy only with Tyson's approval.
 
 ## Appendix A — 20 new educational prompts
 

@@ -28,7 +28,6 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
   somebody runs it. (platform;
   [2026-10-18 dev-watcher record](verification/2026-10-18-dev-watcher/README.md))
 
-- `skipPhase` in `standalone/server.js` never checks `room.paused`, so a host can skip while paused. (game-flow; LEDGER docs-game-a)
 - A disconnected Herd writer blocks Start (Skip or force-start get past it). (game-flow; LEDGER docs-game-a)
 - No install button: `usePwaInstall` in `client/offline.jsx` is exported but used nowhere. (ui-shell; LEDGER docs-core-b)
 - Tested rollback: Option 2 (recreate from a kept image) was rehearsed on beta on
