@@ -57,6 +57,15 @@ const checks = [
   [deployScript.includes("docker compose build --pull gahookz"), "Deployment must explicitly build the current source."],
   [deployScript.includes("--force-recreate"), "Deployment must recreate the container from the current image."],
   [deployScript.includes("running_image") && deployScript.includes("expected_image"), "Deployment must verify the running image."],
+  // The image verification must target the tag Compose actually runs. The
+  // compose default is ${GAHOOKZ_PROD_IMAGE:-gahookz:prod-local}; the deploy
+  // script used to inspect a hard-coded gahookz:local that no longer exists,
+  // so every deploy failed its own final check. These four assertions derive
+  // the compose default and pin the script's fallback to it.
+  [/image:\s*"\$\{GAHOOKZ_PROD_IMAGE:-([^}]+)\}"/.exec(compose)?.[1] === "gahookz:prod-local", "Compose must resolve the production image from GAHOOKZ_PROD_IMAGE with a gahookz:prod-local default."],
+  [deployScript.includes('prod_image="${prod_image:-gahookz:prod-local}"'), "Deployment must fall back to the same production image tag as Compose."],
+  [deployScript.includes("docker image inspect --format '{{.Id}}' \"$prod_image\""), "Deployment must inspect the resolved production image, not a hard-coded tag."],
+  [!deployScript.includes("inspect --format '{{.Id}}' gahookz:local"), "Deployment must not inspect the retired gahookz:local tag."],
   [deployScript.includes('health" == "healthy"'), "Deployment must wait for container health."],
   [server.includes('server.listen(PORT, HOST'), "Server must honor the container bind host."],
   [server.includes('process.once("SIGTERM"'), "Server must handle Docker shutdown."],
