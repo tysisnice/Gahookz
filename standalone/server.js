@@ -21,6 +21,11 @@ import { initialiseArena, tapArena, arenaProgress } from "./server/arena.mjs";
 import { markSseClientSaturated } from "./server/sse-backpressure.mjs";
 import { isHostOnlyRoute } from "./server/route-policy.mjs";
 import { pauseDecision, skipDecision } from "./server/phase-controls.mjs";
+import {
+  cleanQuestionRoundState,
+  recordPlayedQuestionPlays,
+  selectQuestionsForGame } from
+"./server/question-selection.mjs";
 import { createCareerOutbox } from "./server/career-outbox.mjs";
 import { isSyncArtifact } from "./sync-artifacts.mjs";
 import { createAdmissionController, requestAddress } from "./server/admission.mjs";
@@ -130,6 +135,15 @@ const ULTIMATE_CONGRATS_SPAM_IDLE_MS = 1200;
 const ULTIMATE_CONGRATS_MAX_STACK = 50;
 const GET_GOT_SCORE_PENALTY = 1000;
 const GAHOOK_STEAL_POINTS = 50;
+// Gahook spam is timing-sensitive, so the investigation that closed the
+// null-host claim-gate bypass (2026-10-17) needed a trace of every poke and
+// every spam-window decision. Kept behind GAHOOKZ_DEBUG_SPAM, which
+// test-disposable.mjs passes through, and routed through one helper so the
+// structured-logging work has a single seam to replace.
+const DEBUG_GAHOOK = Boolean(process.env.GAHOOKZ_DEBUG_SPAM);
+function debugGahook(tag, fields) {
+  if (DEBUG_GAHOOK) console.log(tag + " " + JSON.stringify(fields));
+}
 const STATE_BROADCAST_MS = 30;
 // The shortest gap allowed between two full fan-outs of one room's state.
 //
@@ -940,14 +954,22 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
       return hostCheck;
     }
     const hostPlayer = getPlayerByCredential(room, room.hostKey);
+    const phaseIsLive = LIVE_GAME_PHASES.includes(room.phase);
+    if (phaseIsLive && !hostPlayer) {
+      debugGahook("HOSTPOKE", { t: Date.now(), phase: room.phase, qIndex: room.game.currentQuestionIndex, claimOk: "n/a (host not joined)" });
+      return { ok: false, error: "Join the game before Gahooking during a round." };
+    }
     let claimKey = "";
-    if (hostPlayer && LIVE_GAME_PHASES.includes(room.phase)) {
+    if (hostPlayer && phaseIsLive) {
       const target = resolvePlayer(room, cleanText(payload?.playerId, 80));
       if (!target || !target.connected) return { ok: false, error: "That player is not connected." };
       if (target.id === hostPlayer.id) return { ok: false, error: "Choose someone else to Gahook." };
       const claim = claimQuestionGahookUse(room, hostPlayer.id, target.id);
+      debugGahook("HOSTPOKE", { t: Date.now(), phase: room.phase, qIndex: room.game.currentQuestionIndex, claimOk: claim.ok, error: claim.ok ? "" : claim.error });
       if (!claim.ok) return claim;
       claimKey = claim.key;
+    } else {
+      debugGahook("HOSTPOKE", { t: Date.now(), phase: room.phase, qIndex: room.game.currentQuestionIndex, claimOk: "n/a (phase not live)" });
     }
     const result = pokePlayer(room, payload, hostPlayer?.name || "Host", { allowPhases: ["lobby", "building", "reading", "answering", "reveal", "finished"], gahookForm: hostPlayer?.gahookForm || "monkey", senderPlayer: hostPlayer });
     if (!result.ok && claimKey) delete room.game.pokeUses[claimKey];
@@ -1761,6 +1783,7 @@ function pokePlayer(room, payload, fromName, options = {}) {
         expiresAt: now + COUNTER_GAHOOK_OFFER_MS
       };
     }
+    debugGahook("SPAMDBG", { t: now, count: spam.count, elapsed: spam.elapsedMs, threshold: spam.thresholdMs, startedAt: player.gahookSpamStartedAt, lastAt: player.lastGahookAt });
     const activeUltimate = (player.ultimateGahookUntil || 0) > now;
     if (activeUltimate) {
       kind = "ultimate";
@@ -3314,6 +3337,9 @@ function makeLobby(code = generateRoomCode()) {
     questions: [],
     pendingQuestions: [],
     quizQuestions: [],
+    // P06 rotation: plays per stable question ID across rematches. Lives on
+    // the room, not the game, so resetLobby keeps it while replacing game.
+    questionPlayCounts: {},
     game: {
       currentQuestionIndex: -1,
       answerOpenedAt: null,
@@ -4319,68 +4345,11 @@ function forceStartGame(room) {
   return { ...fillResult, totalQuestions: room.quizQuestions.length, phase: room.phase };
 }
 
-function cleanQuestionRoundState(question, options = {}) {
-  const {
-    votes: _votes,
-    majorityScored: _majorityScored,
-    majorityResults: _majorityResults,
-    herdScored: _herdScored,
-    herdResults: _herdResults,
-    carriedOver: _carriedOver,
-    ...base
-  } = question;
-  return {
-    ...base,
-    answers: Array.isArray(question.answers) ? question.answers.map((answer) => ({ ...answer })) : [],
-    ...(options.carriedOver ? { carriedOver: true } : {})
-  };
-}
-
-function fairRoundRobinQuestions(candidates, limit, alreadySelected = new Set()) {
-  if (limit <= 0) return [];
-  const byAuthor = new Map();
-  candidates.forEach((question) => {
-    if (alreadySelected.has(question.id)) return;
-    const bucket = byAuthor.get(question.authorId) || [];
-    bucket.push(question);
-    byAuthor.set(question.authorId, bucket);
-  });
-  const authorIds = shuffle([...byAuthor.keys()]);
-  authorIds.forEach((authorId) => byAuthor.set(authorId, shuffle(byAuthor.get(authorId))));
-  const selected = [];
-  let depth = 0;
-  while (selected.length < limit) {
-    let addedAtDepth = false;
-    for (const authorId of authorIds) {
-      const question = byAuthor.get(authorId)?.[depth];
-      if (!question) continue;
-      selected.push(question);
-      alreadySelected.add(question.id);
-      addedAtDepth = true;
-      if (selected.length >= limit) break;
-    }
-    if (!addedAtDepth) break;
-    depth += 1;
-  }
-  return selected;
-}
-
-function selectQuestionsForGame(room, eligiblePlayerIds) {
-  const eligible = new Set(eligiblePlayerIds);
-  const candidates = room.questions.filter((question) => eligible.has(question.authorId) && questionReadyForMode(room, question));
-  const maximumRounds = maximumRoundsForPreset(room);
-  const limit = Number.isFinite(maximumRounds) ? Math.min(maximumRounds, candidates.length) : candidates.length;
-  const selectedIds = new Set();
-  // Questions that missed a previous capped game get first refusal on the rematch.
-  // The round-robin selector still spreads those questions fairly across authors.
-  const carried = fairRoundRobinQuestions(candidates.filter((question) => question.carriedOver), limit, selectedIds);
-  const remaining = fairRoundRobinQuestions(candidates, limit - carried.length, selectedIds);
-  return shuffle([...carried, ...remaining]).map((question) => {
-    const selected = cleanQuestionRoundState(question);
-    applyQuestionScoring(room, selected);
-    return selected;
-  });
-}
+// The selection policy lives in ./server/question-selection.mjs so it can be
+// tested without importing this HTTP server. These are the mode rules it calls
+// back into: which questions are ready, how many rounds a preset allows, and
+// how a selected question's scoring fields are applied.
+const questionSelectionRules = { questionReadyForMode, maximumRoundsForPreset, applyQuestionScoring };
 
 function beginHerdAnswerWriting(room) {
   clearPhaseTimer(room);
@@ -4390,7 +4359,7 @@ function beginHerdAnswerWriting(room) {
     map((player) => player.id));
   room.game.eligiblePlayerIds = eligiblePlayerIds;
   room.game.playedQuestionIds = [];
-  room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds);
+  room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds, questionSelectionRules);
   const plan = buildHerdAssignmentPlan(eligiblePlayerIds, room.quizQuestions);
   room.quizQuestions.forEach((question) => {
     question.answers = (plan.byQuestionId[question.id] || []).map((assignment) => ({
@@ -4431,7 +4400,7 @@ function startGame(room, { preparedQuestions = false } = {}) {
   }
   room.game.playedQuestionIds = [];
   if (!preparedQuestions) {
-    room.quizQuestions = selectQuestionsForGame(room, room.game.eligiblePlayerIds);
+    room.quizQuestions = selectQuestionsForGame(room, room.game.eligiblePlayerIds, questionSelectionRules);
   }
   Object.values(room.players).forEach((player) => {
     clearUltimateGahookState(player, true);
@@ -4525,7 +4494,7 @@ function finishGameNow(room) {
     const eligiblePlayerIds = Array.isArray(room.game.eligiblePlayerIds) ?
       room.game.eligiblePlayerIds :
       Object.values(room.players).filter((player) => player.connected).map((player) => player.id);
-    room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds);
+    room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds, questionSelectionRules);
   }
   room.phase = "finished";
   room.phaseEndsAt = null;
@@ -4831,6 +4800,10 @@ function resetLobby(room, options = {}) {
     player.careerRoundStats = emptyCareerStats();
   });
   const fresh = makeLobby(room.code);
+  // P06 rotation: bank this game's plays against each question's stable ID
+  // before the finished game state is replaced, so the next rematch can
+  // prefer questions and authors that have not had their turn yet.
+  recordPlayedQuestionPlays(room);
   room.phase = options.phase === "building" ? "building" : "lobby";
   room.phaseEndsAt = null;
   room.phaseTimer = null;

@@ -32,6 +32,7 @@ bubble covered a player banner) were invisible to unit tests.
 | `standalone/browser-*.mjs` (6 files) | Real Chromium via Puppeteer |
 | `standalone/load-harness.mjs`, `load-gahook-storm.mjs` | Load measurement as a client |
 | `standalone/drill-resilience.mjs` | Local failure drills |
+| `standalone/drill-dev-restart.mjs` | Proves the development watcher replaces a killed server |
 | `standalone/capture-fixtures.mjs`, `packages/contracts/test/fixtures/` | Synthetic snapshot fixtures |
 | `standalone/verify-postgres-outbox.mjs`, `verify-journal-volume.mjs` | Docker-based checks owned with accounts; never part of `npm test` |
 | `standalone/render-audio-samples.mjs` | Renders sounds for listening (`npm run audio:samples`) |

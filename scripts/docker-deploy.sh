@@ -97,6 +97,11 @@ docker compose config --quiet
 # production on the old code with a broken container beside it.
 prod_port="$(env_value GAHOOKZ_PROD_PORT)"
 prod_port="${prod_port:-3102}"
+
+# Verify the image the Compose file will actually run. compose.yaml resolves
+# the production image as ${GAHOOKZ_PROD_IMAGE:-gahookz:prod-local}; a hard-
+# coded tag here (the old gahookz:local) inspects an image that no longer
+# exists, so the running-image check fails on every deploy.
 prod_image="$(env_value GAHOOKZ_PROD_IMAGE)"
 prod_image="${prod_image:-gahookz:prod-local}"
 owned_container="$(docker compose ps -q gahookz 2>/dev/null || true)"
@@ -135,8 +140,12 @@ if [[ -n "$current_id" && "$DRAIN_WAIT_SECONDS" -gt 0 ]]; then
   if [[ -n "$metrics_token" ]]; then
     echo "Draining: no new rooms will be accepted for up to ${DRAIN_WAIT_SECONDS}s."
     DRAIN_CONTAINER="$current_id"
-    DRAIN_ACTIVE=1
-    drain_request true || echo "WARNING: could not put the running node into drain." >&2
+    if drain_request true; then
+      DRAIN_ACTIVE=1
+    else
+      # Only a drain the node accepted needs cancelling on the way out.
+      echo "WARNING: could not put the running node into drain, so new rooms may still start while this deploy runs. The active-room check below still applies." >&2
+    fi
 
     active="?"
     for _ in $(seq 1 "$DRAIN_WAIT_SECONDS"); do
@@ -176,8 +185,19 @@ if [[ -n "$current_id" && "$DRAIN_WAIT_SECONDS" -gt 0 ]]; then
     fi
   fi
 elif [[ -n "$current_id" ]]; then
-  echo "Replacing production immediately. Active games will end."
-  echo "Set GAHOOKZ_DRAIN_WAIT_SECONDS=300 to let games finish first."
+  # No drain window was asked for. That is the hurried path, so it is also the
+  # one that most needs to refuse: replacing the container ends every game it
+  # is hosting, and "I did not know anyone was playing" is not a good reason.
+  active="$(prod_active_rooms)"
+  if [[ "$active" == "0" ]]; then
+    echo "No rooms are active; replacing production now."
+  elif [[ "$FORCE_REPLACE" == "1" ]]; then
+    echo "Production reports ${active} active room(s); GAHOOKZ_FORCE_REPLACE=1, so replacing anyway. Those games will end." >&2
+  else
+    echo "Production reports ${active} active room(s) and no drain window was set. Production was not replaced." >&2
+    echo "Set GAHOOKZ_DRAIN_WAIT_SECONDS=300 to let games finish first, or GAHOOKZ_FORCE_REPLACE=1 to end them now." >&2
+    exit 1
+  fi
 fi
 
 docker compose up -d --force-recreate --remove-orphans gahookz

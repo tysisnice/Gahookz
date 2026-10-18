@@ -40,6 +40,8 @@ jobs:
         run: npm run test:unit
       - name: Production browser build
         run: npm run build
+      - name: Deploy script decisions (stubbed docker and curl, no containers)
+        run: npm run test:deploy-script
 
       # The build stamps the asset version into index.html, service-worker.js
       # and vendor-bootstrap.js, which are tracked. If rebuilding the committed

@@ -5,9 +5,42 @@ line under **Unreleased**; the orchestrator moves them under a dated heading
 when the work is merged to `main`. Link the wiki page for details instead of
 repeating them here.
 
-## Unreleased — 2026-09-25 update
+## Unreleased — the 2026-09-25 update and later
 
 ### Developer
+- A deploy can no longer end a game nobody agreed to end. `docker-deploy.sh`
+  refuses, instead of warning and proceeding, when rooms are active with no
+  drain window, when the drain wait expires with rooms left, or when it has no
+  token to drain with; an abandoned or interrupted drain is now cancelled, so
+  production cannot be left refusing every new room. It also tags its own
+  rollback image. `npm run test:deploy-script` holds each decision as a case
+  against a stubbed Docker — six of its eight cases fail against the old script
+  ([record](verification/2026-10-18-deploy-safety/README.md)).
+- The development watcher now replaces a server that exits for any reason, not
+  only a crashing one. A clean exit was excluded, so one stray `pkill -f
+  server.js` left `dev.gahookz.com` dead for six days with the container still
+  reporting "Up"; the same kill restarted production and beta twice, ending any
+  games in progress. `scripts/docker-status.sh` now reports every service and
+  exits non-zero on anything unhealthy, `scripts/stop-test-server.sh` stops one
+  test port safely, and `npm run drill:dev-restart` reproduces the outage
+  ([record](verification/2026-10-18-dev-watcher/README.md)).
+- Herd question rotation by stable ID across rematches, with the selection
+  policy extracted to `standalone/server/question-selection.mjs` so it is
+  testable without the HTTP server (P06 step 2), plus nine 2/3/5-player
+  boundary fixtures over real HTTP (`npm run test:herd-boundaries`). The author
+  ordering was fixed on merge: it compared each author's *first-listed*
+  question instead of their least-played one, which decided whose material a
+  capped game dropped.
+- `scripts/docker-deploy.sh` verifies the image Compose will actually run
+  (`GAHOOKZ_PROD_IMAGE`, default `gahookz:prod-local`) instead of the retired
+  hard-coded `gahookz:local`, so the post-deploy image check can pass.
+- A host who created a room but never joined it bypassed the per-question
+  Gahook claim gate during a live round and could spam one player into GET
+  GOT; live-phase host Gahooks now require a joined host, covered by
+  `standalone:smoke:host-poke-claim`
+  ([record](verification/2026-10-18-host-poke-claim/README.md)). This also
+  clears the long-running `smoke-gahooks` time-threshold failure, which was
+  the same defect seen from the test's side.
 - Project divided into eleven [areas](areas/README.md) with an agent
   [profile](agents/README.md) each; parallel agents work in worktrees
   (`scripts/agent-worktree.sh`) and serialise builds with a shared lock.
