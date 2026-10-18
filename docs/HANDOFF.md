@@ -23,8 +23,8 @@ Checked 2026-10-18 15:58 AEDT, straight after the deploy:
 
 | | Revision | Notes |
 | --- | --- | --- |
-| `main` | `74a4899` | Everything below is verified against this |
-| Production (gahookz.com, :3102) | `74a489949e02` | **Matches `main`.** Deployed 2026-10-18, rollback target `gahookz:rollback-prod-20261018-1556` |
+| `main` | `74a4899` plus documentation-only commits | Everything below is verified against `74a4899` |
+| Production (gahookz.com, :3102) | `74a489949e02` | **The code matches `main`.** Deployed 2026-10-18; `main` has only documentation commits since, which cannot change the running server. Rollback target `gahookz:rollback-prod-20261018-1556` |
 | Beta (:3103) | `f15af0b9da5d` | Older by design; used for the rollback rehearsal and restored |
 | Development (:3101) | bind-mounts the Store tree | So dev *is* current |
 
