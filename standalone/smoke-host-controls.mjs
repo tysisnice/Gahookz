@@ -138,4 +138,31 @@ const phaseOf = async (code) => (await request("/api/state", { code, role: "host
   assert.notEqual(pause.data.error, "Server error", "A refusal must never surface as a server fault");
 }
 
+// --- A paused room refuses Skip: the countdown was stopped on purpose. ---
+{
+  const { code, post } = await buildHerdRoom({ writeAnswers: true });
+  assert.equal(await phaseOf(code), "herd-writing");
+  await post("/api/host/start", { playerKey: hostKey });
+  assert.equal(await phaseOf(code), "reading");
+
+  const hold = await request("/api/host/pause", { code, playerKey: hostKey, paused: true });
+  assert.equal(hold.status, 200);
+  assert.equal(hold.data.paused, true);
+
+  const skip = await request("/api/host/skip", { code, playerKey: hostKey });
+  assert.equal(skip.status, 400, "Skip while paused must be refused, not silently accepted");
+  assert.equal(skip.data.ok, false);
+  assert.match(skip.data.error, /\S/, "A refusal must say something the host can act on");
+
+  const held = await request("/api/state", { code, role: "host", playerKey: hostKey });
+  assert.equal(held.data.paused, true, "A refused skip must not resume the room");
+  assert.equal(held.data.phase, "reading", "A refused skip must not advance the phase");
+
+  const resume = await request("/api/host/pause", { code, playerKey: hostKey, paused: false });
+  assert.equal(resume.status, 200);
+  const skipAfterResume = await request("/api/host/skip", { code, playerKey: hostKey });
+  assert.equal(skipAfterResume.status, 200, "Skip works again once resumed");
+  assert.equal(skipAfterResume.data.ok, true);
+}
+
 console.log(JSON.stringify({ ok: true, baseUrl: BASE_URL, pausedPhases: ["reading", "answering", "reveal"], skippedSetupPhase: "herd-writing" }, null, 2));

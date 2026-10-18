@@ -809,6 +809,27 @@ the client. That is text and client-side, so it suits the local model.
   (`docker compose up -d --no-deps --force-recreate gahookz-dev`) because its
   server had been dead for six days.
 
+### Handoff — 2026-10-19 — night-shift block: skip-while-paused fix
+
+- **Last updated:** 2026-10-19.
+- **Branch:** `agent/skip-while-paused` (from `main` @ `0291d3e`), worktree
+  `gahookz-worktrees/skip-while-paused`. Not merged, not pushed.
+- **What changed:** `skipPhase` in `standalone/server.js` now refuses with
+  `ok: false` ("Resume the game before skipping.") when `room.paused`, closing
+  the backlog item "skipPhase never checks room.paused" (Engineering P1,
+  game-flow). The route maps the refusal to HTTP 400, the same shape as the
+  lobby-skip refusal.
+- **Tests:** new paused-skip block in `standalone/smoke-host-controls.mjs`
+  (400 + actionable error while paused; room stays paused and in phase; skip
+  works again after resume).
+- **Verification:** `test:disposable` + `standalone:smoke:host-controls` pass;
+  `npm run test:unit` 239/239; after `npm run build`,
+  `standalone:smoke:regressions` passes. Evidence:
+  [the record](docs/verification/2026-10-19-skip-while-paused/README.md).
+- **Production touched:** no. No deploy, no container changed.
+- **Next exact task:** orchestrator review and merge to `main`; remove the
+  backlog line on merge. Deploy only with Tyson's approval.
+
 ## Appendix A — 20 new educational prompts
 
 Suggested audience: general mixed-age play; easy-to-medium, stable facts. These are additional entries, not a new replacement bank. Store the correct answer by stable option ID, then shuffle all four options per instance. The correct-answer column is content metadata, not a fixed on-screen position. Explanations appear only at the appropriate reveal.
