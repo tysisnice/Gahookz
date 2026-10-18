@@ -8,6 +8,24 @@ repeating them here.
 ## Unreleased — the 2026-09-25 update and later
 
 ### Developer
+- The development watcher now replaces a server that exits for any reason, not
+  only a crashing one. A clean exit was excluded, so one stray `pkill -f
+  server.js` left `dev.gahookz.com` dead for six days with the container still
+  reporting "Up"; the same kill restarted production and beta twice, ending any
+  games in progress. `scripts/docker-status.sh` now reports every service and
+  exits non-zero on anything unhealthy, `scripts/stop-test-server.sh` stops one
+  test port safely, and `npm run drill:dev-restart` reproduces the outage
+  ([record](verification/2026-10-18-dev-watcher/README.md)).
+- Herd question rotation by stable ID across rematches, with the selection
+  policy extracted to `standalone/server/question-selection.mjs` so it is
+  testable without the HTTP server (P06 step 2), plus nine 2/3/5-player
+  boundary fixtures over real HTTP (`npm run test:herd-boundaries`). The author
+  ordering was fixed on merge: it compared each author's *first-listed*
+  question instead of their least-played one, which decided whose material a
+  capped game dropped.
+- `scripts/docker-deploy.sh` verifies the image Compose will actually run
+  (`GAHOOKZ_PROD_IMAGE`, default `gahookz:prod-local`) instead of the retired
+  hard-coded `gahookz:local`, so the post-deploy image check can pass.
 - A host who created a room but never joined it bypassed the per-question
   Gahook claim gate during a live round and could spam one player into GET
   GOT; live-phase host Gahooks now require a joined host, covered by

@@ -21,8 +21,14 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Engineering P1
 
+- Nothing notices an unhealthy container between sessions: Docker does not
+  restart on a failing health check, and no alert exists. A development
+  container sat up-but-dead for six days in October.
+  `scripts/docker-status.sh` now reports it and exits non-zero, but only when
+  somebody runs it. (platform;
+  [2026-10-18 dev-watcher record](verification/2026-10-18-dev-watcher/README.md))
+
 - `docker-deploy.sh` replaces production anyway when `GAHOOKZ_METRICS_TOKEN` is missing or the drain wait expires, and an abort mid-wait leaves production draining. (platform; LEDGER docs-runbook, `scripts/docker-deploy.sh`)
-- `docker-deploy.sh` checks the running image against `gahookz:local` while compose defaults production to `gahookz:prod-local`. (platform; [platform](areas/platform.md))
 - `skipPhase` in `standalone/server.js` never checks `room.paused`, so a host can skip while paused. (game-flow; LEDGER docs-game-a)
 - A disconnected Herd writer blocks Start (Skip or force-start get past it). (game-flow; LEDGER docs-game-a)
 - No install button: `usePwaInstall` in `client/offline.jsx` is exported but used nowhere. (ui-shell; LEDGER docs-core-b)
@@ -97,6 +103,16 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Resume the separate Arena project once the update is verified on `main` (priority set 2026-10-04). (arena; LEDGER)
 
 ## Checked and closed
+
+- `dev.gahookz.com` dead for six days behind an "Up" container, and production
+  and beta restarted twice by a host-side `pkill -f server.js`: the watcher now
+  replaces any server that goes away, `scripts/docker-status.sh` covers every
+  service, and `scripts/stop-test-server.sh` is the safe way to stop a test
+  server (2026-10-18,
+  [record](verification/2026-10-18-dev-watcher/README.md)).
+- `docker-deploy.sh` checked the running image against `gahookz:local` while
+  compose defaults production to `gahookz:prod-local`: fixed 2026-10-18, with
+  four offline checks in `smoke-deployment`.
 
 - A host who created a room but never joined it could Gahook a live round
   without the per-question claim gate, up to GET GOT: fixed 2026-10-18

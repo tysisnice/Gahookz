@@ -40,9 +40,13 @@ either live players or the product.
    or public IP addresses in the repository or in any tracked document. Record
    *where* a secret lives, never the secret.
 5. **Never `pkill` by pattern to stop a test server.** `pkill -f server.js`
-   matches the live production and development containers. Find the listener
-   instead:
-   `ss -lptnH "sport = :3199" | grep -oP 'pid=\K[0-9]+'`
+   matches the live production, beta and development containers, because the
+   host sees the processes inside them. This has already happened twice — on
+   2026-10-12 and 2026-10-13 it restarted production and beta and left
+   `dev.gahookz.com` dead for six days
+   ([record](docs/verification/2026-10-18-dev-watcher/README.md)). Use:
+   `bash scripts/stop-test-server.sh 3199`, which stops only that port's
+   listener and refuses any port a container publishes.
 
 ## The one fact that explains most of the design
 

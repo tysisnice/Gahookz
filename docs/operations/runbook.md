@@ -118,9 +118,16 @@ bash scripts/agent-worktree.sh --reuse <name>    # attach an existing agent/<nam
 
 ### Run the checks
 
-Every build or test holds one shared lock: the machine has two cores and runs the
-live game. Use Node 24; some shells put a newer Node first on `PATH`, and a
-timing-sensitive smoke has failed under Node 26 and passed under 24.
+Every build or test holds one shared lock, because the machine also runs the live
+game. The laptop has twelve cores and 15 GB as of 2026-10-18 — the "two cores, so
+tests time out here" advice in older documents is stale, and the full matrix runs
+in about four minutes.
+
+Check which Node you have before trusting a timing-sensitive result: the Docker
+image and CI are Node 24, the laptop's system Node is **22**, and a
+timing-sensitive smoke has failed under Node 26 and passed under 24. Nothing has
+failed under 22 so far, but a disagreement between local and CI is the first
+thing to suspect.
 
 ```bash
 cd ~/gahookz-agent-worktrees/<name>
@@ -137,9 +144,12 @@ flock /tmp/gahookz-verify.lock npm run docs:check
 - Run the stateful batches one after another. Never start a server by hand, and never
   wrap `npm test` in `test:disposable`: it manages its own servers.
 - `test:disposable` refuses an occupied port 3199; leave unfamiliar listeners alone. To
-  stop a stray test server of your own, find its pid with
-  `ss -lptnH "sport = :3199" | grep -oP 'pid=\K[0-9]+'`. Never `pkill -f server.js`: that
-  pattern matches the live containers.
+  stop a stray test server of your own, run `bash scripts/stop-test-server.sh 3199`:
+  it stops that one listener and refuses any port a container publishes. Never
+  `pkill -f server.js` — that pattern matches the live containers, and on
+  2026-10-12 and 2026-10-13 it restarted production and beta and left
+  `dev.gahookz.com` dead for six days
+  ([record](../verification/2026-10-18-dev-watcher/README.md)).
 - A build rewrites three tracked shell files (`index.html`, `service-worker.js`,
   `vendor-bootstrap.js`); commit them after the final build or CI fails. Generated `.js`
   files are gitignored; remove them with `npm run clean:generated`.
