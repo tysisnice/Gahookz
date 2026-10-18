@@ -62,12 +62,17 @@ export function fairRoundRobinQuestions(room, candidates, limit, alreadySelected
   // equal play counts — they can no longer re-pick a played question over a
   // never-played one.
   const byPlayCount = (a, b) => playCount(room, a) - playCount(room, b);
-  const authorIds = shuffle([...byAuthor.keys()]).sort((a, b) => {
-    const bucketA = byAuthor.get(a);
-    const bucketB = byAuthor.get(b);
-    return byPlayCount(bucketA[0], bucketB[0]);
-  });
-  authorIds.forEach((authorId) => byAuthor.set(authorId, shuffle(byAuthor.get(authorId)).sort(byPlayCount)));
+  // Sort each author's bucket before ordering the authors: the author
+  // comparison below reads bucket[0] as "this author's least-played
+  // question", which is only true once the bucket itself is sorted. Sorting
+  // the authors first compared whichever question happened to be listed
+  // first, so a capped game could drop an author's never-played question in
+  // favour of someone else's twice-played one.
+  for (const [authorId, bucket] of byAuthor) {
+    byAuthor.set(authorId, shuffle(bucket).sort(byPlayCount));
+  }
+  const authorIds = shuffle([...byAuthor.keys()]).
+    sort((a, b) => byPlayCount(byAuthor.get(a)[0], byAuthor.get(b)[0]));
   const selected = [];
   let depth = 0;
   while (selected.length < limit) {

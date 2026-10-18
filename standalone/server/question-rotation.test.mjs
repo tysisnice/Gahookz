@@ -165,3 +165,22 @@ test("fairRoundRobinQuestions orders an author's bucket by play count", () => {
   assert.equal(selected[1].id, "q3");
   assert.equal(selected[2].id, "q2");
 });
+
+test("the author who goes first is the one whose least-played question is least played", () => {
+  // A capped game cuts the round-robin off part-way through the author list,
+  // so author order decides whose material is dropped. Author A's first
+  // *listed* question is the most played of all, but A also owns the only
+  // never-played question in the room; author B's single question has been
+  // played twice. With a cap of one round, A's fresh question must win.
+  const questions = [quizQuestion("a1", "A"), quizQuestion("a2", "A"), quizQuestion("b1", "B")];
+  const room = makeRoom(questions);
+  room.roundCap = 1;
+  room.questionPlayCounts.a1 = 5;
+  room.questionPlayCounts.b1 = 2;
+  for (let attempt = 0; attempt < 25; attempt += 1) {
+    const selected = selectQuestionsForGame(room, room.eligiblePlayerIds, rules);
+    assert.equal(selected.length, 1, "The cap still selects exactly one question");
+    assert.equal(selected[0].id, "a2",
+      "Attempt " + (attempt + 1) + ": the never-played question must be chosen over a twice-played one");
+  }
+});
