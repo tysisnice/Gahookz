@@ -4731,6 +4731,12 @@ function setGamePaused(room, payload) {
 }
 
 function skipPhase(room) {
+  // A paused room is waiting for the host to resume it, not for its phase to
+  // end. Skipping while paused jumped straight over the countdown the host
+  // had deliberately stopped (docs/backlog.md, game-flow).
+  if (room.paused) {
+    return { ok: false, error: "Resume the game before skipping." };
+  }
   // The phase table lives in ./server/phase-controls.mjs so that "which phases
   // can be skipped" is testable on its own and cannot drift apart from
   // LIVE_GAME_PHASES, which answers a different question (who may Gahook).
