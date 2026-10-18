@@ -1,6 +1,8 @@
 # Verification — skip while paused (2026-10-19, night-shift block)
 
-Branch: `agent/skip-while-paused` (from `main` @ `0291d3e`). Not merged, not pushed.
+Branch: `agent/skip-while-paused` (from `main` @ `0291d3e`). Merged to `main`
+on 2026-10-19 (night-shift orchestrator block, merge `d1c00fe`); backlog line
+removed (`b6e1f3c`). Not pushed.
 
 ## Defect
 
@@ -38,5 +40,6 @@ bind-mount was not running during the block.
 
 ## Next step
 
-Orchestrator review, then merge to `main` and remove the backlog line on merge.
-Deploy only with Tyson's approval.
+Merged to `main` and re-verified there (`test:unit` 239/239;
+`standalone:smoke:host-controls` via disposable server, 2026-10-19). Deploy
+only with Tyson's approval.
