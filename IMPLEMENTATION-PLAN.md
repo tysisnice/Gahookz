@@ -717,6 +717,98 @@ Production touched: no / explicitly authorised action and evidence
 - Human playtest availability and production/infrastructure authority are future gates, not reasons to fabricate completion or skip independent local work.
 - Production touched by this planning session: **no**.
 
+### Handoff — 2026-10-11 to 2026-10-12 — night-shift blocks (folded in from the vault copy)
+
+These three blocks were logged only in the vault copy of this plan
+(`/Vault/Assistant/Projects/Gahookz/IMPLEMENTATION-PLAN.md`), which had
+diverged from this file. The repository copy is canonical from 2026-10-18; the
+vault copy is now a pointer. Facts, as recorded there and re-checked against
+the branches:
+
+- **2026-10-11 — deploy image-tag regression (`PLAN-PROGRESS.md` "Next work"
+  item 1), branch `agent/deploy-image-verify-2` (`1bb1f3f`).**
+  `scripts/docker-deploy.sh` resolves the production image from
+  `GAHOOKZ_PROD_IMAGE` (default `gahookz:prod-local`) instead of the retired
+  hard-coded `gahookz:local`; `.env.example` documents it; four offline checks
+  added to `smoke-deployment.mjs`, verified non-vacuous by restoring the old
+  script. **Merged to `main` 2026-10-18.**
+  The same block recorded that the 2026-10-10 branches
+  `agent/deploy-image-verify` (`56ab8e5`) and `agent/pg-outbox-probe`
+  (`5675f34`) **no longer exist** — their worktrees were pruned and the commits
+  are unrecoverable from this repository. Item 1 was redone from `main`; the
+  2026-10-10 TCP-loopback variant of the PostgreSQL probe, which avoided the
+  SELinux socket-cleanup failure, must be rebuilt if it is wanted.
+- **2026-10-11 — P06 step 2, author/question rotation by stable ID, branch
+  `agent/herd-author-rotation` (`20959e4`).** Selection policy moved from
+  `server.js` into `standalone/server/question-selection.mjs`, with the mode
+  rules injected as `questionSelectionRules`; new cross-rematch
+  `room.questionPlayCounts`, banked by `recordPlayedQuestionPlays` in
+  `resetLobby` (never at selection time, because Herd re-selects mid-game);
+  round-robin now orders by play count with the old shuffles as tie-breakers.
+  Five unit tests; non-vacuity shown by the old selector re-picking a played
+  question in 141/200 trials. **Merged to `main` 2026-10-18 with one defect
+  fixed on the way in** (`e1ae787`): the author list was sorted before each
+  author's bucket was, so it compared each author's *first-listed* question
+  rather than their least-played one — which is what decides whose material a
+  capped game drops.
+- **2026-10-12 — P06 acceptance, 2/3/5-player boundary fixtures, branch
+  `agent/herd-boundary-fixtures` (`45b1ac8`).** New
+  `standalone/simulate-herd-boundaries.mjs` and `npm run test:herd-boundaries`:
+  nine games over real HTTP (2, 3, 5 players × Quick/Full/Custom) asserting
+  honest round counts, fair writing load (spread ≤ 1), `min(4, players)`
+  answers per question, no voter left without a legal not-own answer, and every
+  own-answer vote refused with a matching `ownAnswer` marking. Documented
+  boundary shape: 2- and 3-player rooms cannot exclude the author (capacity <
+  answers per question); 5 players is the first size where author exclusion
+  engages. **Merged to `main` 2026-10-18.**
+- **Tooling note from those blocks:** `~/.local/bin/opencode` is a broken
+  symlink (`~/.opencode/bin` is gone), so the coder hub was unavailable and the
+  blocks built the work directly. Reinstall before relying on coder blocks.
+
+**Still open from P06 step 2:** honest waiting/duration/carryover status copy in
+the client. That is text and client-side, so it suits the local model.
+
+### Handoff — 2026-10-18 — merge session: security fix, rotation, dev watcher
+
+- **Last updated:** 2026-10-18.
+- **Current stage and completed numbered steps:** no stage newly complete. P06
+  step 2 advanced (rotation and boundary coverage merged; status copy
+  outstanding). The rest of the ledger is unchanged — see `PLAN-PROGRESS.md`.
+- **Revision:** `main` moved `fa830fa` → the merges below; working tree clean.
+- **Files changed and why:**
+  - `standalone/server.js`: live-phase `/api/host/poke` now requires a joined
+    host, closing a claim-gate bypass that let an unjoined host spam one player
+    into GET GOT during a round; `GAHOOKZ_DEBUG_SPAM` tracing routed through one
+    `debugGahook()` helper.
+  - `standalone/smoke-host-poke-claim.mjs` (new, in the shared chain): the
+    regression test for both halves of that gate.
+  - `standalone/server/question-selection.mjs`, `question-rotation.test.mjs`,
+    `simulate-herd-boundaries.mjs`: the P06 work above, plus the author-ordering
+    fix and its test.
+  - `standalone/dev-supervisor.mjs`, `dev.mjs`, `drill-dev-restart.mjs`,
+    `scripts/docker-status.sh`, `scripts/stop-test-server.sh`: the development
+    outage repair — see
+    [the record](docs/verification/2026-10-18-dev-watcher/README.md).
+- **Tests run:** `npm run check` (typecheck, 233 unit tests, build); `npm test`
+  (shared smoke chain, 25 scripts, 15,000 seeded games); `test:disposable` for
+  `test:herd-boundaries` (9 games) and `test:rooms` (12 games);
+  `npm run drill:dev-restart`; `npm run docs:check`. All green on the merged
+  tree. Browser suites not re-run this session.
+- **Decisions changed from this plan:** none. Two findings were recorded rather
+  than acted on: live-phase GET GOT is unreachable, so its −1,000 penalty can
+  never be charged (owner decision, in `docs/backlog.md`), and the 2026-10-12
+  and 2026-10-13 production restarts were caused by a host-side
+  `pkill -f server.js`, not by a deploy.
+- **Known regressions or external gates:** none introduced. The long-standing
+  `standalone:smoke:gahooks` failure is fixed, not suppressed.
+- **Next exact task:** finish `agent/deploy-safety` (stub test, runbook section
+  4, the Compose single-project correction), rehearse a rollback on beta, then
+  deploy production — which is 28 commits and ten days behind `main`.
+- **Production touched:** **no.** No image built, no production or beta
+  container changed. The **development** container was recreated by name
+  (`docker compose up -d --no-deps --force-recreate gahookz-dev`) because its
+  server had been dead for six days.
+
 ## Appendix A — 20 new educational prompts
 
 Suggested audience: general mixed-age play; easy-to-medium, stable facts. These are additional entries, not a new replacement bank. Store the correct answer by stable option ID, then shuffle all four options per instance. The correct-answer column is content metadata, not a fixed on-screen position. Explanations appear only at the appropriate reveal.
