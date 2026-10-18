@@ -1,153 +1,163 @@
 # Handoff — state of the project
 
-**Written 2026-10-10 by Claude Code (orchestrator session of 7–9 October).**
-Read this, then [`CLAUDE.md`](../CLAUDE.md) and the ledger in
-[`docs/plans/2026-09-25-update.md`](plans/2026-09-25-update.md). This file is the
-short version: where the project stands, what is half-finished, and what to do
-next. The ledger is the detailed history; the backlog is
-[`docs/backlog.md`](backlog.md).
+**Written 2026-10-18 by Claude Code (executor session).** Read this, then
+[`CLAUDE.md`](../CLAUDE.md). This is the short version: where things stand, what
+is half-finished, what to do next. The detailed history is
+[`docs/history.md`](history.md) and the ledger in
+[`IMPLEMENTATION-PLAN.md`](../IMPLEMENTATION-PLAN.md) section 8; the live list of
+open work is [`docs/backlog.md`](backlog.md).
 
 ## In one paragraph
 
-Tyson's 25 September update is **built, merged, verified and pushed**: `main` is
-`976627e`, every suite passes, and `npm run docs:check` is clean. The follow-up
-batch he approved on 9 October (make deploys safe, then a small bug batch) was
-**started and stopped at a usage limit**; both halves are saved as WIP branches
-that are not verified and not merged. **Production is running older code than
-`main`, from a tree that had uncommitted changes** — see below, it is the most
-important thing on this page.
+`main` is `74a4899` and **production runs it** — the 48-commit gap that the
+previous handoff led with is closed. Everything Tyson asked for on 8 October is
+live, along with a host-Gahook security fix, the Herd rotation work, and the
+development-watcher repair. Every suite passes on the laptop, including the four
+browser suites, which could not run here until Chromium was installed. The
+rollback plan has been rehearsed for the first time. One WIP branch remains
+(`agent/small-fixes`) and two decisions are waiting on Tyson.
 
-## The live services do not match `main`
+## The live services
 
-Checked 2026-10-10 20:43 AEDT:
+Checked 2026-10-18 15:58 AEDT, straight after the deploy:
 
 | | Revision | Notes |
 | --- | --- | --- |
-| `main` | `976627e` | Everything below is verified against this |
-| Production (gahookz.com, :3102) | `abc6392241ce-dirty` | An **ancestor of `main`, 28 commits behind**, built 2026-10-08 23:59 from a tree with uncommitted changes |
-| Beta (:3103) | `f15af0b9da5d` | Older still |
+| `main` | `74a4899` | Everything below is verified against this |
+| Production (gahookz.com, :3102) | `74a489949e02` | **Matches `main`.** Deployed 2026-10-18, rollback target `gahookz:rollback-prod-20261018-1556` |
+| Beta (:3103) | `f15af0b9da5d` | Older by design; used for the rollback rehearsal and restored |
 | Development (:3101) | bind-mounts the Store tree | So dev *is* current |
 
-Production therefore **does not have** the work Tyson asked for on 8 October:
-Classic Quiz showing picks again, Gahook effects Off/Mini, the Report button and
-host Reports list, image-only Herd answers, chat and painting during Herd
-writing, the narrower lobby column, the own-answer tile fix, or the Herd
-moderation fix. Dev has all of it.
+All three run under the **one** Compose project `gahookz-prod`, so a bare
+`docker compose up -d` in the repository recreates production too. Always name
+the service and pass `--no-deps`.
 
-I did not deploy and did not build that image; the session's permission settings
-refuse production deploys. Whoever deploys next should read
-[the runbook, section 4](operations/runbook.md#4-deploy-only-when-tyson-asks)
-first — **ideally after merging `agent/deploy-safety`**, which exists precisely
-because the current script can end live games.
+## What happened on 2026-10-18
 
-### Compose projects changed on 10 October
+Five branches that had been sitting unmerged since 11–17 October were verified
+and merged, two defects were found on the way in, and a six-day outage was
+found and fixed. Each has a record under `docs/verification/`:
 
-At about 13:31 AEDT on 2026-10-10 all three services were recreated under the
-**single Compose project `gahookz-prod`** (`docker compose ls` shows
-`gahookz-prod running(3)`), working directory
-`/mnt/storage/syncthing/Store/Projects/gahookz`, with
-`COMPOSE_PROJECT_NAME=gahookz-prod` in that folder's `.env`. Until then dev and
-beta ran under the separate project `gahookz`. Container names are now
-`gahookz-prod-gahookz-1` (production), `gahookz-prod-gahookz-beta-1`,
-`gahookz-prod-gahookz-dev-1`.
-
-**The hazard:** with one project and one `.env`, a bare `docker compose up -d`
-in that directory brings up *all three*, production included. Documents that
-describe two projects (`CLAUDE.md`, `SERVER-COMMANDS.md`, parts of the runbook)
-are now out of date and should be corrected. I did not change any container.
+- **[Host Gahook claim gate](verification/2026-10-18-host-poke-claim/README.md)** —
+  a host who created a room but never joined it could Gahook a live round
+  without the per-question limit, up to GET GOT. Fixed, with a regression smoke.
+  This was also the cause of the long-running `smoke-gahooks` failure.
+- **[The development watcher](verification/2026-10-18-dev-watcher/README.md)** —
+  `dev.gahookz.com` had been dead for six days behind a container reporting
+  "Up", because the watcher would not restart a server that exited *cleanly*.
+  The trigger was a host-side `pkill -f server.js` that also restarted
+  production and beta twice, ending any games in progress. Fixed three ways:
+  the watcher, `scripts/docker-status.sh` (it only ever looked at production),
+  and `scripts/stop-test-server.sh` as the safe way to stop a test server.
+- **[Deploy safety](verification/2026-10-18-deploy-safety/README.md)** — the
+  deploy script refuses, rather than warns and proceeds, wherever it would end
+  a game nobody agreed to end, and cancels an abandoned drain.
+  `npm run test:deploy-script` holds each decision against a stubbed Docker.
+- **[Rollback rehearsal](verification/2026-10-18-rollback-rehearsal/README.md)** —
+  Option 2 works on beta. It also showed that the 2026-10-02 rollback images
+  report `revision: unknown`, so a rolled-back service must be identified by
+  image tag and `builtAt`.
+- **[The deploy itself](verification/2026-10-18-deploy/README.md)**.
+- **Herd rotation (P06 step 2)** — questions and authors now rotate by stable
+  ID across rematches, with nine 2/3/5-player boundary fixtures
+  (`npm run test:herd-boundaries`). The author ordering was wrong in the branch
+  and is fixed (`e1ae787`).
 
 ## Half-finished work
 
-Both branches are pushed to the Store repository and exist on the desktop.
-Neither is verified; neither is merged. Resume each in its own worktree.
+### `agent/small-fixes` — WIP `7e629d1`, 3 commits behind `main`
 
-### `agent/deploy-safety` — WIP `58e8ba6`
+**Done in the diff** (unverified): skipping while paused is refused server-side
+and the Skip button is disabled with a tooltip; a disconnected Herd writer no
+longer blocks Start, via `fillUnwrittenHerdAnswers`, with `smoke-host-controls`
+extended.
 
-Hardening `scripts/docker-deploy.sh` so a deploy can never silently end games.
-**Appears done in the diff** (unverified): reads `activeRooms` from
-`/api/health` and refuses without the metrics token; `trap`s that cancel the
-drain on exit/interrupt; `GAHOOKZ_FORCE_REPLACE=1` escape hatch; uses
-`GAHOOKZ_PROD_IMAGE` (default `gahookz:prod-local`) for the post-deploy image
-check instead of the wrong `gahookz:local`; auto-tags
-`gahookz:rollback-prod-<date>`; the five missing names added to `.env.example`;
-`engines.node` raised to `>=24`.
-**Still to do:** `scripts/docker-deploy.test.sh` (the stubbed `docker`/`curl`
-test — not written); update runbook section 4 and `docs/areas/platform.md`;
-run `bash -n`, the stub test and `npm run check`. Also fold in the Compose
-single-project change above.
+**Not started:** install-app menu item (`usePwaInstall` in `client/offline.jsx`
+is exported and unused); removing non-chat subjects from the host Reports list
+(note `herd-answer` removal now needs `questionId`); host-away notice
+overlapping the lobby banner; `/host` and `/play` routes being read as room
+codes; `client/legal.js` missing from `SHELL_ASSETS`; an in-room link to
+`/information`.
 
-### `agent/small-fixes` — WIP `7e629d1`
+One improvement to make while finishing it: the `room.paused` check it adds sits
+in `skipPhase` in `server.js`, but `standalone/server/phase-controls.mjs` exists
+precisely to hold that policy where it can be tested without a room. Move it
+into `skipDecision(phase, { paused })` with a test.
 
-**Done in the diff** (unverified): item 1, skipping while paused is refused
-server-side and the Skip button is disabled with a tooltip; item 2, a
-disconnected Herd writer no longer blocks Start (`fillUnwrittenHerdAnswers`
-fills only absent writers' answers, the same way force-start does), with
-`smoke-host-controls` extended.
-**Not started:** install-app menu item (`usePwaInstall`); removing non-chat
-subjects from the host Reports list (note `herd-answer` removal now needs
-`questionId`); host-away notice overlapping the lobby banner; `/host` and
-`/play` routes; `client/legal.js` missing from `SHELL_ASSETS`; an in-room link
-to `/information`. The full brief is in the ledger's *Next step*.
+## What to do next
 
-## What to do next, in Tyson's order
-
-1. Finish and merge **`agent/deploy-safety`**; correct the Compose-project
-   documents while you are there.
-2. **Rehearse a rollback on beta** (runbook section 5, Option 2, with
-   `gahookz:rollback-beta-20261002`), then restore beta. Nobody has ever tested
-   a rollback.
-3. **Deploy production** — Tyson approved this on 8 October ("deploy whenever").
-   Tag a rollback image first; the hardened script does it for you.
-4. Finish **`agent/small-fixes`** and run the full matrix.
-5. Then the rest of [`docs/backlog.md`](backlog.md): splitting `server.js`
-   (~5,600 lines), `app.jsx` (~5,500) and `styles.css` (~11,500) is the item
-   that most slows everything else down; see
+1. Finish **`agent/small-fixes`** and run the full matrix.
+2. **The two owner decisions below** block nothing but shape what comes next.
+3. **Split the monoliths.** `server.js` (5,650 lines), `app.jsx` (5,496),
+   `styles.css` (11,414) are the item that most slows everything else down.
+   `standalone/server/question-selection.mjs` is the pattern that works:
+   extract a vertical slice, inject the rules it needs, unit test it. The
+   Gahook subsystem (`pokePlayer`, the spam window, Ultimate, GET GOT, counter
+   Gahooks, the duel) is the most self-contained next candidate. See
    [the TypeScript plan](plans/typescript-migration.md).
+4. Then the rest of [`docs/backlog.md`](backlog.md).
 
-Open questions for Tyson live in the vault, not here:
-`Store/Gahookz questions.md`, `Store/Gahookz decisions explained.md` and
-`Store/Gahookz todo for Tyson.md`.
+## Waiting on Tyson
 
-## How to verify (desktop)
+- **GET GOT is unreachable in a live round** and its −1,000 penalty can
+  therefore never be charged, while the lobby rules advertise it to players.
+  Decide: drop the penalty and the copy, let the Ultimate stack persist across
+  questions so a room ganging up over a game can land it, or leave it.
+- **Node version.** `package.json` allows `>=20`, CI and Docker run 24, this
+  laptop runs 22. Install Node 24 on the laptop and raise the floor, or keep
+  `>=20` and accept that local verification and CI differ.
+- Plus the longer-standing ones in the backlog's *Owner decisions* section:
+  accounts, audience and monetisation, the Herd author-points denominator.
 
-The laptop has two cores and runs the live game; tests time out there. Since
-2026-10-07 agent work runs on Tyson's desktop, which reaches the laptop over the
-direct cable as `ssh haukeye-laptop`:
+Two operational suggestions, neither urgent:
 
-- Orchestrator checkout `~/gahookz-dev` (remote `laptop`; `origin` is GitHub,
-  pushing disabled); worktrees `~/gahookz-agent-worktrees/<name>`.
-- Node 24 at `~/.local/opt/node-v24.13.1-linux-x64/bin` — put it first on
-  `PATH`, the desktop's system Node is 22.
-- Shared agent rules: `~/gahookz-agent-rules.md`. Screenshots Tyson sent:
-  `~/gahookz-screenshots/`.
-- Merge on the desktop → push to the laptop as `agent/orchestrator` →
-  fast-forward the Store repository → push GitHub `main` from the laptop.
-- Full matrix: `npm run check`, `npm test`, then `test:disposable` for
-  `test:rooms`, `test:browser`, `test:browser:desktop-ui`, `mobile`,
-  `navigation`, `herd-writing`, `herd-report`, `audio`, `arena`. Plus
-  `npm run docs:check`.
+- **`GAHOOKZ_METRICS_TOKEN` is not set in `.env`**, so no deploy can drain.
+  Today's deploy was safe because the hardened script checks `activeRooms` and
+  refuses if anyone is playing — but a graceful drain needs the token, and it
+  only takes effect on the deploy *after* it is added.
+- **Nothing watches health between sessions.** Docker will not restart an
+  unhealthy container. `scripts/docker-status.sh` now reports every service and
+  exits non-zero, which is enough for a small timer to call and report through
+  Hermes.
 
-**Never edit `~/Documents/Sync/Store` on the desktop** — it is the Syncthing
-copy of the live tree, and dev reloads from it.
+## How to verify (this laptop)
 
-## Traps that cost this session time
+The previous handoff said tests time out here and must run on the desktop. That
+is stale: this machine has twelve cores and 15 GB, and the full matrix takes
+about four minutes.
 
+```bash
+cd /mnt/storage/syncthing/Store/Projects/gahookz
+npm run check                    # typecheck, unit tests, build
+npm test                         # shared smoke chain, owns its own servers
+npm run test:deploy-script       # deploy decisions, stubbed docker, no containers
+npm run test:disposable -- npm run test:rooms
+npm run test:disposable -- npm run test:herd-boundaries
+npm run test:disposable -- npm run test:browser          # and :navigation, :mobile, :herd-writing
+npm run docs:check
+```
+
+Chromium for the browser suites lives in `~/.cache/puppeteer` (installed
+2026-10-18 with `npx puppeteer browsers install chrome`); without it every
+browser suite fails at launch rather than failing a check.
+
+## Traps that have already caught someone
+
+- **`pkill -f server.js` reaches inside the containers.** It has taken
+  production down twice. Use `bash scripts/stop-test-server.sh 3199`.
+- **One Compose project.** Name the service and pass `--no-deps`.
 - **`styles.css` merges.** Two branches appending rules conflict, and a
   union-merge once dropped a closing brace, silently disabling every rule after
-  it. There is now a test that every stylesheet closes its braces — keep it.
+  it. There is a test that every stylesheet closes its braces — keep it.
 - **The three stamped shell files** (`index.html`, `service-worker.js`,
   `vendor-bootstrap.js`) conflict on nearly every merge. Resolve with
-  `git checkout --theirs` then `npm run build`, never by hand. The laptop's dev
-  container rewrites them in the Store tree, so `git checkout --` them there
-  before a fast-forward.
-- **`node_modules` is a symlink in worktrees.** Never `git add -A`; never
-  `npm ci` inside a worktree (it once broke every agent's tests at once).
-- **Browser suites overwrite dated evidence.** `git checkout --
-  docs/verification/2026-09-19-*` before committing.
-- **Two orchestrators at once.** On 8 October a laptop session and this one
-  built the same feature twice. Check `pgrep -af claude` on the laptop and
-  `git log` on both sides before starting.
-- **The laptop's 8 TB USB drive disconnected** on 2026-10-08 17:58 and came
-  back as a different device; the dev container kept the dead mount and served
-  a white screen until it was restarted. If dev 404s everything, check
-  `docker exec … ls standalone/public` for I/O errors first.
+  `git checkout --theirs` then `npm run build`, never by hand.
+- **`node_modules` is a symlink in worktrees.** Never `git add -A` blindly;
+  never `npm ci` inside a worktree.
+- **Browser suites can overwrite dated evidence.** Check `git status` before
+  committing and restore dated folders.
+- **Two orchestrators at once.** On 8 October two sessions built the same
+  feature twice. Check `pgrep -af claude` and `git log` before starting.
+- **Keep progress in the repository, not the vault.** A vault copy of the plan
+  drifted from this one and two finished branches were lost because nothing
+  here recorded them. The vault file is now a pointer.

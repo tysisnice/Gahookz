@@ -5,7 +5,11 @@ line under **Unreleased**; the orchestrator moves them under a dated heading
 when the work is merged to `main`. Link the wiki page for details instead of
 repeating them here.
 
-## Unreleased — the 2026-09-25 update and later
+## 2026-10-18 — deployed to gahookz.com as revision `74a489949e02`
+
+Everything below went live in [that deploy](verification/2026-10-18-deploy/README.md),
+which closed a 48-commit gap between production and `main`. Add new entries under a
+fresh **Unreleased** heading above this one.
 
 ### Developer
 - The rollback plan is no longer theoretical: Option 2 was rehearsed on beta,
