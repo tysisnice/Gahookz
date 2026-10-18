@@ -82,6 +82,13 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Owner decisions
 
+- GET GOT is unreachable in a live round: every sender has one Gahook per
+  question, a 50-Gahook Ultimate streak needs gaps under 1.2 s, and the room
+  cap is 32 — so the −1,000 penalty `applyGetGot` charges only in live phases
+  can never be charged, while the lobby rules still advertise it to players.
+  Decide: drop the live penalty and the copy, let the Ultimate stack persist
+  across questions so a party ganging up over a game can land it, or leave it.
+  (game-flow; [2026-10-18 host-poke claim record](verification/2026-10-18-host-poke-claim/README.md))
 - Herd author-points denominator: with self-votes refused an author reaches at most (n-1)/n of the maximum; change needs before/after fixtures. (game-flow; OPS section 10)
 - Is `/information` public product content or an internal report? (ui-shell; OPS section 10, [internal-reports](product/internal-reports.md))
 - Legal review of `/legal` (privacy notice especially) by a lawyer before any public campaign; unreviewed today. (product; OPS section 10)
@@ -90,6 +97,13 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Resume the separate Arena project once the update is verified on `main` (priority set 2026-10-04). (arena; LEDGER)
 
 ## Checked and closed
+
+- A host who created a room but never joined it could Gahook a live round
+  without the per-question claim gate, up to GET GOT: fixed 2026-10-18
+  (`ca0b74d`), regression smoke `standalone:smoke:host-poke-claim`. The same
+  defect was the long-running `smoke-gahooks` "time-threshold Ultimate"
+  failure, now green
+  ([record](verification/2026-10-18-host-poke-claim/README.md)).
 
 - Nginx Proxy Manager JWT signing key rotated 2026-10-09 (new key pair; all sites checked).
 

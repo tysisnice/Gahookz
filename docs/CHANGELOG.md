@@ -5,9 +5,16 @@ line under **Unreleased**; the orchestrator moves them under a dated heading
 when the work is merged to `main`. Link the wiki page for details instead of
 repeating them here.
 
-## Unreleased — 2026-09-25 update
+## Unreleased — the 2026-09-25 update and later
 
 ### Developer
+- A host who created a room but never joined it bypassed the per-question
+  Gahook claim gate during a live round and could spam one player into GET
+  GOT; live-phase host Gahooks now require a joined host, covered by
+  `standalone:smoke:host-poke-claim`
+  ([record](verification/2026-10-18-host-poke-claim/README.md)). This also
+  clears the long-running `smoke-gahooks` time-threshold failure, which was
+  the same defect seen from the test's side.
 - Project divided into eleven [areas](areas/README.md) with an agent
   [profile](agents/README.md) each; parallel agents work in worktrees
   (`scripts/agent-worktree.sh`) and serialise builds with a shared lock.
