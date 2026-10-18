@@ -21,6 +21,11 @@ import { initialiseArena, tapArena, arenaProgress } from "./server/arena.mjs";
 import { markSseClientSaturated } from "./server/sse-backpressure.mjs";
 import { isHostOnlyRoute } from "./server/route-policy.mjs";
 import { pauseDecision, skipDecision } from "./server/phase-controls.mjs";
+import {
+  cleanQuestionRoundState,
+  recordPlayedQuestionPlays,
+  selectQuestionsForGame } from
+"./server/question-selection.mjs";
 import { createCareerOutbox } from "./server/career-outbox.mjs";
 import { isSyncArtifact } from "./sync-artifacts.mjs";
 import { createAdmissionController, requestAddress } from "./server/admission.mjs";
@@ -3332,6 +3337,9 @@ function makeLobby(code = generateRoomCode()) {
     questions: [],
     pendingQuestions: [],
     quizQuestions: [],
+    // P06 rotation: plays per stable question ID across rematches. Lives on
+    // the room, not the game, so resetLobby keeps it while replacing game.
+    questionPlayCounts: {},
     game: {
       currentQuestionIndex: -1,
       answerOpenedAt: null,
@@ -4337,68 +4345,11 @@ function forceStartGame(room) {
   return { ...fillResult, totalQuestions: room.quizQuestions.length, phase: room.phase };
 }
 
-function cleanQuestionRoundState(question, options = {}) {
-  const {
-    votes: _votes,
-    majorityScored: _majorityScored,
-    majorityResults: _majorityResults,
-    herdScored: _herdScored,
-    herdResults: _herdResults,
-    carriedOver: _carriedOver,
-    ...base
-  } = question;
-  return {
-    ...base,
-    answers: Array.isArray(question.answers) ? question.answers.map((answer) => ({ ...answer })) : [],
-    ...(options.carriedOver ? { carriedOver: true } : {})
-  };
-}
-
-function fairRoundRobinQuestions(candidates, limit, alreadySelected = new Set()) {
-  if (limit <= 0) return [];
-  const byAuthor = new Map();
-  candidates.forEach((question) => {
-    if (alreadySelected.has(question.id)) return;
-    const bucket = byAuthor.get(question.authorId) || [];
-    bucket.push(question);
-    byAuthor.set(question.authorId, bucket);
-  });
-  const authorIds = shuffle([...byAuthor.keys()]);
-  authorIds.forEach((authorId) => byAuthor.set(authorId, shuffle(byAuthor.get(authorId))));
-  const selected = [];
-  let depth = 0;
-  while (selected.length < limit) {
-    let addedAtDepth = false;
-    for (const authorId of authorIds) {
-      const question = byAuthor.get(authorId)?.[depth];
-      if (!question) continue;
-      selected.push(question);
-      alreadySelected.add(question.id);
-      addedAtDepth = true;
-      if (selected.length >= limit) break;
-    }
-    if (!addedAtDepth) break;
-    depth += 1;
-  }
-  return selected;
-}
-
-function selectQuestionsForGame(room, eligiblePlayerIds) {
-  const eligible = new Set(eligiblePlayerIds);
-  const candidates = room.questions.filter((question) => eligible.has(question.authorId) && questionReadyForMode(room, question));
-  const maximumRounds = maximumRoundsForPreset(room);
-  const limit = Number.isFinite(maximumRounds) ? Math.min(maximumRounds, candidates.length) : candidates.length;
-  const selectedIds = new Set();
-  // Questions that missed a previous capped game get first refusal on the rematch.
-  // The round-robin selector still spreads those questions fairly across authors.
-  const carried = fairRoundRobinQuestions(candidates.filter((question) => question.carriedOver), limit, selectedIds);
-  const remaining = fairRoundRobinQuestions(candidates, limit - carried.length, selectedIds);
-  return shuffle([...carried, ...remaining]).map((question) => {
-    const selected = cleanQuestionRoundState(question);
-    applyQuestionScoring(room, selected);
-    return selected;
-  });
-}
+// The selection policy lives in ./server/question-selection.mjs so it can be
+// tested without importing this HTTP server. These are the mode rules it calls
+// back into: which questions are ready, how many rounds a preset allows, and
+// how a selected question's scoring fields are applied.
+const questionSelectionRules = { questionReadyForMode, maximumRoundsForPreset, applyQuestionScoring };
 
 function beginHerdAnswerWriting(room) {
   clearPhaseTimer(room);
@@ -4408,7 +4359,7 @@ function beginHerdAnswerWriting(room) {
     map((player) => player.id));
   room.game.eligiblePlayerIds = eligiblePlayerIds;
   room.game.playedQuestionIds = [];
-  room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds);
+  room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds, questionSelectionRules);
   const plan = buildHerdAssignmentPlan(eligiblePlayerIds, room.quizQuestions);
   room.quizQuestions.forEach((question) => {
     question.answers = (plan.byQuestionId[question.id] || []).map((assignment) => ({
@@ -4449,7 +4400,7 @@ function startGame(room, { preparedQuestions = false } = {}) {
   }
   room.game.playedQuestionIds = [];
   if (!preparedQuestions) {
-    room.quizQuestions = selectQuestionsForGame(room, room.game.eligiblePlayerIds);
+    room.quizQuestions = selectQuestionsForGame(room, room.game.eligiblePlayerIds, questionSelectionRules);
   }
   Object.values(room.players).forEach((player) => {
     clearUltimateGahookState(player, true);
@@ -4543,7 +4494,7 @@ function finishGameNow(room) {
     const eligiblePlayerIds = Array.isArray(room.game.eligiblePlayerIds) ?
       room.game.eligiblePlayerIds :
       Object.values(room.players).filter((player) => player.connected).map((player) => player.id);
-    room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds);
+    room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds, questionSelectionRules);
   }
   room.phase = "finished";
   room.phaseEndsAt = null;
@@ -4849,6 +4800,10 @@ function resetLobby(room, options = {}) {
     player.careerRoundStats = emptyCareerStats();
   });
   const fresh = makeLobby(room.code);
+  // P06 rotation: bank this game's plays against each question's stable ID
+  // before the finished game state is replaced, so the next rematch can
+  // prefer questions and authors that have not had their turn yet.
+  recordPlayedQuestionPlays(room);
   room.phase = options.phase === "building" ? "building" : "lobby";
   room.phaseEndsAt = null;
   room.phaseTimer = null;
