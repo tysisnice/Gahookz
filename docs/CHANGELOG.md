@@ -8,6 +8,13 @@ repeating them here.
 ## Unreleased — the 2026-09-25 update and later
 
 ### Developer
+- The rollback plan is no longer theoretical: Option 2 was rehearsed on beta,
+  which came up on the 2026-09-12 image in about nine seconds, hosted a real
+  room, and was restored just as quickly with production untouched. It also
+  exposed that the 2026-10-02 rollback images predate revision stamping and
+  report `revision: unknown`, so a rolled-back service must be identified by
+  image tag and `builtAt`
+  ([record](verification/2026-10-18-rollback-rehearsal/README.md)).
 - A deploy can no longer end a game nobody agreed to end. `docker-deploy.sh`
   refuses, instead of warning and proceeding, when rooms are active with no
   drain window, when the drain wait expires with rooms left, or when it has no

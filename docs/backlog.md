@@ -31,7 +31,11 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - `skipPhase` in `standalone/server.js` never checks `room.paused`, so a host can skip while paused. (game-flow; LEDGER docs-game-a)
 - A disconnected Herd writer blocks Start (Skip or force-start get past it). (game-flow; LEDGER docs-game-a)
 - No install button: `usePwaInstall` in `client/offline.jsx` is exported but used nowhere. (ui-shell; LEDGER docs-core-b)
-- Tested rollback: rollback images exist (2026-10-02) but no rollback has been rehearsed; runbook says "revert and redeploy" first. (platform; OPS section 10, [runbook](operations/runbook.md))
+- Tested rollback: Option 2 (recreate from a kept image) was rehearsed on beta on
+  2026-10-18 and works; Option 1 (revert and redeploy) and a production rollback are
+  still untested. The three `20261002` rollback images report `revision: unknown`, so
+  a service rolled back to one cannot be identified by `/api/health` revision.
+  (platform; [rehearsal record](verification/2026-10-18-rollback-rehearsal/README.md))
 - Split the monoliths: `server.js` (5,612 lines), `app.jsx` (5,496), `styles.css` (11,414). (platform, ui-shell; OPS section 10, [typescript plan](plans/typescript-migration.md))
 - Runtime schemas at the HTTP/SSE boundary are only partly present (`packages/contracts/src/schemas.ts`); full role-filtered payload validation is open. (systems; PP P01/P02)
 - The engine's phase maths is not what runs: `nextPhase`, `resumeDeadline`, `estimatedDurationMs` are tested but unused; the live machine has its own. (game-flow; [game-flow](areas/game-flow.md))
@@ -78,7 +82,8 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 - Journal-volume replacement probe (`standalone/verify-journal-volume.mjs`) has never been recorded as run; it needs an isolated `gahookz:review-*` image. (accounts, platform; RC, [accounts](areas/accounts.md))
 - PostgreSQL probe: passes since the 2026-09-25 accounts work (see Checked and closed), but only against a disposable database; production has none. Run it against the real provisioned database before enabling accounts. (accounts; [accounts record](verification/2026-09-25-update/accounts.md))
-- Rollback rehearsal on beta (monthly cadence in the runbook, never done). (platform; [runbook](operations/runbook.md))
+- Rollback rehearsal on beta: done 2026-10-18; next one due by 2026-11-18 under the
+  runbook's monthly cadence. (platform; [runbook](operations/runbook.md))
 - `/srv/gahookz`: files removed 2026-10-08 (its `.env` files backed up to `~/.config/gahookz/` on the laptop); the empty directory needs `sudo rmdir`. (platform)
 - Phone Syncthing can delete files in the Store working copy (happened 2026-09-30); make the phone receive-only or ignore `Projects/`. (platform; LEDGER)
 

@@ -242,8 +242,12 @@ and never deploys source changes.
 
 ## 5. Rollback
 
-> **Untested plan.** The rollback images exist, but no rollback has ever been
-> rehearsed. Check each step as you go. It replaces the process, so it ends live games.
+> **Option 2 was rehearsed on beta on 2026-10-18** and worked: the kept image came
+> up healthy in about nine seconds, hosted a real room, and beta was restored just as
+> quickly, with production and development untouched
+> ([record](../verification/2026-10-18-rollback-rehearsal/README.md)). Option 1 and a
+> production rollback are still untested. Rolling back replaces the process, so it ends
+> live games.
 
 ### Before every deploy: keep a known-good image
 
@@ -276,14 +280,28 @@ GAHOOKZ_PROD_IMAGE=gahookz:rollback-prod-20261002 \
 curl -fsS http://127.0.0.1:3102/api/health; echo
 ```
 
-Expect the old image's revision, which will not match `git rev-parse HEAD`. The override
+Add `--no-deps` and name the service: all three services share the one Compose project,
+so an unqualified `up` reaches more than you meant.
+
+**A rolled-back server may not be able to tell you what it is.** The three `20261002`
+images predate revision stamping and report `"revision": "unknown"`, so the usual
+`/api/health` revision check is useless after rolling back to one. Identify it by image
+tag and `builtAt`:
+
+```bash
+docker inspect --format '{{.Config.Image}}' gahookz-prod-gahookz-1
+curl -fsS http://127.0.0.1:3102/api/health          # read "builtAt" and "release"
+```
+
+Rollback images the deploy script tags from now on do carry a revision. The override
 lasts for that command only; the next `docker compose up` or deploy returns to the
 default tag. The 20261002 images hold what ran before the move to the Store tree, so use
 one only if nothing newer was tagged.
 
-**Rehearse it on beta first.** Beta is capped at two rooms and nobody depends on it. Run
-the Option 2 steps once with `GAHOOKZ_BETA_IMAGE=gahookz:rollback-beta-20261002`, service
-`gahookz-beta` and port 3103, and write down what actually happened here.
+**Rehearsing it again on beta** costs about a minute and ends nothing anyone depends on:
+run the Option 2 steps with `GAHOOKZ_BETA_IMAGE=gahookz:rollback-beta-20261002`, service
+`gahookz-beta` and port 3103, then recreate `gahookz-beta` without the override to
+restore it. The 2026-10-18 record above is what to compare against.
 
 ## 6. Logs and troubleshooting
 
