@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { watch } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRestartPolicy, describeExit } from "./dev-supervisor.mjs";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const standaloneDir = path.join(rootDir, "standalone");
@@ -62,6 +63,7 @@ let buildRunning = false;
 let buildAgain = false;
 let shuttingDown = false;
 const watchers = [];
+const restartPolicy = createRestartPolicy();
 
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -93,6 +95,7 @@ async function buildClient() {
 
 function startServer() {
   if (shuttingDown || serverProcess) return;
+  const startedAt = Date.now();
   const child = spawn(process.execPath, ["--import", "tsx", path.join(standaloneDir, "server.js")], {
     cwd: rootDir,
     stdio: "inherit",
@@ -100,12 +103,26 @@ function startServer() {
   });
   serverProcess = child;
   child.on("exit", (code, signal) => {
+    // A reload we asked for has already cleared `serverProcess` and arranged
+    // its own relaunch, so this handler only ever sees an exit we did not
+    // ask for. Every one of those gets a new server, whatever the exit code:
+    // the server drains and exits *cleanly* when something stops it, and the
+    // old "restart only on a non-zero code" rule therefore left the
+    // development site dead with the container still reporting "Up".
     if (serverProcess !== child) return;
     serverProcess = null;
-    if (!shuttingDown && code !== 0 && signal !== "SIGTERM") {
-      console.error("Development server stopped unexpectedly. Restarting...");
-      setTimeout(startServer, 500);
+    if (shuttingDown) return;
+    const reason = describeExit(code, signal);
+    const decision = restartPolicy.exited({ upForMs: Date.now() - startedAt });
+    if (decision.action === "give-up") {
+      console.error(`Development server exited (${reason}) and would not stay up after ${decision.failures} attempts. Exiting so the container restart policy can replace this process.`);
+      shuttingDown = true;
+      watchers.forEach((watcher) => watcher.close());
+      process.exit(1);
+      return;
     }
+    console.error(`Development server exited (${reason}). Restarting in ${decision.delayMs}ms (attempt ${decision.failures}).`);
+    setTimeout(startServer, decision.delayMs);
   });
 }
 
