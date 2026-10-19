@@ -11916,6 +11916,19 @@ button.answer-tile {
 .host-report-actions { display: flex; gap: 8px; margin-top: 6px; }
 .host-report-actions button { min-height: 40px; flex: 1 1 0; }
 .host-report-empty { margin: 0; opacity: 0.75; }
+/* A host-presence notice (client/host-presence.jsx) is a fixed stack pinned
+   just under the top bar — exactly where a room's status banner begins — so the
+   two overlapped while a notice was up. The layer publishes its measured height
+   as --host-notice-space while it is mounted and nothing otherwise, and the
+   banner reserves that much room. These selectors repeat the earlier ones
+   because `.has-room-status > .room-status-banner` sets `margin` as a shorthand,
+   which would otherwise reset this to zero. */
+.room-status-banner,
+.has-room-status > .room-status-banner,
+.social-lobby-layout.has-room-status > .room-status-banner {
+  margin-top: var(--host-notice-space, 0px);
+}
+
 /* Herd reveal tiles stack their content (words, author, Report) in a column,
    as image tiles already do; side by side they squeezed the author line. */
 .herd-reveal-breakdown .answer-tile { flex-direction: column; }

@@ -15,7 +15,7 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Engineering P0
 
-- Reports now have browser controls (2026-10-08, see [Moderation](wiki/moderation.md)); the host can remove only chat from the Reports list. Other content removal (answers, questions, pictures) still has no browser button.
+- The host can now remove a reported chat message, answer or question from the Reports list (2026-10-19, see [Moderation](wiki/moderation.md)). Still no button: a player's pictures (`kind: "player-media"` is reachable only over the API, and nothing reports a player), and a question already chosen for the round, which can be taken out of the question list but not out of the round it is in.
 - Automated abuse handling for an open anonymous audience: no scanning, appeals, evidence retention or operator console. (systems; OPS section 10 P0)
 - Accounts are inert in production (no `DATABASE_URL`, Google client unset); needs the owner to provision both. (accounts; [accounts](areas/accounts.md), OPS section 10)
 
@@ -28,8 +28,6 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
   somebody runs it. (platform;
   [2026-10-18 dev-watcher record](verification/2026-10-18-dev-watcher/README.md))
 
-- A disconnected Herd writer blocks Start (Skip or force-start get past it). (game-flow; LEDGER docs-game-a)
-- No install button: `usePwaInstall` in `client/offline.jsx` is exported but used nowhere. (ui-shell; LEDGER docs-core-b)
 - Tested rollback: Option 2 (recreate from a kept image) was rehearsed on beta on
   2026-10-18 and works; Option 1 (revert and redeploy) and a production rollback are
   still untested. The three `20261002` rollback images report `revision: unknown`, so
@@ -56,14 +54,12 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 - Static files are served `no-store` (`server/transport.mjs`), including hashed assets; long immutable caching would help. (platform; OPS section 10)
 - SSE recovery polling: now `POST /api/state` after 25 s of stream silence (the 1.8 s figure in OPS is stale); still needs measured backoff or version-based recovery. (systems; [overview](architecture/overview.md))
+- A question in the current round can be taken out of the question list but not out of the round; the host is told to Skip past it. Censoring a live prompt the way a Herd answer is censored would need an owner decision, because it changes what players see mid-round. (game-flow; [2026-10-19 small-fixes record](verification/2026-10-19-small-fixes/README.md))
 - `LockedGameRules` in `packages/contracts/src/host-settings.ts` is unused and differs from the stored `room.lockedRules`. (game-flow; [game-flow](areas/game-flow.md))
 - `assertRoomAssetCapacity` and `roomAssetChars` in `server/room.mjs` are unused. (systems; [systems](areas/systems.md))
 - `generateRoomCode` UUID fallback can yield digits that `normaliseRoomCode` rejects (unreachable in practice). (systems; [systems](areas/systems.md))
-- Host-away notice overlaps the lobby status banner. (ui-shell; [ui-shell](areas/ui-shell.md), [systems](areas/systems.md))
-- `/host` and `/play` are served `index.html` but `getRoute` reads them as room codes `HOST` and `PLAY`. (ui-shell; [ui-shell](areas/ui-shell.md))
-- `client/legal.js` is built but missing from `SHELL_ASSETS`, so it is cached only after its first online load. (ui-shell; [ui-shell](areas/ui-shell.md))
 - "Reduce Gahook effects" also mutes sound in the Lobby rules and join menu. (ui-shell; [ui-shell](areas/ui-shell.md))
-- `browser-mobile-ui` rewrites a dated historical evidence folder on every run. (quality; [ui-shell](areas/ui-shell.md))
+- `browser-mobile-ui` and `browser-desktop-ui` both write into dated historical evidence folders on every run, so a verification run dirties records it is not authoring (and `browser-desktop-ui` adds two screenshots that were never committed). Captures belong in the current update's folder. (quality; [ui-shell](areas/ui-shell.md))
 - `docs/agents/{systems,accounts}.md` show `drill:resilience` without `test:disposable`; `browser-flow` has a 60 s launch timeout against 120 s elsewhere; run times of rooms/browser/drill unmeasured; some smokes mix HTTP and source-text assertions. (quality; [quality](areas/quality.md), LEDGER docs-core-a)
 - Content: 11 legacy Herd seeds unreachable; only two styles with `fun`/`funny` naming mismatch; names capped at 24 characters inside prompts. (content; [content](areas/content.md))
 - Unify prompt libraries and mode terminology so Education fallback and host metrics follow the selected mode. (content; OPS section 10)
@@ -74,7 +70,7 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Product
 
-- Hard-coded "reviewed" and "updated" dates on legal and information pages; no in-app link to `/information`. (ui-shell; LEDGER docs-core-b)
+- Hard-coded "reviewed" and "updated" dates on the legal and information pages. (ui-shell; LEDGER docs-core-b)
 - Split the public information reports into maintainable content files. (content; OPS section 10)
 - Roadmap and growth proposal awaits decisions; record approved, deferred or rejected as they land. (product; [roadmap-and-growth](product/roadmap-and-growth.md))
 - Accounts launch plan (provider, persistence, launch) awaits decisions. (accounts; [accounts-plan](product/accounts-plan.md))
@@ -105,6 +101,14 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Resume the separate Arena project once the update is verified on `main` (priority set 2026-10-04). (arena; LEDGER)
 
 ## Checked and closed
+
+- Six long-standing shell and moderation items, all on 2026-10-19
+  ([record](verification/2026-10-19-small-fixes/README.md)): the install button
+  (`usePwaInstall` is called at last), `/host` and `/play` being read as the room
+  codes `HOST` and `PLAY`, `client/legal.js` and `client/report.js` missing from
+  `SHELL_ASSETS`, the host-away notice covering the lobby status banner, no
+  in-app link to `/information`, and the host having no button for a reported
+  answer or question. A disconnected Herd writer no longer blocks Start either.
 
 - **GET GOT during live rounds: decided 2026-10-19 — leave it.** Tyson's
   decision is to forget about live-phase GET GOT, so its unreachability is not a

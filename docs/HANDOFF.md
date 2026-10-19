@@ -14,11 +14,12 @@ previous handoff led with is closed. Everything Tyson asked for on 8 October is
 live, along with a host-Gahook security fix, the Herd rotation work, and the
 development-watcher repair. Every suite passes on the laptop, including the four
 browser suites, which could not run here until Chromium was installed. The
-rollback plan has been rehearsed for the first time. One WIP branch remains
-(`agent/small-fixes`). Both decisions that were waiting on Tyson were answered
-on 2026-10-19: **forget GET GOT during live rounds**, and **Node 24** is now the
-declared runtime. Since the deploy, `main` has gained one behaviour change that
-production does not have — Skip is refused while the game is paused.
+rollback plan has been rehearsed for the first time. Both decisions that were
+waiting on Tyson were answered on 2026-10-19: **forget GET GOT during live
+rounds**, and **Node 24** is now the declared runtime. **No branch is
+half-finished.** `main` has gained a batch of player-visible changes that
+production does not have yet, so a deploy is the obvious next thing to ask for;
+nothing in it is urgent.
 
 ## The live services
 
@@ -27,7 +28,7 @@ Checked 2026-10-18 15:58 AEDT, straight after the deploy:
 | | Revision | Notes |
 | --- | --- | --- |
 | `main` | `74a4899` plus the commits listed below | Everything in *What shipped* is verified against `74a4899` |
-| Production (gahookz.com, :3102) | `74a489949e02` | Deployed 2026-10-18. **No longer identical to `main`:** one behaviour change has landed since (Skip is refused while paused, merge `d1c00fe`), plus documentation and the `engines.node` floor, which does not affect the running container. Nothing here is urgent to deploy. Rollback target `gahookz:rollback-prod-20261018-1556` |
+| Production (gahookz.com, :3102) | `74a489949e02` | Deployed 2026-10-18. **`main` has moved ahead of it:** the paused-skip refusal (`d1c00fe`) and the whole 2026-10-19 batch below are not live. Nothing in them is urgent or risky; a deploy needs Tyson's word. Rollback target `gahookz:rollback-prod-20261018-1556` |
 | Beta (:3103) | `f15af0b9da5d` | Older by design; used for the rollback rehearsal and restored |
 | Development (:3101) | bind-mounts the Store tree | So dev *is* current |
 
@@ -66,42 +67,30 @@ found and fixed. Each has a record under `docs/verification/`:
   (`npm run test:herd-boundaries`). The author ordering was wrong in the branch
   and is fixed (`e1ae787`).
 
-## Half-finished work
+## What happened on 2026-10-19
 
-### `agent/small-fixes` — WIP `7e629d1`, now well behind `main`
-
-**Careful: half of this branch is already on `main` by another route.** The
-night-shift block of 2026-10-19 implemented the server-side paused-skip refusal
-on its own branch and merged it (`d1c00fe`, with a `smoke-host-controls` block
-and [a record](verification/2026-10-19-skip-while-paused/README.md)). So
-finishing `agent/small-fixes` starts by merging `main` in and dropping the
-duplicate server change; its **client** half — the Skip button disabled with a
-tooltip — is still only on the branch and is still worth keeping.
-
-**Also done in the diff** (unverified): a disconnected Herd writer no longer
-blocks Start, via `fillUnwrittenHerdAnswers`, with `smoke-host-controls`
-extended.
-
-**Not started:** install-app menu item (`usePwaInstall` in `client/offline.jsx`
-is exported and unused); removing non-chat subjects from the host Reports list
-(note `herd-answer` removal now needs `questionId`); host-away notice
-overlapping the lobby banner; `/host` and `/play` routes being read as room
-codes; `client/legal.js` missing from `SHELL_ASSETS`; an in-room link to
-`/information`.
-
-One improvement to make while finishing it, still open after the night-shift
-merge: the `room.paused` check now on `main` sits inside `skipPhase` in
-`server.js`, but `standalone/server/phase-controls.mjs` exists precisely to hold
-that policy where it can be tested without a room. Move it into
-`skipDecision(phase, { paused })` with a test.
+- **Both owner decisions answered** and recorded where the findings live: live
+  GET GOT is left as it is, and Node 24 is the declared runtime
+  ([node 24 record](verification/2026-10-19-node-24/README.md)).
+- **`agent/small-fixes` is finished and merged**, with every item in it done and
+  three proved in a real browser
+  ([record](verification/2026-10-19-small-fixes/README.md)): the Install app
+  button, "Game guides" linking `/information` from inside the game for the
+  first time, `/host` and `/play` as entry points, two first-paint modules
+  missing from the PWA shell cache, the host-away notice covering the lobby
+  banner, host removal of a reported answer or question, and a disconnected Herd
+  writer no longer blocking Start. Skip's paused rule moved into
+  `skipDecision(phase, { paused })`.
+- **Nothing is half-finished.** There is no WIP branch to pick up.
 
 ## What to do next
 
-1. Finish **`agent/small-fixes`** and run the full matrix, starting with the
-   merge and the duplicate noted above.
-2. **Nothing is blocked on a decision.** Both open owner decisions were answered
-   on 2026-10-19 and are recorded where the findings live; the only thing left
-   for Tyson from this cycle is installing Node 24 (below).
+1. **Ask Tyson whether to deploy.** `main` now carries player-visible changes
+   production has never run (the whole 2026-10-19 batch, plus the paused-skip
+   refusal). Nothing is urgent and nothing is risky, but the gap will keep
+   growing. Never deploy unasked (`CLAUDE.md` rule 2).
+2. **Nothing is blocked on a decision.** The only thing left for Tyson is
+   installing Node 24 (below).
 3. **Split the monoliths.** `server.js` (5,650 lines), `app.jsx` (5,496),
    `styles.css` (11,414) are the item that most slows everything else down.
    `standalone/server/question-selection.mjs` is the pattern that works:

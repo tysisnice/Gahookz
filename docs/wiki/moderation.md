@@ -2,7 +2,7 @@
 
 > The host can kick, ban and clean up content in their room, players can vote to kick, and the server enforces all of it.
 
-**Area:** [Systems](../areas/systems.md) · **Status:** live · **Last reviewed:** 2026-10-08
+**Area:** [Systems](../areas/systems.md) · **Status:** live · **Last reviewed:** 2026-10-19
 
 ## What it is
 
@@ -26,14 +26,24 @@ are tap targets), and "Report a problem" in the player menu reports the room
 (which also covers drawings). Each opens a confirm dialog with a reason and an
 optional note; nothing is sent until "Send report". The host sees open reports
 under "Reports" in the host menu (a count shows on the item and a short notice
-appears when a new one arrives), can dismiss one, and for a chat report can
-remove the message from the same list. Reports never reveal the reporter to
-other players.
+appears when a new one arrives), can dismiss one, and can remove the thing that
+was reported from the same list: "Remove message" for chat, "Remove answer" for
+a Herd answer, "Remove question" for a question. A removal that worked also
+dismisses the report; one that could only go part of the way leaves it open
+(see below). Reports never reveal the reporter to other players.
 
-**Content removal.** The server also lets the host remove content (chat, a Herd
-answer, a profile picture, a custom Gahook, a whiteboard stroke or a question).
-In the browser only "Remove message" in the reports list calls this; the other
-kinds still work through the API and tests only.
+**Content removal.** The server lets the host remove content: chat, a Herd
+answer, a question, or a player's media (profile picture, custom Gahook,
+whiteboard strokes and the pictures on their answers). The reports list reaches
+chat, answers and questions. A player's media has no button of its own, because
+nothing in the game reports a player — a host dealing with somebody rather than
+with one thing they posted kicks them, which clears the same media.
+
+A question already chosen for the round is the one case that cannot be fully
+undone: it comes out of the question list, so it can never be chosen again, but
+it stays in the round the players are in, because the phase machine counts that
+list and dropping an entry mid-game would skip or repeat a round. The host is
+told so and asked to Skip past it, and the report stays open as the reminder.
 
 ## Rules and numbers
 
@@ -45,6 +55,7 @@ kinds still work through the API and tests only.
   other, a 200-character note, the last 40 kept. Subjects: chat, answer,
   question, drawing, player or room.
 - Removing a Herd answer blanks its text and its picture and keeps its slot. Kicking a player or removing their media also clears the pictures on their Herd answers.
+- An answer is named by its prompt as well as its own id, because answer ids are colour names every prompt reuses; a request without the prompt is refused rather than blanking that colour everywhere.
 - Every `/api/host/...` route is checked on the server for the host key.
 
 ## Where it lives
@@ -57,6 +68,7 @@ kinds still work through the API and tests only.
 | Pruning removed media | `standalone/server/media.mjs`, `content-inventory.mjs` |
 | Host-only routes | `standalone/server/route-policy.mjs` |
 | Browser buttons | `standalone/public/app.jsx` — `PlayerCard` (Kick), `ReadonlyPlayerCard` (Vote kick), `BannedPlayersPanel` (Unban), `ReportProvider` (report dialog, host list, menu items); `client/report.jsx` — `ReportButton`, `ReportDialog`, `HostReportsDialog` |
+| What the host may remove, and how a subject is named | `standalone/public/client/report-subjects.js` — `canRemoveSubject`, `removalRequestFor` (unit-tested beside it) |
 | Tests | `standalone/smoke-roles.mjs`, `smoke-room-rules.mjs`, `smoke-review-repairs.mjs`, `smoke-social-media.mjs` (reports), `browser-herd-report.mjs` (report flow, screenshots) |
 
 ## Related
@@ -71,3 +83,7 @@ kinds still work through the API and tests only.
 - 2026-09-06 — Reports, report resolution and content removal added with the legal pages.
 - 2026-10-04 — Page written; missing report button noted.
 - 2026-10-08 — Report buttons, "Report a problem" and the host Reports list added; the legal page wording matches.
+- 2026-10-19 — The host can remove a reported answer or question from the list,
+  not just chat; an in-play question says what is left to do instead of
+  reporting a success nothing could see
+  ([record](../verification/2026-10-19-small-fixes/README.md)).

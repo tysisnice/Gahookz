@@ -2,7 +2,7 @@
 
 > Gahookz can be added to a phone or desktop like an app, and when the server cannot be reached it shows an offline screen with the Gahook Dash runner game.
 
-**Area:** [UI shell](../areas/README.md) · **Status:** live · **Last reviewed:** 2026-10-04
+**Area:** [UI shell](../areas/README.md) · **Status:** live · **Last reviewed:** 2026-10-19
 
 ## What it is
 
@@ -28,9 +28,12 @@ The **icon** is the monkey on a plain background. On 2026-09-25 the
 four-colour ring around the face was removed; the four PNG sizes are rendered
 from the one SVG.
 
-The app captures the browser's install prompt, but no button in the game uses it
-today (`usePwaInstall` is unused). Install through the browser's own menu
-(unverified in a real browser).
+**Installing** is now a button in the game. When the browser offers an install,
+**Install app** appears in the welcome footer and in the host, player and join
+menus; pressing it opens the browser's own install dialog. The button is absent
+when the browser has not offered one — including when the game is already
+installed, and in browsers that never offer it, such as desktop Firefox and iOS
+Safari, where the browser's own "Add to Home Screen" is still the way in.
 
 ## Rules and numbers
 
@@ -40,6 +43,9 @@ today (`usePwaInstall` is unused). Install through the browser's own menu
 - The release hash is stamped into `index.html`, `service-worker.js` and
   `vendor-bootstrap.js` by `npm run build`.
 - Icons: 180, 192 and 512 pixel PNGs plus a maskable 512, from `gahookz-monkey.svg`.
+- Every module the first screen loads is in the shell cache, so an installed app
+  opens offline. `smoke-pwa` walks the bundle's imports and fails if one is
+  missing; two were (`client/legal.js` and `client/report.js`), fixed 2026-10-19.
 
 ## Where it lives
 
@@ -48,6 +54,7 @@ today (`usePwaInstall` is unused). Install through the browser's own menu
 | Manifest | `standalone/public/manifest.webmanifest` |
 | Service worker, install prompt capture | `standalone/public/service-worker.js`, `vendor-bootstrap.js` |
 | Offline screen, health check, update screen, Dash | `standalone/public/client/offline.jsx` |
+| Install button | `standalone/public/client/offline.jsx` — `usePwaInstall`; `app.jsx` — `InstallAppButton` |
 | Icons and renderer | `standalone/public/icons/`, `scripts/render-icons.mjs` (`npm run icons:render`) |
 | Tests | `standalone/smoke-pwa.mjs`, `smoke-dash.mjs` |
 
@@ -62,3 +69,5 @@ today (`usePwaInstall` is unused). Install through the browser's own menu
 - 2026-07-20 — Manifest, service worker, release-stamped shell cache and offline screen in the first commit.
 - 2026-08-26 — "Updating" screen for a page and server on different releases.
 - 2026-10-01 — Icon redrawn without the four-colour ring; `icons:render` added ([record](../verification/2026-09-25-update/art.md)).
+- 2026-10-19 — **Install app** button wired to the captured prompt, and two
+  first-paint modules added to the shell cache ([record](../verification/2026-10-19-small-fixes/README.md)).

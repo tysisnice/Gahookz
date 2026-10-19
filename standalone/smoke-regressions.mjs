@@ -126,7 +126,10 @@ async function runExactRoomLookupSmoke() {
   assert(app.includes('sessionStorage.setItem(roomPasswordKey(cleanCode), password)'), "Room passwords should only persist for the current browser tab");
   assert(!app.includes('localStorage.setItem(roomPasswordKey(cleanCode), password)'), "Room passwords must not be durably stored in localStorage");
   assert(app.includes("navigateTo(buildWelcomePath(code))"), "Missing rooms should navigate to a code-only prefilled welcome URL");
-  assert(app.includes('welcomePrefill.code || ""'), "Welcome room code should use the missing URL code prefill without inventing a Join code");
+  // A code from the URL always wins, so a player sent back from a room that no
+  // longer exists keeps the code they followed. /host, which asks to make a
+  // room, is the one case that fills the field itself.
+  assert(app.includes('welcomePrefill.code || (intent === "host" ? randomClientCode() : "")'), "Welcome room code should use the missing URL code prefill, and invent one only when /host asked to make a room");
   assert(app.includes("Boolean(welcomePrefill.password || welcomePrefill.locked)"), "Welcome password controls should open for a password prefill, and for a room that refused this device");
   assert(app.includes('buildWelcomePath(code, { locked: true })'), "A room that refuses this device should return to the welcome form with its password field open");
   assert(bundle.includes("roomMissing") && bundle.includes("/api/events/ticket"), "The shipped browser bundle must include missing-room routing and scoped live-state tickets");

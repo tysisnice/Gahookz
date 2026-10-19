@@ -15,7 +15,7 @@
 // per screen tree: in PlayerView (which also hosts the join screen and the
 // party view) and beside HostView in HostMode.
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 // A host who refreshes closes and reopens their stream within a second or two,
 // and the server marks them away after its own short debounce. Showing the
@@ -101,7 +101,7 @@ export function HostPresenceNotices({ lobby }) {
   const isOwnPromotion = Boolean(change && lobby.ownPlayer?.id && change.playerId === lobby.ownPlayer.id);
 
   return (
-    <div className="host-presence-layer" role="status" aria-live="polite">
+    <NoticeLayer>
       {showAway ? <p className="host-presence-notice is-away">
           <span className="host-presence-dot" aria-hidden="true" />
           <span className="host-presence-text">
@@ -120,5 +120,38 @@ export function HostPresenceNotices({ lobby }) {
           <span className="host-presence-text">You were away, so {replaced.name} is now the host. {replacedFollowUp(lobby)}</span>
           <button className="host-presence-dismiss" type="button" onClick={dismissReplaced} aria-label="Dismiss">×</button>
         </div> : null}
-    </div>);
+    </NoticeLayer>);
+}
+
+/**
+ * The fixed stack itself, which publishes its own height while it is on screen.
+ *
+ * The notices are pinned under the top bar, which is exactly where a room's
+ * status banner starts, so they used to sit on top of it — a player learning
+ * that the host had dropped lost the line telling them what the room was doing.
+ * Reserving space in the page is the only fix that works for a stack whose
+ * height depends on how many notices are up and how far their text wraps, so
+ * the layer measures itself and `styles.css` has the banner move down by that
+ * much. The property is removed on unmount, so the gap exists only while a
+ * notice does.
+ */
+function NoticeLayer({ children }) {
+  const layer = useRef(null);
+  useEffect(() => {
+    const element = layer.current;
+    if (!element) return undefined;
+    const root = document.documentElement;
+    const publish = () => {
+      const height = Math.ceil(element.getBoundingClientRect().height);
+      root.style.setProperty("--host-notice-space", (height > 0 ? height + 10 : 0) + "px");
+    };
+    publish();
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(publish) : null;
+    if (observer) observer.observe(element);
+    return () => {
+      if (observer) observer.disconnect();
+      root.style.removeProperty("--host-notice-space");
+    };
+  }, []);
+  return <div className="host-presence-layer" role="status" aria-live="polite" ref={layer}>{children}</div>;
 }

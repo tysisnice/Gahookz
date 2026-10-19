@@ -2939,7 +2939,28 @@ function removeContent(room, payload) {
   }
 
   if (kind === "question") {
+    // A question already chosen for this game sits in room.quizQuestions, which
+    // removeStoredQuestions leaves alone on purpose: the phase machine indexes
+    // that array, so splicing one out mid-game would skip or repeat a round.
+    //
+    // The same question object is usually in its author's pool as well, so a
+    // removal during a game used to take it out of the pool, answer a plain
+    // `ok: true`, and leave it on everybody's screen — the host pressed Remove
+    // on the question they were looking at and nothing appeared to happen. It
+    // still comes out of the pool, so it cannot be chosen again, but the answer
+    // now says what is left to do.
+    const inPlay = room.quizQuestions.some((question) => question.id === targetId);
     const removed = removeStoredQuestions(room, (question) => question.id === targetId, { includeSelected: false });
+    if (inPlay) {
+      Object.values(room.players).forEach((player) => {
+        player.questionsSubmitted = countQuestionsForPlayer(room, player.id);
+      });
+      pruneRoomMedia(room);
+      broadcastState(room, { immediate: true });
+      return { ok: true, removed, stillInPlay: true, notice: removed ?
+        "Taken out of the question list. It is in this round, so Skip to move past it." :
+        "This question is in this round. Skip to move past it." };
+    }
     if (!removed) return { ok: false, error: "That question is no longer here." };
     Object.values(room.players).forEach((player) => {
       player.questionsSubmitted = countQuestionsForPlayer(room, player.id);

@@ -46,6 +46,27 @@ assert(builtAppSource.includes("?v=" + release.version));
 assert(workerSource.includes('url.pathname.startsWith("/api/")') && workerSource.includes('url.pathname === "/events"'));
 assert(workerSource.includes('caches.match("/index.html")'));
 assert(/"\/client\/offline\.js\?v=[^"]+"/.test(workerSource));
+
+// Every module the first paint imports has to be in the shell cache, or a cold
+// offline launch dies on an import the network cannot supply. `client/legal.js`
+// and `client/report.js` were both missing while `app.jsx` imported them at the
+// top level. This walks the static import graph out of the built bundle instead
+// of naming files, so the next module added to it cannot be forgotten.
+const clientFiles = new Set(await fs.readdir(path.join(publicDir, "client")));
+const shellModules = new Set([...workerSource.matchAll(/"\/client\/([A-Za-z0-9._-]+\.js)\?v=/g)].map((match) => match[1]));
+const firstPaintModules = new Set();
+const pending = [builtAppSource];
+while (pending.length) {
+  for (const match of pending.pop().matchAll(/([A-Za-z0-9._-]+\.js)\?v=/g)) {
+    const moduleName = match[1];
+    if (firstPaintModules.has(moduleName) || !clientFiles.has(moduleName)) continue;
+    firstPaintModules.add(moduleName);
+    pending.push(await fs.readFile(path.join(publicDir, "client", moduleName), "utf8"));
+  }
+}
+assert(firstPaintModules.size > 15, "The import walk found " + firstPaintModules.size + " modules; the bundle format must have changed");
+const uncachedModules = [...firstPaintModules].filter((moduleName) => !shellModules.has(moduleName)).sort();
+assert.deepEqual(uncachedModules, [], "The first paint imports modules the service worker never caches: " + uncachedModules.join(", "));
 assert(appSource.includes("useServerConnection") && appSource.includes("OfflineExperience"));
 assert(appSource.includes("ServerUpdateExperience") && appSource.includes("serverConnection.protocolMismatch"));
 assert(offlineSource.includes("Gahook Dash") && offlineSource.includes("Get back online"));

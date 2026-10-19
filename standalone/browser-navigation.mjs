@@ -555,6 +555,86 @@ try {
     note('host: Back closes Lobby rules (focus back on its button), then asks before leaving');
   }
 
+  {
+    // /host and /play are entry points the server serves index.html for, and the
+    // client used to read them as the room codes HOST and PLAY, so typing
+    // gahookz.com/play landed on a room that does not exist. Upper case still
+    // means a room, because HOST and PLAY are legal four-letter codes and room
+    // links are written in upper case.
+    const context = await browser.createBrowserContext();
+    const page = await context.newPage();
+    await page.setViewport({ ...SIZES.phone, isMobile: true, hasTouch: true });
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    await page.goto(base + '/play');
+    await page.waitForSelector('.welcome-screen');
+    const joinChosen = await page.evaluate(() => [...document.querySelectorAll('.welcome-intent-selector button')]
+      .map((button) => ({ label: button.textContent.trim(), pressed: button.getAttribute('aria-pressed') })));
+    assert(joinChosen.some((button) => button.label.startsWith('Join') && button.pressed === 'true'), '/play opens the welcome screen with Join chosen: ' + JSON.stringify(joinChosen));
+
+    await page.goto(base + '/host');
+    await page.waitForSelector('.welcome-screen');
+    const hostChosen = await page.evaluate(() => ({
+      buttons: [...document.querySelectorAll('.welcome-intent-selector button')]
+        .map((button) => ({ label: button.textContent.trim(), pressed: button.getAttribute('aria-pressed') })),
+      code: document.querySelector('.welcome-panel input')?.value || ''
+    }));
+    assert(hostChosen.buttons.some((button) => button.label.startsWith('Host') && button.pressed === 'true'), '/host opens the welcome screen with Host chosen: ' + JSON.stringify(hostChosen.buttons));
+    assert.match(hostChosen.code, /^[A-Z]{4}$/, '/host arrives with a room word ready to create: ' + JSON.stringify(hostChosen.code));
+
+    // Install app: the hook has existed and been exported since the offline work
+    // with nothing calling it, so the app could only be installed from a
+    // browser's own menu. beforeinstallprompt does not fire in headless
+    // Chromium, so this dispatches the event the real bootstrap dispatches
+    // (smoke-pwa asserts the bootstrap does) and checks the button appears.
+    await page.goto(base + '/');
+    await page.waitForSelector('.welcome-screen');
+    assert.equal(await page.evaluate(() => [...document.querySelectorAll('.welcome-footer button')].some((button) => button.textContent.includes('Install app'))), false, 'Install app stays hidden until the browser offers it');
+    await page.evaluate(() => {
+      window.gahookzInstallPrompt = { prompt: () => undefined, userChoice: Promise.resolve({ outcome: 'dismissed' }) };
+      window.dispatchEvent(new CustomEvent('gahookz-install-ready', { detail: window.gahookzInstallPrompt }));
+    });
+    await until(page, 'Install app appears once the browser offers it', () => [...document.querySelectorAll('.welcome-footer button')].some((button) => button.textContent.includes('Install app')));
+
+    await page.goto(base + '/information');
+    await page.waitForSelector('.information-page');
+    note('the welcome screen offers Install app once the browser does');
+
+    // A room really can be coded HOST, and its link is written in upper case.
+    await post('HOST', '/api/room', { playerKey: 'entry-host', intent: 'host' });
+    await page.goto(base + '/HOST');
+    await page.waitForSelector('.party-join-form', { timeout: 20_000 });
+    assert.equal(await page.evaluate(() => Boolean(document.querySelector('.welcome-screen'))), false, '/HOST in upper case must still open the room coded HOST');
+    await context.close();
+    note('/host and /play are entry points, while /HOST stays a room code');
+  }
+
+  {
+    // The host-presence notices are a fixed stack pinned just under the top bar,
+    // which is exactly where a room's status banner begins, so a player learning
+    // that the host had dropped lost the line telling them what the room was
+    // doing. The layer publishes its measured height and the banner reserves it.
+    const created = await post('AWAY', '/api/room', { playerKey: 'away-host', intent: 'host' });
+    const awayCode = created.code || 'AWAY';
+    await post(awayCode, '/api/player/join', { playerKey: 'away-p0', name: 'Watcher', avatarId: 'fox' });
+    const host = await pageFor('away-host', awayCode, SIZES.phone);
+    const player = await pageFor('away-p0', awayCode, SIZES.phone);
+    await player.waitForSelector('.room-status-banner');
+    const before = await player.evaluate(() => document.querySelector('.room-status-banner').getBoundingClientRect().top);
+
+    await host.browserContext().close();
+    await until(player, 'the host-away notice appears', () => Boolean(document.querySelector('.host-presence-notice.is-away')), 30_000);
+    const boxes = await player.evaluate(() => {
+      const notice = document.querySelector('.host-presence-notice.is-away').getBoundingClientRect();
+      const banner = document.querySelector('.room-status-banner').getBoundingClientRect();
+      return { noticeBottom: notice.bottom, noticeTop: notice.top, bannerTop: banner.top };
+    });
+    assert(boxes.noticeBottom <= boxes.bannerTop + 1, 'the host-away notice must sit above the room status banner, not over it: ' + JSON.stringify(boxes));
+    assert(boxes.bannerTop > before, 'the banner should move down while the notice is up: ' + JSON.stringify({ ...boxes, before }));
+    await player.browserContext().close();
+    note('a host-away notice moves the room status banner down instead of covering it');
+  }
+
   assert.deepEqual(errors, [], 'the browser reported page errors: ' + errors.join(' | '));
   console.log(JSON.stringify({ ok: true, baseUrl: base, checked }, null, 2));
 } finally {
