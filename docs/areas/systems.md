@@ -284,7 +284,6 @@ Unit tests: `admission.test.mjs`, `auth.test.mjs`, `transport.test.mjs`,
 - `generateRoomCode` falls back to a UUID slice that can contain digits, which
   `normaliseRoomCode` would reject. The path needs 200 random collisions among
   at most 64 rooms, so it is unreachable in practice.
-- The host-away notice overlaps the lobby status banner while it shows.
 - Bans survive only as long as the room, and only per device key.
 
 Live backlog: [`../backlog.md`](../backlog.md).

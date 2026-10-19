@@ -139,7 +139,8 @@ await Promise.all([
     ["./client/account.jsx", versioned("./client/account.js")],
     ["./client/information.jsx", versioned("./client/information.js")],
     ["./client/legal.jsx", versioned("./client/legal.js")],
-    ["./client/report.jsx", versioned("./client/report.js")]
+    ["./client/report.jsx", versioned("./client/report.js")],
+    ["./client/report-subjects.js", versioned("./client/report-subjects.js")]
   ]),
   transformFile("client/arena.jsx", "client/arena.js", "jsx", [
     ["./audio.js", versioned("./audio.runtime.js")],
@@ -176,7 +177,8 @@ await Promise.all([
     ["./report.jsx", versioned("./report.js")]
   ]),
   transformFile("client/report.jsx", "client/report.js", "jsx", [
-    ["./history.jsx", versioned("./history.js")]
+    ["./history.jsx", versioned("./history.js")],
+    ["./report-subjects.js", versioned("./report-subjects.js")]
   ]),
   transformFile("client/qr.jsx", "client/qr.js", "jsx"),
   transformFile("client/information.jsx", "client/information.js", "jsx"),

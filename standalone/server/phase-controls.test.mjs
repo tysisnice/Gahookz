@@ -31,6 +31,31 @@ test('skip refuses phases with nothing after them, and says so', () => {
   }
 });
 
+test('a paused room is told to resume instead of skipping its frozen phase', () => {
+  // The defect: Skip while paused advanced the phase, so the countdown the host
+  // had deliberately stopped was jumped over and the next one started under a
+  // "paused" banner.
+  for (const phase of PAUSABLE_PHASES) {
+    const decision = skipDecision(phase, { paused: true });
+    assert.equal(decision.ok, false, phase + ' should refuse Skip while paused');
+    assert.equal(decision.action, 'none');
+    assert.match(decision.error, /[Rr]esume/);
+  }
+});
+
+test('an unpausable phase keeps its own reason, even if the room claims to be paused', () => {
+  // finished and lobby are not skippable for their own reasons. Telling the
+  // host to resume a finished game would be a worse answer than the truth.
+  assert.match(skipDecision('finished', { paused: true }).error, /already finished/);
+  assert.match(skipDecision('lobby', { paused: true }).error, /nothing to skip/);
+});
+
+test('skip decisions are unchanged when the room is not paused', () => {
+  for (const phase of ALL_PHASES) {
+    assert.deepEqual(skipDecision(phase, { paused: false }), skipDecision(phase), phase);
+  }
+});
+
 test('every phase gets a skip answer, and the exported list matches it', () => {
   const skippable = ALL_PHASES.filter((phase) => skipDecision(phase).ok);
   assert.deepEqual([...SKIPPABLE_PHASES].sort(), skippable.sort());

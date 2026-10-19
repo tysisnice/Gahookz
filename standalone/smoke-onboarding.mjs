@@ -26,13 +26,18 @@ assert(app.includes("saved.name || randomFunnyAnimalName()"), "A new player name
 const welcomeStart = app.indexOf("function WelcomeScreen");
 const welcomeEnd = app.indexOf("function EntryModeArt", welcomeStart);
 const welcome = app.slice(welcomeStart, welcomeEnd);
-assert(welcome.includes('useState("join")'), "Join should be the default welcome action");
+// Join is still the default, but the welcome screen now takes an intent so
+// /host and /play can arrive with the matching side chosen. Assert the default
+// and the mapping rather than the old literal useState("join").
+assert(welcome.includes('{ intent = "join" }'), "Join should be the default welcome action when the address does not ask for Host");
+assert(welcome.includes('intent === "host" ? "host" : "join"'), "/host should arrive with Host chosen");
 assert(welcome.indexOf('entryIntent === "join"') < welcome.indexOf('entryIntent === "host"'), "Join should appear to the left of Host");
 assert(welcome.includes("Make a room, drop a code, GAHOOK."), "Welcome should use the original Gahookz tagline");
 assert(!welcome.includes("Join or Host a room"), "Welcome should move directly from the tagline to the Join and Host choices");
 assert((welcome.match(/<input value=\{roomCode\}/g) || []).length === 1, "Join and Host should share one room-code field");
 assert(welcome.includes("intent: entryIntent"), "Welcome should send explicit Join or Host intent");
 assert(!welcome.includes("Install Gahookz"), "Welcome should not show a duplicate install action");
+assert((welcome.match(/<InstallAppButton/g) || []).length === 1, "The welcome screen should offer installing exactly once");
 assert(welcome.includes("How to play &amp; tutorials") && welcome.includes('mode="overview"'), "Welcome should open the Gahookz overview tutorial");
 assert(welcome.includes('allowedModes={["overview", "quiz", "herd", "host"]}'), "The welcome tutorial should expose four guides (no Majority Rulz tab)");
 assert(!welcome.includes('href="/information"'), "Welcome should no longer send players to the reports page");

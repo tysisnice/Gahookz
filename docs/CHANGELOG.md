@@ -13,7 +13,31 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
 - Pressing **Skip** while the game is paused no longer jumps the phase. The host
   is asked to resume first, so a deliberately stopped countdown stays stopped
   (merge `d1c00fe`,
-  [record](verification/2026-10-19-skip-while-paused/README.md)).
+  [record](verification/2026-10-19-skip-while-paused/README.md)). The Skip button
+  is also greyed out while the game is paused, with a tooltip saying why.
+- **Install app** is a button in the game at last, in the welcome footer and in
+  every in-room menu, instead of something only a browser's own menu could do.
+  It appears only when the browser offers an install.
+- **Game guides** opens the `/information` guides from any in-room menu, in a
+  new tab so nobody loses their seat. Until now nothing in the game linked that
+  page at all.
+- `gahookz.com/play` and `gahookz.com/host` now open the welcome screen, on the
+  Join and Host side respectively, with a room word ready for a host. They used
+  to be read as the room codes PLAY and HOST, so they landed on a room that did
+  not exist. A room really coded `HOST` is unaffected: its link is upper case.
+- A host who drops out no longer covers the line telling everyone else what the
+  room is doing: the "host disconnected" notice moves the room banner down
+  while it is up, and the measured overlap was 52 pixels.
+- The host can **remove a reported answer or question** straight from the
+  Reports list, not just a chat message. A question that is already in the round
+  being played comes out of the question list and says so, rather than reporting
+  a success that changes nothing on screen.
+- An installed app opens offline again even on a cold start: two modules the
+  first screen needs (`client/legal.js`, `client/report.js`) were missing from
+  the shell cache.
+- A player who closes their browser mid-Herd no longer blocks Start for
+  everybody else. Their unwritten answers are filled the way force-start fills
+  them; a connected writer who has not finished still holds the room.
 
 ### Developer
 - **Node 24 is the declared runtime.** `engines.node` is `>=24.0.0`, matching

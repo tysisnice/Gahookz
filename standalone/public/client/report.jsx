@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { useBackToClose, useScrollLock } from "./history.jsx";
+import { canRemoveSubject } from "./report-subjects.js";
 
 const createPortal = (...args) => window.ReactDOM.createPortal(...args);
 
@@ -129,7 +130,7 @@ export function ReportDialog({ subject, onClose, onSubmit }) {
 }
 
 // The host's list. Reports the server holds are shown here and nowhere else.
-export function HostReportsDialog({ open, reports = [], chatMessages = [], onClose, onDismiss, onRemoveChat }) {
+export function HostReportsDialog({ open, reports = [], chatMessages = [], onClose, onDismiss, onRemoveChat, onRemoveSubject }) {
   const dialogRef = useRef(null);
   useScrollLock(open);
   useBackToClose(open, onClose);
@@ -164,6 +165,7 @@ export function HostReportsDialog({ open, reports = [], chatMessages = [], onClo
                   {report.note ? <p>{report.note}</p> : null}
                   <div className="host-report-actions">
                     {message ? <button className="secondary-button" type="button" onClick={() => onRemoveChat?.(report, message)}>Remove message</button> : null}
+                    {canRemoveSubject(report.subjectKind) ? <button className="secondary-button" type="button" onClick={() => onRemoveSubject?.(report)}>Remove {subjectLabel(report.subjectKind)}</button> : null}
                     <button className="secondary-button" type="button" onClick={() => onDismiss?.(report)}>Dismiss</button>
                   </div>
                 </li>);

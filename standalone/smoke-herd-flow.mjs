@@ -176,6 +176,21 @@ assert.equal(snapshot.canStart, true);
 assert(snapshot.herdAnswerReview.every((assignment) => assignment.submitted), "The host should be able to review every completed answer");
 await post("/api/host/start", { code, playerKey: hostKey });
 
+// A question already chosen for this game cannot be removed: the phase machine
+// indexes that list, so splicing one out mid-game would skip or repeat a round.
+// The host used to be told the question was "no longer here" while it was on
+// everybody's screen, which sent them looking for something that had not moved.
+{
+  const inPlay = (await state()).currentQuestion.id;
+  const partial = await post("/api/host/remove-content", { code, playerKey: hostKey, kind: "question", targetId: inPlay });
+  assert.equal(partial.stillInPlay, true, "Removing an in-play question must report that it is still in play");
+  assert.match(partial.notice, /Skip/, "The host must be told what is left to do: " + partial.notice);
+  assert.equal((await state()).currentQuestion.id, inPlay, "The round must keep the question it is already playing");
+  const missing = await request("/api/host/remove-content", { code, playerKey: hostKey, kind: "question", targetId: "no-such-question" });
+  assert.equal(missing.data.ok, false);
+  assert.match(missing.data.error, /no longer here/, "A question that never existed is still refused: " + missing.data.error);
+}
+
 let rounds = 0;
 let sawImageVoting = false;
 let revealedImageUrl = "";

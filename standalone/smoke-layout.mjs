@@ -2,6 +2,7 @@ import fs from "node:fs";
 
 const css = fs.readFileSync(new URL("./public/styles.css", import.meta.url), "utf8");
 const app = fs.readFileSync(new URL("./public/app.jsx", import.meta.url), "utf8");
+const hostPresence = fs.readFileSync(new URL("./public/client/host-presence.jsx", import.meta.url), "utf8");
 
 function assert(value, message) {
   if (!value) {
@@ -295,8 +296,20 @@ function runLayoutSmoke() {
   assert(segments.includes('role="radiogroup"') && segments.includes('role="radio"') && segments.includes("aria-checked") && segments.includes("ArrowRight"), "Game length should be a keyboard-operable radio group");
   assert(getFunctionSection("RoundPresetSelector").includes("<NumberWheel") && getFunctionSection("HerdLengthSelector").includes("<NumberWheel") && !getFunctionSection("HerdLengthSelector").includes('type="number"'), "Custom game length should use the number wheel, not a raw number input");
 
+  // Host presence (2026-10-19): the notices are a fixed stack pinned just under
+  // the top bar, which is exactly where a room's status banner begins, so they
+  // used to sit on top of it — a player learning the host had dropped lost the
+  // line telling them what the room was doing. The layer measures itself and
+  // publishes the height; the banner reserves it. Both halves are asserted
+  // because either one alone does nothing.
+  const statusBanner = mergedBlock(".room-status-banner");
+  assert(/margin-top:\s*var\(--host-notice-space/.test(statusBanner), "The room status banner should reserve room for a host-presence notice");
+  assert(hostPresence.includes("--host-notice-space") && hostPresence.includes("getBoundingClientRect"), "The host-presence layer should publish its measured height");
+  assert(hostPresence.includes("removeProperty(\"--host-notice-space\")"), "The reserved space should disappear with the notice");
+
   return {
     checked: [
+      "no host-presence notice over the room status banner",
       "player grid capped at two columns",
       "medium single-column player banners",
       "small-medium widened host split layout",

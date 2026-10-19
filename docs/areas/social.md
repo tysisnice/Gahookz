@@ -443,6 +443,13 @@ Backlog: see [the backlog](../backlog.md). Found while writing this guide:
   `/api/host/report/resolve` and (for chat) `/api/host/remove-content`. Report
   subjects now include `question` and `room`. Voting tiles carry no Report
   control (they are tap targets); an answer is reportable at the reveal.
+- **Host removal from the reports list** (extended 2026-10-19). "Remove answer"
+  and "Remove question" sit beside "Remove message"; what may be removed and how
+  a subject is named for `/api/host/remove-content` is
+  `client/report-subjects.js`, unit-tested beside itself. An answer carries its
+  prompt because answer ids are colour names every prompt reuses. A question
+  already chosen for the round can only be taken out of the question list, and
+  the host is told to Skip past the round it is in.
 - **Chat and painting in Herd writing** (resolved 2026-10-08): the server now
   accepts `herd-writing`, as the browser always offered.
 - **Room Dash is dormant.** `/api/player/dash`, the `dash*` player fields and

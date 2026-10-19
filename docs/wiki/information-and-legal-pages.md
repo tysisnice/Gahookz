@@ -2,7 +2,7 @@
 
 > Two plain reading pages inside the game: `/information` explains how the modes work, and `/legal` holds the rules, terms and privacy notice.
 
-**Area:** [UI shell](../areas/README.md) · **Status:** live · **Last reviewed:** 2026-10-04
+**Area:** [UI shell](../areas/README.md) · **Status:** live · **Last reviewed:** 2026-10-19
 
 ## What it is
 
@@ -11,8 +11,14 @@ Majority Rulez guide and a Herd guide, chosen from a list on the left (the choic
 is kept in the address, for example `/information#herd`). It once also held the
 product roadmap, launch checklist and operations notes. Those moved into the
 repository, and their old addresses now show a "has moved" notice so bookmarks
-still work. The welcome screen does not link to this page and no in-app link was
-found (unverified for every menu), so it is reached by address.
+still work. Since 2026-10-19 the page is linked from inside the game as "Game
+guides", in the host, player and join menus, where it opens in a new tab so a
+player reading the Herd guide mid-game does not leave their room. The welcome
+screen still does not link it, and that is on purpose: `smoke-onboarding` has
+forbidden a welcome-screen link since 2026-07-20, when this page carried the
+product roadmap and operations notes rather than player guides. Putting one back
+is an owner decision, and it sits with the open question of what this page is
+([internal reports](../product/internal-reports.md)).
 
 **`/legal`** holds four short documents in plain English: Community rules, Terms
 of use, Privacy, and Contact and takedown (`/legal#privacy`, and so on). The
@@ -39,7 +45,8 @@ offline and update screens skip them.
 | Legal documents | `standalone/public/client/legal.jsx` — `LegalHub` |
 | Routing to both pages | `standalone/public/app.jsx` — `getRoute` |
 | Static rewrite | `standalone/server.js` — `serveStatic` |
-| Welcome-screen link | `standalone/public/app.jsx` (`welcome-legal-link`) |
+| Welcome-screen link (`/legal` only) | `standalone/public/app.jsx` (`welcome-legal-link`) |
+| In-room "Game guides" | `standalone/public/app.jsx` — `GameGuidesButton`, used by all three menus |
 | Moved reports | `docs/product/internal-reports.md` |
 | Tests | `standalone/smoke-information.mjs` |
 
@@ -55,3 +62,5 @@ offline and update screens skip them.
 - 2026-09-06 — `/legal` rules, terms, privacy and contact added with host moderation.
 - 2026-09-12 — `/information` rewritten for players; operator reports moved to the repository (P11).
 - 2026-10-04 — Page written; two stale statements on the legal page recorded.
+- 2026-10-19 — `/information` reachable from inside the game as "Game guides"
+  ([record](../verification/2026-10-19-small-fixes/README.md)).

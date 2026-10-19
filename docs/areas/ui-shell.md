@@ -41,6 +41,10 @@ the frame may put an account in front of a guest (rule 1 in `CLAUDE.md`).
   mounts them ([systems.md](systems.md)).
 - **An installable app**, with `/information` and `/legal` available without a
   room.
+- **Host-presence notices that do not cover the room's own banner.** The notice
+  layer is fixed under the top bar and publishes its measured height as
+  `--host-notice-space`; the room status banner reserves that much while a
+  notice is up, and nothing at all when there is none.
 
 ## Code map
 
@@ -78,7 +82,8 @@ links and code share one path.
 | `/` | `welcome` | `?room=CODE` prefills the code; `&locked=1` asks for the password (`buildWelcomePath`) |
 | `/<CODE>` | `room` | Canonical (`buildRoomPath`); four letters, any case, upper-cased |
 | `/host/<CODE>`, `/player/<CODE>`, `/<CODE>/host`, `/<CODE>/player` | `room` | Legacy shapes; the URL never picks the role, the server does |
-| `/information`, `/legal` | `information`, `legal` | Static hubs; they still render during an outage |
+| `/host`, `/play` | `welcome` | Entry points: `/host` opens the welcome screen with Host chosen and a room word ready, `/play` with Join chosen. Matched in lower case only, because `HOST` and `PLAY` are legal room codes and room links are upper case |
+| `/information`, `/legal` | `information`, `legal` | Static hubs; they still render during an outage. `/information` is linked from the host, player and join menus as "Game guides", which opens it in a new tab so a player does not leave their room. Deliberately **not** linked from the welcome screen: `smoke-onboarding` has forbidden that since 2026-07-20, when the page carried operator reports |
 
 `serveStatic` in `server.js` lists the same shapes and serves `index.html` for
 them, so a new route needs both. `App` renders `InformationHub`, `LegalHub`,
@@ -212,6 +217,13 @@ in `vendor/`, bridged by the `*-shim.js` files and `use-sync-selector.js`), then
 `beforeinstallprompt` and imports `/app.js`. `manifest.webmanifest` is
 `display: standalone`, scope `/`, with 192, 512 and maskable icons.
 
+`usePwaInstall` (`client/offline.jsx`) turns that captured prompt into the
+**Install app** button in the welcome footer and in all three menus, through
+`InstallAppButton` in `app.jsx`. It renders nothing when no prompt has arrived
+or the app is already installed, which is why the button is invisible in a
+browser that does not offer installing — and why `browser-navigation` dispatches
+`gahookz-install-ready` itself to check the wiring.
+
 `service-worker.js` precaches `SHELL_ASSETS` into `gahookz-shell-<release>` and
 deletes older `gahookz-shell-*` caches on activate. `/api/*`, `/events` and media
 are never cached; navigations are network-first with `/index.html` as the offline
@@ -302,23 +314,22 @@ the current update's folder.
 - **Add a tooltip:** `<InfoTip label="...">`; never position it yourself. Check
   it at 320 px.
 - **Add a route:** extend `getRoute` and the `serveStatic` list in `server.js`.
-- **Add a client module:** add it to `generatedFiles` and the transform list in
-  `build-client.mjs` (platform) and to `SHELL_ASSETS` in `service-worker.js`.
+- **Add a client module:** add it to `generatedFiles` (generated output only)
+  and the transform list in `build-client.mjs` (platform), and to `SHELL_ASSETS`
+  in `service-worker.js`. `smoke-pwa` walks the static import graph out of the
+  built bundle and fails if the shell cache is missing anything the first paint
+  imports, so a forgotten entry is now caught rather than discovered offline.
 - **Add a preference:** key, getter, setter, hook and event in
   `client/preferences.jsx`; mirror it onto `<html>` if CSS needs it.
 
 ## Known issues
 
-- `/host` and `/play` are served `index.html`, but `getRoute` reads them as the
-  room codes `HOST` and `PLAY`.
-- `client/legal.js` is built but absent from `SHELL_ASSETS`, so it is cached on
-  its first online load, not at install.
 - "Reduce Gahook effects" also mutes sound in the host's Lobby rules and the join
   menu (`useReducedEffects` sets both); `PlayerSettingsDialog` keeps them apart.
 - The ownership map omits `history.jsx`, `back-stack.ts`, `QuickMenu` and
   `useMediaQuery`.
-- `browser-mobile-ui` rewrites a dated historical evidence folder on every run.
-- The host-away notice overlaps the lobby status banner while it shows.
+- `browser-mobile-ui` and `browser-desktop-ui` both write into dated historical
+  evidence folders on every run, so every verification run has to restore them.
 
 Live backlog: [`../backlog.md`](../backlog.md). Feature pages:
 [install and offline](../wiki/install-and-offline.md),

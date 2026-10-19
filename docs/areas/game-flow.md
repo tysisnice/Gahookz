@@ -505,13 +505,16 @@ weaken a check to get a pass.
   `PHASE_DURATIONS_MS`, `plannedRounds` and `remainingMs`. The live machine has
   its own transitions and its own `estimatedGameDurationMs`, so `phases.test.ts`
   tests a model of the rules rather than the rules.
-- **A disconnected Herd writer blocks Start.** `getStartCheck` waits for every
-  *eligible* writer to mark ready, connected or not. Skip or force-start gets
-  past it, filling the missing answers. Read from the code, not reproduced.
-- **Skip while paused is unchecked.** `skipPhase` does not look at `room.paused`
-  and `skipDecision` only looks at the phase. By reading, a skip during a pause
-  starts the next phase's timer while the room is still marked paused. Whether
-  the UI offers Skip then is unconfirmed. Not run.
+- **A disconnected Herd writer blocking Start** (resolved 2026-10-19).
+  `getStartCheck` counted every *eligible* writer, connected or not, so one
+  closed browser held the room. It now waits only on connected writers, and
+  Start fills an absent writer's blanks with exactly the filler force-start
+  uses (`fillUnwrittenHerdAnswers`). A connected writer who has not finished
+  still holds the room. Covered over HTTP in `smoke-host-controls`.
+- **Skip while paused** (resolved 2026-10-19). `skipDecision(phase, { paused })`
+  refuses a paused room with "Resume the game before skipping.", and the Skip
+  button is disabled with the same reason as its tooltip. The phase is decided
+  first, so a phase that was never skippable keeps its own reason.
 - `publicMajorityResults` lists `unanimous` twice in one object literal. Harmless.
 
 Live backlog: [`../backlog.md`](../backlog.md).

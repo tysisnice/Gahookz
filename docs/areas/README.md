@@ -66,7 +66,7 @@ their handoff (see [the working agreement](../agents/README.md)).
 | `app.jsx`: `HostGame`, `PlayerGame`, `Metric`, `AnswerGrid`, `AnswerChoicePlayers`, `VoteChoicePlayers`, leaderboard components, `RevealPanel`, `RoundRevealSummary`, `CorrectAnswerSpotlight`, `QuestionResultsPanel`, `QuestionAuthorLine`, `FinishedScreen`, `ReadonlyFinishedScreen`, `ReadonlyPartyView`, `PartyFinalScoreboard`, `Final*` components | ui-game |
 | `client/reveal.jsx`, `client/reveal.css` | ui-game |
 | `app.jsx`: Gahook plumbing (`RoomGetGotOverlay`, `HostLobbyPokeEffects`, `CounterGahookPrompt`, `GahookRoster`, `GahookFormPicker`, `GahookDuel*`, `GahookArenaCrowdControls`, `RoomSocialHub`, `LobbyPaintSurface`, mini-Gahook layers inside `PlayerView`) | social |
-| `client/arena.jsx`, `client/arena.css`, `client/social.jsx`, `client/custom-gahook.jsx`, `client/offline.jsx` (Gahook Dash), `client/gahook-forms.js` | social |
+| `client/arena.jsx`, `client/arena.css`, `client/social.jsx`, `client/custom-gahook.jsx`, `client/offline.jsx` (Gahook Dash and the install prompt), `client/gahook-forms.js`, `client/report.jsx`, `client/report-subjects.js` (reporting and host removal) | social |
 | `client/audio.js`, `client/music.ts`, `client/music-composer.ts` (all sound and music) | audio-art |
 | `client/presentation.jsx` (Gahook faces and overlays), `icons/`, tutorial artwork in `client/tutorial-art.jsx` | audio-art |
 | `app.jsx`: `AccountPanel`, `CAREER_STATS` | accounts |

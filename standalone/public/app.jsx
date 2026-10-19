@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Provider, useDispatch, useSelector } from "react-redux";
 import { createStore } from "redux";
 import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, systemPrefersReducedEffects, useMusicPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
-import { OfflineExperience, ServerUpdateExperience, useServerConnection } from "./client/offline.jsx";
+import { OfflineExperience, ServerUpdateExperience, usePwaInstall, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
 import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
 import { FactCheckPanel, HerdRevealBreakdown, MajorityRevealBreakdown, PromptText, tieBreakLabel } from "./client/reveal.jsx";
@@ -42,6 +42,7 @@ import { AccountPanelView, onAccountProfile, useAccountJoinPrefill } from "./cli
 import { InformationHub } from "./client/information.jsx";
 import { LegalHub } from "./client/legal.jsx";
 import { HostReportsDialog, ReportButton, ReportContext, ReportDialog } from "./client/report.jsx";
+import { removalRequestFor } from "./client/report-subjects.js";
 
 const CLIENT_KEY = "gahookz-client-key";
 const createPortal = (...args) => window.ReactDOM.createPortal(...args);
@@ -889,6 +890,22 @@ function getRoute() {
   if (parts[0]?.toLowerCase() === "legal") {
     return { mode: "legal", code: "" };
   }
+  // `/host` and `/play` are entry points the server already serves index.html
+  // for, but with no room code after them they fell through to the four-letter
+  // rule below and were read as the room codes HOST and PLAY — so typing
+  // gahookz.com/play landed on a room that does not exist. They now open the
+  // welcome screen with the matching option chosen.
+  //
+  // The comparison is case-sensitive on purpose, unlike `/information` and
+  // `/legal` above, which can never collide with a room code. HOST and PLAY are
+  // both legal four-letter codes, and `buildRoomPath` writes room links in
+  // upper case, so `/HOST` stays a room while `/host` is an entry point.
+  if (parts.length === 1 && parts[0] === "host") {
+    return { mode: "welcome", code: "", intent: "host" };
+  }
+  if (parts.length === 1 && parts[0] === "play") {
+    return { mode: "welcome", code: "", intent: "join" };
+  }
   if (parts[0] === "host" && parts[1]) {
     return { mode: "room", code: normaliseRoomCode(parts[1]) };
   }
@@ -1220,7 +1237,7 @@ function App() {
   return (
     <>
       {leaveGuard}
-      {mode === "information" ? <InformationHub /> : mode === "legal" ? <LegalHub /> : mode === "welcome" ? <WelcomeScreen /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : <ReportProvider playerKey={playerKey}>{lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}</ReportProvider>}
+      {mode === "information" ? <InformationHub /> : mode === "legal" ? <LegalHub /> : mode === "welcome" ? <WelcomeScreen intent={route.intent} /> : lobby.code !== route.code ? <RoomLoading code={route.code} error={connectionError} /> : <ReportProvider playerKey={playerKey}>{lobby.isHost ? <HostMode playerKey={playerKey} code={route.code} /> : <PlayerView playerKey={playerKey} />}</ReportProvider>}
       {mode === "room" && lobby.code === route.code ? <GahookArenaCrowdControls duel={lobby.gahookDuel} ownPlayer={lobby.ownPlayer} playerKey={playerKey} /> : null}
       {error ?
       <div className="toast" role="status" key={error}>
@@ -1264,11 +1281,13 @@ function RoomLoading({ code, error = "" }) {
 
 }
 
-function WelcomeScreen() {
+function WelcomeScreen({ intent = "join" }) {
   const dispatch = useDispatch();
   const welcomePrefill = getWelcomePrefill();
-  const [entryIntent, setEntryIntent] = useState("join");
-  const [roomCode, setRoomCode] = useState(() => welcomePrefill.code || "");
+  const [entryIntent, setEntryIntent] = useState(intent === "host" ? "host" : "join");
+  // Arriving on /host means "make a room", so it gets a code to make, the same
+  // way choosing Host on the screen does.
+  const [roomCode, setRoomCode] = useState(() => welcomePrefill.code || (intent === "host" ? randomClientCode() : ""));
   const [roomPlaceholder] = useState(() => randomClientCode());
   const [passwordEnabled, setPasswordEnabled] = useState(() => Boolean(welcomePrefill.password || welcomePrefill.locked));
   const [password, setPassword] = useState(() => welcomePrefill.password);
@@ -1346,6 +1365,12 @@ function WelcomeScreen() {
       </section>
       <footer className="welcome-footer">
         <button className="welcome-tutorial-link" type="button" onClick={() => setShowTutorial(true)}>How to play &amp; tutorials</button>
+        <InstallAppButton className="welcome-tutorial-link" />
+        {/* No link to /information here on purpose: `smoke-onboarding` has
+            forbidden one since 2026-07-20, when that page carried the product
+            roadmap and operations notes. It holds player guides only now, and
+            the in-room menus link it, but putting it back on the welcome screen
+            is Tyson's call — see the 2026-10-19 small-fixes record. */}
         <a className="welcome-legal-link" href="/legal">Rules, terms &amp; privacy</a>
       </footer>
       <GameTutorial
@@ -1611,6 +1636,18 @@ function ReportProvider({ playerKey, children }) {
         onRemoveChat={async (report, message) => {
           const removed = await hostCall("/api/host/remove-content", { kind: "chat", targetId: message.id });
           if (removed.ok) await hostCall("/api/host/report/resolve", { reportId: report.id });
+        }}
+        onRemoveSubject={async (report) => {
+          const removed = await hostCall("/api/host/remove-content", removalRequestFor(report));
+          if (!removed.ok) return;
+          // A question in the current round cannot be pulled out from under the
+          // players, so the removal was partial: say so and leave the report in
+          // the list as the reminder to Skip past it.
+          if (removed.notice) {
+            dispatch({ type: "ERROR", value: removed.notice });
+            return;
+          }
+          await hostCall("/api/host/report/resolve", { reportId: report.id });
         }} />
       {notice ? <div className="toast report-toast" role="status">{notice}</div> : null}
     </ReportContext.Provider>);
@@ -2004,6 +2041,34 @@ function MusicPreferenceButton() {
   return <button type="button" aria-pressed={!musicOn} onClick={() => setMusicOn(!musicOn)}>{musicOn ? "Turn music off" : "Turn music on"}</button>;
 }
 
+/**
+ * "Install app", shown only when the browser has actually offered an install.
+ *
+ * `usePwaInstall` has existed and been exported since the offline work, with
+ * nothing calling it, so the manifest and service worker were in place and the
+ * app could only be installed through a browser's own menu. The hook reports
+ * `canInstall` false once installed or when no prompt arrived, and this renders
+ * nothing in that case, so it is safe to drop into any menu.
+ */
+function InstallAppButton({ className = "" }) {
+  const { canInstall, install } = usePwaInstall();
+  if (!canInstall) return null;
+  return <button className={className} type="button" onClick={install}>Install app</button>;
+}
+
+/**
+ * "Game guides", the only link to /information anywhere in the app.
+ *
+ * It opens in a new tab on purpose: the guides are worth reading mid-game, and
+ * navigating away from a room in this app means leaving it.
+ */
+function GameGuidesButton({ onDone }) {
+  return <button type="button" onClick={() => {
+    if (onDone) onDone();
+    window.open("/information", "_blank", "noopener");
+  }}>Game guides</button>;
+}
+
 // The three top-bar menus share one shell, QuickMenu (client/controls.jsx):
 // a dropdown on a wide screen, a modal sheet on a phone, closed by Back.
 // Actions that move to another screen close the menu first.
@@ -2030,6 +2095,8 @@ function HostQuickMenu({ code, mode = "quiz", isPlayer, ownPlayer, customGahook,
             room's own Gahook-effects setting, rather than from two places. */}
         {isPlayer ? <button type="button" onClick={() => { close(); onExitAsPlayer(); }}>Exit as Player</button> : null}
         {reporter?.isHost ? <button type="button" onClick={() => { close({ restoreFocus: false }); reporter.openHostReports(); }}>{reporter.reportCount ? "Reports (" + reporter.reportCount + ")" : "Reports"}</button> : null}
+        <GameGuidesButton onDone={() => close()} />
+        <InstallAppButton />
         <button type="button" onClick={() => { close(); onReset(); }}>Reset Lobby</button>
         <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
       </>}
@@ -2959,7 +3026,7 @@ function HostGame({ lobby, connected, hostMenu, onSkip, onPause, onProgressCompl
       <section className="question-stage">
         {!reveal || revealIntro || onPause || onSkip ? <div className="game-timer-row">
           <TimerBar key={reveal ? "answer-reveal" : lobby.phase} phaseEndsAt={reveal ? revealIntroEndsAt : lobby.phaseEndsAt} durationMs={reveal ? REVEAL_ANSWER_SPOTLIGHT_MS : duration} waiting={!reveal && lobby.phaseWaitingForProgress} paused={lobby.paused} pausedRemainingMs={lobby.pausedRemainingMs} muted={lobby.phase === "reading"} onComplete={reveal ? undefined : onProgressComplete} />
-          {onPause || onSkip ? <div className="host-round-controls">{onPause ? <PauseButton paused={lobby.paused} onToggle={() => onPause(!lobby.paused)} /> : null}{onSkip ? <SkipPhaseButton onSkip={onSkip} /> : null}</div> : null}
+          {onPause || onSkip ? <div className="host-round-controls">{onPause ? <PauseButton paused={lobby.paused} onToggle={() => onPause(!lobby.paused)} /> : null}{onSkip ? <SkipPhaseButton onSkip={onSkip} paused={lobby.paused} /> : null}</div> : null}
         </div> : null}
         <div className="question-copy">
           <div className="question-copy-head"><span className="phase-chip">{phaseLabel}</span>{question?.authorName ? <p className="question-author-line"><AvatarBadge player={question.author || { name: question.authorName }} small /><span>By {question.authorName}</span></p> : null}</div>
@@ -3403,6 +3470,8 @@ function PlayerQuickMenu({ ownPlayer, mode = "quiz", customGahook, customGahookO
             the menu; closing it (or Back) returns to the menu. */}
         <button type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
         {reporter?.canReport ? <button type="button" onClick={() => { close({ restoreFocus: false }); reporter.openReport({ kind: "room", id: "", name: "" }); }}>Report a problem</button> : null}
+        <GameGuidesButton onDone={() => close()} />
+        <InstallAppButton />
         <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
         <PlayerSettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </>}
@@ -3621,6 +3690,8 @@ function JoinQuickMenu() {
     <QuickMenu className="host-quick-menu join-quick-menu" label="Menu">
       <EffectsPreferenceButtons />
       <MusicPreferenceButton />
+      <GameGuidesButton />
+      <InstallAppButton />
       <button type="button" onClick={() => navigateTo("/")}>Exit Lobby</button>
     </QuickMenu>);
 }
@@ -4249,7 +4320,7 @@ function PlayerGame({ lobby, connected, ownPlayer, playerKey, hostMenu }) {
             {lobby.isHost ? <div className="host-round-controls"><PauseButton paused={lobby.paused} onToggle={async () => {
               const result = await api("/api/host/pause", { paused: !lobby.paused });
               if (!result.ok) dispatch({ type: "ERROR", value: result.error });
-            }} /><SkipPhaseButton onSkip={async () => {
+            }} /><SkipPhaseButton paused={lobby.paused} onSkip={async () => {
               const result = await api("/api/host/skip");
               if (!result.ok) dispatch({ type: "ERROR", value: result.error });
             }} /></div> : null}
@@ -5594,8 +5665,8 @@ function animalAvatarArt(kind, accent) {
 
 
 
-function SkipPhaseButton({ onSkip }) {
-  return <button className="skip-phase-button" type="button" onClick={onSkip} title="Skip to the next phase"><span>Skip</span><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3 4.5v11l7-5.5zM10 4.5v11l7-5.5z" fill="currentColor" /></svg></button>;
+function SkipPhaseButton({ onSkip, paused }) {
+  return <button className="skip-phase-button" type="button" onClick={onSkip} disabled={Boolean(paused)} title={paused ? "Resume the game before skipping" : "Skip to the next phase"}><span>Skip</span><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3 4.5v11l7-5.5zM10 4.5v11l7-5.5z" fill="currentColor" /></svg></button>;
 }
 
 function PauseButton({ paused, onToggle }) {

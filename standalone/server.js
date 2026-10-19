@@ -917,6 +917,7 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
       beginHerdAnswerWriting(room);
       return { ok: true, phase: room.phase };
     }
+    if (room.phase === "herd-writing") fillUnwrittenHerdAnswers(room, true);
     startGame(room, { preparedQuestions: room.phase === "herd-writing" });
     return { ok: true, phase: room.phase };
   }
@@ -2938,7 +2939,28 @@ function removeContent(room, payload) {
   }
 
   if (kind === "question") {
+    // A question already chosen for this game sits in room.quizQuestions, which
+    // removeStoredQuestions leaves alone on purpose: the phase machine indexes
+    // that array, so splicing one out mid-game would skip or repeat a round.
+    //
+    // The same question object is usually in its author's pool as well, so a
+    // removal during a game used to take it out of the pool, answer a plain
+    // `ok: true`, and leave it on everybody's screen — the host pressed Remove
+    // on the question they were looking at and nothing appeared to happen. It
+    // still comes out of the pool, so it cannot be chosen again, but the answer
+    // now says what is left to do.
+    const inPlay = room.quizQuestions.some((question) => question.id === targetId);
     const removed = removeStoredQuestions(room, (question) => question.id === targetId, { includeSelected: false });
+    if (inPlay) {
+      Object.values(room.players).forEach((player) => {
+        player.questionsSubmitted = countQuestionsForPlayer(room, player.id);
+      });
+      pruneRoomMedia(room);
+      broadcastState(room, { immediate: true });
+      return { ok: true, removed, stillInPlay: true, notice: removed ?
+        "Taken out of the question list. It is in this round, so Skip to move past it." :
+        "This question is in this round. Skip to move past it." };
+    }
     if (!removed) return { ok: false, error: "That question is no longer here." };
     Object.values(room.players).forEach((player) => {
       player.questionsSubmitted = countQuestionsForPlayer(room, player.id);
@@ -4183,12 +4205,15 @@ function publicAnswerSelections(room, viewerPlayerId = "") {
 
 function getStartCheck(room) {
   if (room.phase === "herd-writing" && room.gameMode === "herd") {
+    // A writer who has left the room cannot finish; their blanks are filled on
+    // start exactly as force-start fills them, so only connected writers gate it.
     const assignments = room.quizQuestions.flatMap((question) => question.answers || []);
-    if (!assignments.length || assignments.some((answer) => !herdAnswerWritten(answer))) {
+    const absent = (answer) => !room.players[answer.authorId]?.connected;
+    if (!assignments.length || assignments.some((answer) => !herdAnswerWritten(answer) && !absent(answer))) {
       return { ok: false, error: "Every assigned Herd answer needs to be written first." };
     }
     const eligibleIds = new Set(room.game.eligiblePlayerIds || []);
-    const waitingOn = Object.values(room.players).filter((player) => eligibleIds.has(player.id) && !player.ready);
+    const waitingOn = Object.values(room.players).filter((player) => player.connected && eligibleIds.has(player.id) && !player.ready);
     return waitingOn.length ? { ok: false, error: "Every Herd answer writer needs to mark ready." } : { ok: true };
   }
   if (room.phase !== "building") {
@@ -4272,20 +4297,29 @@ function makeGeneratedQuestion(room, player, generatedIndex) {
   return question;
 }
 
+/** Fill unwritten Herd answers with generated text; the same fill force-start uses. */
+function fillUnwrittenHerdAnswers(room, onlyAbsentWriters = false) {
+  let generatedAnswerCount = 0;
+  room.quizQuestions.forEach((question, questionIndex) => {
+    (question.answers || []).forEach((answer, answerIndex) => {
+      if (herdAnswerWritten(answer)) return;
+      if (onlyAbsentWriters && room.players[answer.authorId]?.connected) return;
+      answer.text = GENERATED_HERD_ANSWERS[(questionIndex * 4 + answerIndex) % GENERATED_HERD_ANSWERS.length];
+      answer.generated = true;
+      answer.submittedAt = Date.now();
+      generatedAnswerCount += 1;
+    });
+  });
+  Object.values(room.players).forEach((player) => {
+    player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter(herdAnswerWritten).length;
+  });
+  return generatedAnswerCount;
+}
+
 function forceStartGame(room) {
   if (room.phase === "herd-writing" && room.gameMode === "herd") {
-    let generatedAnswerCount = 0;
-    room.quizQuestions.forEach((question, questionIndex) => {
-      (question.answers || []).forEach((answer, answerIndex) => {
-        if (herdAnswerWritten(answer)) return;
-        answer.text = GENERATED_HERD_ANSWERS[(questionIndex * 4 + answerIndex) % GENERATED_HERD_ANSWERS.length];
-        answer.generated = true;
-        answer.submittedAt = Date.now();
-        generatedAnswerCount += 1;
-      });
-    });
+    const generatedAnswerCount = fillUnwrittenHerdAnswers(room);
     Object.values(room.players).forEach((player) => {
-      player.herdAnswersSubmitted = herdAssignmentsForPlayer(room, player.id).filter(herdAnswerWritten).length;
       player.ready = true;
     });
     startGame(room, { preparedQuestions: true });
@@ -4731,16 +4765,11 @@ function setGamePaused(room, payload) {
 }
 
 function skipPhase(room) {
-  // A paused room is waiting for the host to resume it, not for its phase to
-  // end. Skipping while paused jumped straight over the countdown the host
-  // had deliberately stopped (docs/backlog.md, game-flow).
-  if (room.paused) {
-    return { ok: false, error: "Resume the game before skipping." };
-  }
-  // The phase table lives in ./server/phase-controls.mjs so that "which phases
-  // can be skipped" is testable on its own and cannot drift apart from
-  // LIVE_GAME_PHASES, which answers a different question (who may Gahook).
-  const decision = skipDecision(room.phase);
+  // The whole policy — which phases can be skipped, and that a paused room must
+  // resume first — lives in ./server/phase-controls.mjs so it is testable on its
+  // own and cannot drift apart from LIVE_GAME_PHASES, which answers a different
+  // question (who may Gahook).
+  const decision = skipDecision(room.phase, { paused: Boolean(room.paused) });
   if (!decision.ok) {
     return { ok: false, error: decision.error };
   }
