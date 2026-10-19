@@ -234,15 +234,16 @@ Then, by hand in a browser (not a script), create a room, join from a phone, wat
 lobby update and close it. Record the revision, time, result and rollback target in the
 plan ledger.
 
-### Known issue: the image check
+### Note: the image check
 
-The script compares the running container's image with `gahookz:local`, but the
-Compose default for production is `gahookz:prod-local` (`GAHOOKZ_PROD_IMAGE`). The check
-passes only if the host's `.env` sets `GAHOOKZ_PROD_IMAGE=gahookz:local` (unverified).
-It runs after the new container is up, so a failure ("does not use the image that was
-just built", or `No such image: gahookz:local`) does not mean production is down: read
-`/api/health` first. Note that `docker compose restart gahookz` restarts the old image
-and never deploys source changes.
+The script compares the running container's image with the image Compose will
+actually run — `GAHOOKZ_PROD_IMAGE` read the way Compose reads it, default
+`gahookz:prod-local`. (The retired hard-coded `gahookz:local` was fixed
+2026-10-18; `npm run test:deploy-script` holds the current behaviour.) The
+check runs after the new container is up, so a failure ("does not use the
+image that was just built") does not mean production is down: read
+`/api/health` first. Note that `docker compose restart gahookz` restarts the
+old image and never deploys source changes.
 
 ## 5. Rollback
 
@@ -271,7 +272,7 @@ checks, merge and push, then do a normal [deploy](#4-deploy-only-when-tyson-asks
 `git switch` the Store tree to an old commit: dev bind-mounts it, and Syncthing would
 copy the old source to the other machines.
 
-### Option 2: recreate production from a kept image (fastest, untested)
+### Option 2: recreate production from a kept image (fastest; rehearsed on beta 2026-10-18)
 
 For when production is broken and a revert is too slow. A variable on the command line
 overrides `.env` for that one command, so `.env` is never edited:

@@ -255,18 +255,9 @@ server and no Docker.
 
 ## Known issues
 
-- `dev.mjs` does not watch `client/host-presence.jsx` or `client/legal.jsx`.
 - Nothing acts on a failing container health check. Docker will not restart an
   unhealthy container, and `docker-status.sh` reports one only when somebody
   runs it.
-- `docker-deploy.sh` checks the running image against `gahookz:local`, while the
-  Compose default for production is `gahookz:prod-local`; the check passes only
-  if the host's `.env` sets `GAHOOKZ_PROD_IMAGE=gahookz:local` (unverified).
-- `.env.example` does not list `GAHOOKZ_DRAIN_TIMEOUT_MS`,
-  `GAHOOKZ_MAX_ACTIVE_ROOMS`, `GAHOOKZ_BROADCAST_FLOOR_MS`, `GAHOOKZ_PROD_IMAGE` or
-  `GAHOOKZ_BETA_IMAGE`.
-- `CLAUDE.md` deploy and status commands still say `cd /srv/gahookz`, which the
-  same file says is not the production source.
 - `package.json` declares Node `>=24.0.0` since 2026-10-19, but this laptop's
   system Node is 22, so local verification runs below the declared floor until
   Node 24 is installed (`engines` is advisory here — there is no `.npmrc`, so
