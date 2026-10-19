@@ -38,12 +38,26 @@ export const SKIPPABLE_SETUP_PHASES = Object.freeze(["building", "herd-writing"]
 export const SKIPPABLE_PHASES = Object.freeze([...PAUSABLE_PHASES, ...SKIPPABLE_SETUP_PHASES]);
 
 /**
- * What Skip should do in this phase.
+ * What Skip should do in this phase, for a room that may be paused.
  *
  * Returns a discriminated action rather than performing one, so the phase
  * table can be tested without a room, timers or a game engine.
+ *
+ * A paused room is waiting for its host, not for its phase to end. Skipping
+ * one jumped straight over the countdown the host had deliberately stopped, so
+ * a paused room is refused with something it can act on. The phase is decided
+ * first, so a phase that was never skippable keeps its own reason instead of
+ * being told to resume a game that is over.
  */
-export function skipDecision(phase) {
+export function skipDecision(phase, { paused = false } = {}) {
+  const decision = decideByPhase(phase);
+  if (decision.ok && paused) {
+    return { ok: false, action: "none", error: "Resume the game before skipping." };
+  }
+  return decision;
+}
+
+function decideByPhase(phase) {
   switch (phase) {
     case "reading":
       return { ok: true, action: "begin-answering" };

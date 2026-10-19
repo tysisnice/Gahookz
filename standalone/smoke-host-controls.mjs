@@ -123,23 +123,6 @@ const phaseOf = async (code) => (await request("/api/state", { code, role: "host
   assert(answers.every((answer) => String(answer.text || "").trim().length > 0), "Skipping Herd writing must fill unwritten answers");
 }
 
-// --- Skip is refused while paused, and works again after resuming. ---
-{
-  const { code, post } = await buildHerdRoom({ writeAnswers: true });
-  assert.equal(await phaseOf(code), "herd-writing");
-  await post("/api/host/start", { playerKey: hostKey });
-  assert.equal(await phaseOf(code), "reading");
-  await post("/api/host/pause", { playerKey: hostKey, paused: true });
-  const refused = await request("/api/host/skip", { code, playerKey: hostKey });
-  assert.equal(refused.status, 400, "Skip while paused should be refused");
-  assert.equal(refused.data.error, "Resume the game before skipping.");
-  assert.equal(await phaseOf(code), "reading", "A refused skip must not move the phase");
-  await post("/api/host/pause", { playerKey: hostKey, paused: false });
-  const accepted = await request("/api/host/skip", { code, playerKey: hostKey });
-  assert.equal(accepted.status, 200, "Skip after resuming should work: " + accepted.data.error);
-  assert.equal(await phaseOf(code), "answering");
-}
-
 // --- A disconnected Herd writer no longer blocks Start; a connected one still does. ---
 {
   const { code, post } = await buildHerdRoom({ writeAnswers: true, writers: 3 });
@@ -197,6 +180,7 @@ const phaseOf = async (code) => (await request("/api/state", { code, role: "host
   assert.equal(skip.status, 400, "Skip while paused must be refused, not silently accepted");
   assert.equal(skip.data.ok, false);
   assert.match(skip.data.error, /\S/, "A refusal must say something the host can act on");
+  assert.match(skip.data.error, /[Rr]esume/, "The refusal must name the thing the host has to do");
 
   const held = await request("/api/state", { code, role: "host", playerKey: hostKey });
   assert.equal(held.data.paused, true, "A refused skip must not resume the room");
@@ -207,6 +191,7 @@ const phaseOf = async (code) => (await request("/api/state", { code, role: "host
   const skipAfterResume = await request("/api/host/skip", { code, playerKey: hostKey });
   assert.equal(skipAfterResume.status, 200, "Skip works again once resumed");
   assert.equal(skipAfterResume.data.ok, true);
+  assert.equal(await phaseOf(code), "answering", "The resumed skip must actually advance the phase");
 }
 
 console.log(JSON.stringify({ ok: true, baseUrl: BASE_URL, pausedPhases: ["reading", "answering", "reveal"], skippedSetupPhase: "herd-writing" }, null, 2));
