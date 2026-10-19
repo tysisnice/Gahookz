@@ -9,17 +9,18 @@ open work is [`docs/backlog.md`](backlog.md).
 
 ## In one paragraph
 
-`main` is `74a4899` and **production runs it** — the 48-commit gap that the
-previous handoff led with is closed. Everything Tyson asked for on 8 October is
-live, along with a host-Gahook security fix, the Herd rotation work, and the
-development-watcher repair. Every suite passes on the laptop, including the four
-browser suites, which could not run here until Chromium was installed. The
-rollback plan has been rehearsed for the first time. Both decisions that were
-waiting on Tyson were answered on 2026-10-19: **forget GET GOT during live
-rounds**, and **Node 24** is now the declared runtime. **No branch is
-half-finished.** `main` has gained a batch of player-visible changes that
-production does not have yet, so a deploy is the obvious next thing to ask for;
-nothing in it is urgent.
+Production runs `74a489949e02`, deployed 2026-10-18, which closed the 48-commit
+gap the previous handoff led with: everything Tyson asked for on 8 October is
+live, along with a host-Gahook security fix, the Herd rotation work and the
+development-watcher repair. The rollback plan has been rehearsed for the first
+time, and every suite passes on this laptop — including the browser suites,
+which could not run here at all until Chromium was installed.
+
+Since then `main` has moved ahead of production, and **nothing is
+half-finished**: both decisions that were waiting on Tyson were answered on
+2026-10-19 (**forget GET GOT during live rounds**, **Node 24** as the declared
+runtime), and `agent/small-fixes` is finished and merged. So the obvious next
+thing is to ask whether to deploy; nothing waiting is urgent.
 
 ## The live services
 
