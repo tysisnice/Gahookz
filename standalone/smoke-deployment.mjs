@@ -96,8 +96,8 @@ if (packageJson.scripts["deploy:docker"] !== "bash scripts/docker-deploy.sh") {
 if (!packageJson.dependencies?.tsx || !packageJson.scripts.start.includes("--import tsx") || !packageJson.scripts["test:unit"].includes("--import tsx") || !packageJson.scripts["test:simulation"].includes("--import tsx")) {
   throw new Error("Local start, unit tests, and simulations must load incremental TypeScript on every supported Node version.");
 }
-if (packageJson.engines?.node !== ">=20.0.0") {
-  throw new Error("The declared Node range must match the Node 20-compatible TypeScript runtime.");
+if (packageJson.engines?.node !== ">=24.0.0") {
+  throw new Error("The declared Node range must match the Node 24 runtime the Docker image and CI use.");
 }
 
 console.log(JSON.stringify({

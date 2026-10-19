@@ -5,6 +5,28 @@ line under **Unreleased**; the orchestrator moves them under a dated heading
 when the work is merged to `main`. Link the wiki page for details instead of
 repeating them here.
 
+## Unreleased
+
+Not on gahookz.com yet; production still runs `74a489949e02`.
+
+### Players
+- Pressing **Skip** while the game is paused no longer jumps the phase. The host
+  is asked to resume first, so a deliberately stopped countdown stays stopped
+  (merge `d1c00fe`,
+  [record](verification/2026-10-19-skip-while-paused/README.md)).
+
+### Developer
+- **Node 24 is the declared runtime.** `engines.node` is `>=24.0.0`, matching
+  CI and the `node:24-alpine` image instead of trailing four majors behind it,
+  with `smoke-deployment`'s assertion moved in step so the two cannot drift.
+  Every document that described the old `>=20` state is corrected, including
+  three places that told agents `PATH=/usr/bin:$PATH` would give them Node 24 on
+  this laptop — it gives 22 ([record](verification/2026-10-19-node-24/README.md)).
+- Live-phase GET GOT is settled as intended behaviour, not a gap: the owner
+  decision is to leave it, so its unreachable −1,000 penalty stays in place
+  untouched and gets no live-phase coverage. Recorded where the finding lives
+  ([record](verification/2026-10-18-host-poke-claim/README.md)).
+
 ## 2026-10-18 — deployed to gahookz.com as revision `74a489949e02`
 
 Everything below went live in [that deploy](verification/2026-10-18-deploy/README.md),

@@ -203,9 +203,11 @@ never be read or committed.
 
 Every build or test run holds the shared lock so only one heavy job runs on this
 two-core machine, and port 3199 is never contested:
-`flock /tmp/gahookz-verify.lock <command>`. Use Node 24 by prefixing
-`PATH=/usr/bin:$PATH` (some shells put Node 26 first; a timing-sensitive smoke
-failed there and passed under 24). Runtime dependencies are `pg` and `tsx`;
+`flock /tmp/gahookz-verify.lock <command>`. `engines.node` is `>=24.0.0`, so
+Node 24 is the required runtime; prefix runs with `PATH=/usr/bin:$PATH` to keep
+a stray Node 26 off `PATH` (a timing-sensitive smoke failed under 26 and passed
+under 24). This laptop's system Node is 22 until it is upgraded, which is a
+backlog item. Runtime dependencies are `pg` and `tsx`;
 React and Redux are vendored under `standalone/public/vendor`.
 
 ## Invariants
@@ -265,10 +267,10 @@ server and no Docker.
   `GAHOOKZ_BETA_IMAGE`.
 - `CLAUDE.md` deploy and status commands still say `cd /srv/gahookz`, which the
   same file says is not the production source.
-- `package.json` allows Node `>=20` while CI, Docker and the verified runtime are
-  Node 24; the laptop's system Node is 22, so local verification does not run on
-  the runtime production uses. `agent/deploy-safety` raises the floor to `>=24`,
-  which needs Node 24 installed on the laptop first (`engines` is advisory here
-  — there is no `.npmrc`, so npm warns rather than refuses).
+- `package.json` declares Node `>=24.0.0` since 2026-10-19, but this laptop's
+  system Node is 22, so local verification runs below the declared floor until
+  Node 24 is installed (`engines` is advisory here — there is no `.npmrc`, so
+  npm warns rather than refuses). Installing it needs root, so it is on Tyson's
+  list ([record](../verification/2026-10-19-node-24/README.md)).
 
 Live backlog: [`../backlog.md`](../backlog.md).

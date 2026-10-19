@@ -73,13 +73,16 @@ replacing production.
 
 ## Deliberately not changed
 
-`engines.node` stays `>=20.0.0`. The WIP raised it to `>=24`, which is the
-runtime CI and Docker use, but this laptop's Node is 22, so the floor would
-describe a runtime local verification does not have. `smoke-deployment`'s
-matching assertion was left alone with it, so the two cannot drift. The
-decision is Tyson's: install Node 24 on the laptop, or keep the floor at 20 and
-accept that local runs and CI differ. It is in
-[`docs/backlog.md`](../../backlog.md) and in the platform guide's known issues.
+`engines.node` stays `>=20.0.0` **in this session**. The WIP raised it to
+`>=24`, which is the runtime CI and Docker use, but this laptop's Node is 22, so
+the floor would describe a runtime local verification does not have.
+`smoke-deployment`'s matching assertion was left alone with it, so the two
+cannot drift. The decision was Tyson's: install Node 24 on the laptop, or keep
+the floor at 20 and accept that local runs and CI differ.
+
+> **Decided 2026-10-19: Node 24.** The floor is now `>=24.0.0` with the smoke
+> assertion aligned, and installing Node 24 on the laptop is on Tyson's list.
+> See [the Node 24 record](../2026-10-19-node-24/README.md).
 
 ## Commands run
 

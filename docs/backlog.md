@@ -41,11 +41,14 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Dependency and base-image update cadence: nothing schedules re-resolving the digest or scanning advisories. (platform; OPS section 10, [dependency policy](operations/dependency-policy.md))
 - Per-address SSE cap (32) versus a real party behind one address: measure before a large session. (systems; OPS section 10)
 - Structured, redacted logging instead of ad hoc console logs. (systems; OPS section 10)
-- `package.json` allows Node `>=20` while CI, Docker and the verified runtime are
-  Node 24, and the laptop's system Node is 22, so local verification does not run
-  on the runtime production uses. Needs a decision: install Node 24 on the laptop
-  and raise the floor, or keep `>=20` and accept the difference. (platform;
-  [platform](areas/platform.md))
+- **Install Node 24 on this laptop** — `engines.node` is `>=24.0.0` since
+  2026-10-19 (owner decision), matching CI and the `node:24-alpine` image, but
+  the system Node is 22, so local verification still runs below the declared
+  floor. Nothing refuses (no `.npmrc`, so npm only warns `EBADENGINE`), but a
+  timing-sensitive result cannot be trusted to match production. Needs root, so
+  it is Tyson's: Fedora 44 has `nodejs24` 24.18.0 in `updates`, and nothing but
+  its own subpackages requires the installed `nodejs22`. (platform;
+  [record](verification/2026-10-19-node-24/README.md))
 - Data export (`GET /api/account/export`) is not built; no email-free recovery, Apple sign-in or passkeys. (accounts; [accounts](areas/accounts.md))
 - Stage acceptance P01-P12 of the overhaul is still "Partial" apart from P00 (stable option identities, rematch author rotation, party-sized load and reconnect-storm measurements, typed state engine, JSX decomposition, remaining browser matrix). Re-verify per stage before claiming any as done. (quality; PP, IP)
 
@@ -94,13 +97,6 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Owner decisions
 
-- GET GOT is unreachable in a live round: every sender has one Gahook per
-  question, a 50-Gahook Ultimate streak needs gaps under 1.2 s, and the room
-  cap is 32 — so the −1,000 penalty `applyGetGot` charges only in live phases
-  can never be charged, while the lobby rules still advertise it to players.
-  Decide: drop the live penalty and the copy, let the Ultimate stack persist
-  across questions so a party ganging up over a game can land it, or leave it.
-  (game-flow; [2026-10-18 host-poke claim record](verification/2026-10-18-host-poke-claim/README.md))
 - Herd author-points denominator: with self-votes refused an author reaches at most (n-1)/n of the maximum; change needs before/after fixtures. (game-flow; OPS section 10)
 - Is `/information` public product content or an internal report? (ui-shell; OPS section 10, [internal-reports](product/internal-reports.md))
 - Legal review of `/legal` (privacy notice especially) by a lawyer before any public campaign; unreviewed today. (product; OPS section 10)
@@ -109,6 +105,13 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Resume the separate Arena project once the update is verified on `main` (priority set 2026-10-04). (arena; LEDGER)
 
 ## Checked and closed
+
+- **GET GOT during live rounds: decided 2026-10-19 — leave it.** Tyson's
+  decision is to forget about live-phase GET GOT, so its unreachability is not a
+  bug to chase: no work on making the −1,000 penalty reachable, no live-phase
+  test coverage for it, and the lobby-based assertions in `smoke-gahooks` stay
+  as they are. Nothing in the game changed when this was decided
+  ([record](verification/2026-10-18-host-poke-claim/README.md)).
 
 - `docker-deploy.sh` replacing production when it could not drain, when the
   drain wait expired, or when no token was configured, and leaving production

@@ -123,15 +123,19 @@ game. The laptop has twelve cores and 15 GB as of 2026-10-18 — the "two cores,
 tests time out here" advice in older documents is stale, and the full matrix runs
 in about four minutes.
 
-Check which Node you have before trusting a timing-sensitive result: the Docker
-image and CI are Node 24, the laptop's system Node is **22**, and a
-timing-sensitive smoke has failed under Node 26 and passed under 24. Nothing has
-failed under 22 so far, but a disagreement between local and CI is the first
-thing to suspect.
+**Node 24 is the required runtime.** `package.json` declares `>=24.0.0`
+(owner decision 2026-10-19), which matches the `node:24-alpine` image and CI.
+This laptop's system Node is still **22**, so until Node 24 is installed local
+runs sit below the declared floor: npm only warns (`EBADENGINE`) because there
+is no `.npmrc`, so nothing refuses, but a timing-sensitive result cannot be
+trusted to match production. A smoke has failed under Node 26 and passed under
+24; nothing has failed under 22 so far, but a disagreement between a local run
+and CI is the first thing to suspect. See
+[the Node 24 record](../verification/2026-10-19-node-24/README.md).
 
 ```bash
 cd ~/gahookz-agent-worktrees/<name>
-export PATH=/usr/bin:$PATH; node --version                        # must say v24
+export PATH=/usr/bin:$PATH; node --version                        # keeps a stray Node 26 out; says v22 until Node 24 is installed
 
 flock /tmp/gahookz-verify.lock npm run check                      # typecheck + unit tests + build, about 30 s
 flock /tmp/gahookz-verify.lock npm test                           # full stateful suite, about 3 min

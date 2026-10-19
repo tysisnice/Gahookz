@@ -104,11 +104,14 @@ flock /tmp/gahookz-verify.lock npm test                                        #
 flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:browser # headless Chromium
 ```
 
-- **Use the project's Node 24.** Some shells on this machine put a newer
-  Node (the Hermes agent's `~/.hermes/tools/node-26…`) first on `PATH`. CI
-  and the Docker images run Node 24, and at least one timing-sensitive smoke
-  failed under Node 26 and passed under Node 24. Prefix verification with
-  `PATH=/usr/bin:$PATH` and check `node --version` reports v24.
+- **Node 24 is the declared runtime** (`engines.node` is `>=24.0.0` since
+  2026-10-19), matching CI and the Docker images. Some shells on this machine
+  put a newer Node (the Hermes agent's `~/.hermes/tools/node-26…`) first on
+  `PATH`, and at least one timing-sensitive smoke failed under Node 26 and
+  passed under 24, so prefix verification with `PATH=/usr/bin:$PATH`. On the
+  **laptop** that gives v22 — its system Node has not been upgraded yet, so say
+  which version a result came from. On the **desktop**, Node 24 lives at
+  `~/.local/opt/node-v24.13.1-linux-x64/bin`; put it first on `PATH` instead.
 - Never start a server by hand for tests and never wrap `npm test` in
   `test:disposable`; it manages its own servers.
 - Browser checks re-capture their screenshots into `docs/verification/`.

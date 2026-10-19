@@ -1,6 +1,6 @@
 # Handoff — state of the project
 
-**Written 2026-10-18 by Claude Code (executor session).** Read this, then
+**Written 2026-10-18, updated 2026-10-19 by Claude Code (executor session).** Read this, then
 [`CLAUDE.md`](../CLAUDE.md). This is the short version: where things stand, what
 is half-finished, what to do next. The detailed history is
 [`docs/history.md`](history.md) and the ledger in
@@ -15,7 +15,10 @@ live, along with a host-Gahook security fix, the Herd rotation work, and the
 development-watcher repair. Every suite passes on the laptop, including the four
 browser suites, which could not run here until Chromium was installed. The
 rollback plan has been rehearsed for the first time. One WIP branch remains
-(`agent/small-fixes`) and two decisions are waiting on Tyson.
+(`agent/small-fixes`). Both decisions that were waiting on Tyson were answered
+on 2026-10-19: **forget GET GOT during live rounds**, and **Node 24** is now the
+declared runtime. Since the deploy, `main` has gained one behaviour change that
+production does not have — Skip is refused while the game is paused.
 
 ## The live services
 
@@ -23,8 +26,8 @@ Checked 2026-10-18 15:58 AEDT, straight after the deploy:
 
 | | Revision | Notes |
 | --- | --- | --- |
-| `main` | `74a4899` plus documentation-only commits | Everything below is verified against `74a4899` |
-| Production (gahookz.com, :3102) | `74a489949e02` | **The code matches `main`.** Deployed 2026-10-18; `main` has only documentation commits since, which cannot change the running server. Rollback target `gahookz:rollback-prod-20261018-1556` |
+| `main` | `74a4899` plus the commits listed below | Everything in *What shipped* is verified against `74a4899` |
+| Production (gahookz.com, :3102) | `74a489949e02` | Deployed 2026-10-18. **No longer identical to `main`:** one behaviour change has landed since (Skip is refused while paused, merge `d1c00fe`), plus documentation and the `engines.node` floor, which does not affect the running container. Nothing here is urgent to deploy. Rollback target `gahookz:rollback-prod-20261018-1556` |
 | Beta (:3103) | `f15af0b9da5d` | Older by design; used for the rollback rehearsal and restored |
 | Development (:3101) | bind-mounts the Store tree | So dev *is* current |
 
@@ -65,11 +68,18 @@ found and fixed. Each has a record under `docs/verification/`:
 
 ## Half-finished work
 
-### `agent/small-fixes` — WIP `7e629d1`, 3 commits behind `main`
+### `agent/small-fixes` — WIP `7e629d1`, now well behind `main`
 
-**Done in the diff** (unverified): skipping while paused is refused server-side
-and the Skip button is disabled with a tooltip; a disconnected Herd writer no
-longer blocks Start, via `fillUnwrittenHerdAnswers`, with `smoke-host-controls`
+**Careful: half of this branch is already on `main` by another route.** The
+night-shift block of 2026-10-19 implemented the server-side paused-skip refusal
+on its own branch and merged it (`d1c00fe`, with a `smoke-host-controls` block
+and [a record](verification/2026-10-19-skip-while-paused/README.md)). So
+finishing `agent/small-fixes` starts by merging `main` in and dropping the
+duplicate server change; its **client** half — the Skip button disabled with a
+tooltip — is still only on the branch and is still worth keeping.
+
+**Also done in the diff** (unverified): a disconnected Herd writer no longer
+blocks Start, via `fillUnwrittenHerdAnswers`, with `smoke-host-controls`
 extended.
 
 **Not started:** install-app menu item (`usePwaInstall` in `client/offline.jsx`
@@ -79,15 +89,19 @@ overlapping the lobby banner; `/host` and `/play` routes being read as room
 codes; `client/legal.js` missing from `SHELL_ASSETS`; an in-room link to
 `/information`.
 
-One improvement to make while finishing it: the `room.paused` check it adds sits
-in `skipPhase` in `server.js`, but `standalone/server/phase-controls.mjs` exists
-precisely to hold that policy where it can be tested without a room. Move it
-into `skipDecision(phase, { paused })` with a test.
+One improvement to make while finishing it, still open after the night-shift
+merge: the `room.paused` check now on `main` sits inside `skipPhase` in
+`server.js`, but `standalone/server/phase-controls.mjs` exists precisely to hold
+that policy where it can be tested without a room. Move it into
+`skipDecision(phase, { paused })` with a test.
 
 ## What to do next
 
-1. Finish **`agent/small-fixes`** and run the full matrix.
-2. **The two owner decisions below** block nothing but shape what comes next.
+1. Finish **`agent/small-fixes`** and run the full matrix, starting with the
+   merge and the duplicate noted above.
+2. **Nothing is blocked on a decision.** Both open owner decisions were answered
+   on 2026-10-19 and are recorded where the findings live; the only thing left
+   for Tyson from this cycle is installing Node 24 (below).
 3. **Split the monoliths.** `server.js` (5,650 lines), `app.jsx` (5,496),
    `styles.css` (11,414) are the item that most slows everything else down.
    `standalone/server/question-selection.mjs` is the pattern that works:
@@ -99,15 +113,25 @@ into `skipDecision(phase, { paused })` with a test.
 
 ## Waiting on Tyson
 
-- **GET GOT is unreachable in a live round** and its −1,000 penalty can
-  therefore never be charged, while the lobby rules advertise it to players.
-  Decide: drop the penalty and the copy, let the Ultimate stack persist across
-  questions so a room ganging up over a game can land it, or leave it.
-- **Node version.** `package.json` allows `>=20`, CI and Docker run 24, this
-  laptop runs 22. Install Node 24 on the laptop and raise the floor, or keep
-  `>=20` and accept that local verification and CI differ.
+- **Install Node 24 on this laptop.** Decided 2026-10-19: `engines.node` is now
+  `>=24.0.0`, matching CI and the `node:24-alpine` image, but the system Node is
+  still 22, so local verification runs below the declared floor. Nothing refuses
+  — there is no `.npmrc`, so npm only warns — but a timing-sensitive result
+  cannot be trusted to match production until it is installed. It needs your
+  password: Fedora 44 has `nodejs24` (24.18.0) in `updates`, and nothing but its
+  own subpackages requires the installed `nodejs22`
+  ([record](verification/2026-10-19-node-24/README.md)).
 - Plus the longer-standing ones in the backlog's *Owner decisions* section:
   accounts, audience and monetisation, the Herd author-points denominator.
+
+Answered on 2026-10-19, for the record:
+
+- **GET GOT during live rounds: leave it.** No work on making the −1,000 penalty
+  reachable and no live-phase test coverage for it; the lobby assertions stay as
+  they are ([record](verification/2026-10-18-host-poke-claim/README.md)).
+- **Node version: Node 24.** The floor is raised and every document that
+  described the old `>=20` state is updated
+  ([record](verification/2026-10-19-node-24/README.md)).
 
 Two operational suggestions, neither urgent:
 

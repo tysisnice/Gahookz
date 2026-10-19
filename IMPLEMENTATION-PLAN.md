@@ -796,7 +796,9 @@ the client. That is text and client-side, so it suits the local model.
   tree. Browser suites not re-run this session.
 - **Decisions changed from this plan:** none. Two findings were recorded rather
   than acted on: live-phase GET GOT is unreachable, so its −1,000 penalty can
-  never be charged (owner decision, in `docs/backlog.md`), and the 2026-10-12
+  never be charged (**decided 2026-10-19: leave it** — no reachability work and
+  no live-phase coverage; see
+  [the record](docs/verification/2026-10-18-host-poke-claim/README.md)), and the 2026-10-12
   and 2026-10-13 production restarts were caused by a host-side
   `pkill -f server.js`, not by a deploy.
 - **Known regressions or external gates:** none introduced. The long-standing

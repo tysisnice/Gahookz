@@ -104,9 +104,12 @@ wrong, and say which in the handoff.
 
 ### The host and the lock
 
-The machine has two cores and little free memory and also serves the live game,
-so every heavy job runs as `flock /tmp/gahookz-verify.lock <command>` with
-`PATH=/usr/bin:$PATH` for Node 24. Chromium is the sensitive part. A cold
+The machine also serves the live game, so every heavy job runs as
+`flock /tmp/gahookz-verify.lock <command>` with `PATH=/usr/bin:$PATH`, which
+keeps a stray Node 26 off `PATH`. (The laptop had two cores and little memory
+when this was written; it has twelve cores and 15 GB as of 2026-10-18, and the
+lock still matters because port 3199 is shared.) Chromium is the sensitive part.
+A cold
 start on this host has taken 43 s against Puppeteer's 30 s default, and a warm
 start takes 2 s. `browser-mobile-ui`, `desktop-ui`, `navigation`, `arena` and
 `audio` launch with a 120 s timeout. `browser-flow` launches with 60 s and

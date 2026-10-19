@@ -76,9 +76,30 @@ penalty, and the "GET GOT costs 1,000" line the lobby rules show players, are
 therefore unreachable in practice. The old smoke passed only because the
 bug gave it a way in.
 
-**This needs an owner decision** — see the Owner decisions section of
-[`docs/backlog.md`](../../backlog.md). It is a design question, not a bug to
-patch quietly, so no behaviour was changed here.
+It is a design question, not a bug to patch quietly, so no behaviour was
+changed here.
+
+### Owner decision, 2026-10-19: leave it
+
+Tyson's decision is to **forget about GET GOT during live rounds.** Live-phase
+GET GOT is not to be made reachable, the −1,000 penalty is neither restored nor
+removed, and no live-phase test coverage is to be written for it. The lobby
+assertions `smoke-gahooks` moved to stay exactly as they are, so the coverage
+loss recorded above is accepted rather than repaid. Nothing in the game changed
+when this was decided.
+
+For anyone reading this record later:
+
+- The arithmetic above still holds — a live round cannot build fifty Gahooks in
+  one unbroken streak — and that is now the intended state, not a gap to close.
+- `applyGetGot`'s live-phase penalty branch is therefore unreachable in
+  practice. Leave it in place: removing it would edit `pokePlayer`'s hottest
+  path for no player-visible gain, and it records what the number was. If the
+  Gahook subsystem is extracted out of `server.js`, carry it across unchanged
+  and repeat this note there.
+- One loose end, player-facing and so not mine to change: the lobby rules still
+  show players the "GET GOT costs 1,000" line, for a penalty only the lobby can
+  build and the lobby never charges. Flagged here; no copy was touched.
 
 ## Removed in cleanup
 
