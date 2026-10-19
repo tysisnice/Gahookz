@@ -1928,7 +1928,7 @@ function RoundPresetSelector({ lobby, value = "standard", playerCount = 0, custo
           value === "standard" && unusedQuestions > 0 ?
           `${unusedQuestions} unused question${unusedQuestions === 1 ? "" : "s"} from an earlier game will be reused before new ones.` :
           playerCount ?
-          `${perPlayer} question${perPlayer === 1 ? "" : "s"} per player. About ${durationLabel}.` :
+          `${perPlayer} question${perPlayer === 1 ? "" : "s"} per player. ${durationLabel} of live play — writing and chatting add to it.` :
           "The total is worked out from the game length and the number of players in the room."}
         </InfoTip>
       </div>
@@ -2722,6 +2722,19 @@ function herdProgressText(preparation, player) {
   return entry.completed >= entry.total ? "Done" : entry.completed + "/" + entry.total + " answered";
 }
 
+// Room-wide Herd writing status for the host panel: how far the room has got
+// and who is still writing, straight from the server's preparation counts.
+function herdWritingStatusText(preparation) {
+  if (!preparation || !preparation.total) return "Waiting for the Herd to finish writing";
+  const pending = (preparation.players || []).filter((entry) => entry.completed < entry.total);
+  const progress = preparation.completed + "/" + preparation.total + " answers written";
+  if (!pending.length) return progress + " — waiting for writers to ready up";
+  const names = pending.map((entry) => entry.player.name);
+  const shown = names.slice(0, 3).join(", ");
+  const rest = names.length > 3 ? " + " + (names.length - 3) + " more" : "";
+  return progress + " · waiting for " + shown + rest;
+}
+
 function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, onForceStart }) {
   const dispatch = useDispatch();
   const poke = async (player) => {
@@ -2751,7 +2764,7 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
           <h2>Ready for the room vote?</h2>
           <p>Answers stay anonymous during voting. Their writers are revealed with the points.</p>
           <ForceStartControl canStart={lobby.canStart} canForceStart={(lobby.herdPreparation?.total || 0) > 0} label="Start live Herd" onStart={onStart} onForceStart={onForceStart} forceTitle="Fill missing answers and start?" forceCopy="Any blank answer slots will get a safe generated answer before the live game begins." />
-          <p className={lobby.canStart ? "start-status is-ready" : "start-status"}>{lobby.canStart ? "Every answer writer is ready" : "Waiting for the Herd to finish writing"}</p>
+          <p className={lobby.canStart ? "start-status is-ready" : "start-status"}>{lobby.canStart ? "Every answer writer is ready" : herdWritingStatusText(lobby.herdPreparation)}</p>
         </aside>
         <RoomSocialHub lobby={lobby} playerKey={playerKey} />
       </section>
@@ -2819,6 +2832,7 @@ function PlayerHerdPreparation({ lobby, connected, ownPlayer, playerKey, hostMen
         <RoomStatusBanner code={lobby.code} tone="is-herd-status" eyebrow="Herd workshop" title={assignments.length ? "Write " + assignments.length + " possible answers" : "The Herd is writing answers"}>
           Keep them funny, short, and tempting. Nobody sees who wrote an answer until the vote is over.
         </RoomStatusBanner>
+        {lobby.herdPreparation ? <p className="herd-room-progress" role="status">{lobby.herdPreparation.completed + " of " + lobby.herdPreparation.total + " answers written"}</p> : null}
         <section className="herd-answer-workspace">
           {assignments.length ? assignments.map((assignment) => <HerdAnswerWriter assignment={assignment} text={answerText(assignment)} image={answerImage(assignment)} disabled={saving} onChange={(text) => setDrafts((previous) => ({ ...previous, [assignment.questionId]: text }))} onImageChange={(image) => setImageDrafts((previous) => ({ ...previous, [assignment.questionId]: image }))} key={assignment.questionId + "-" + assignment.answerId} />) : <div className="empty-state">You joined after prompts were dealt. Cheer on the writers—then vote in the live game.</div>}
           {assignments.length ? <button className="primary-button herd-submit-all" type="button" disabled={saving || assignments.some((assignment) => !hasAnswerContent(assignment))} onClick={submitAll}>{saving ? "Submitting answers…" : "Submit all answers"}</button> : null}
@@ -3098,6 +3112,7 @@ function FinishedScreen({ lobby, connected, hostMenu, onReset, onNewGame }) {
           <h2>Host options</h2>
           <button className="primary-button new-same-rules-button" type="button" onClick={onNewGame}>New game with same rules</button>
           <button className="primary-button start-button" type="button" onClick={onReset}>Reset Lobby</button>
+          {Number(lobby.unusedQuestionCount) > 0 ? <p className="final-carryover-note">{lobby.unusedQuestionCount} unanswered question{lobby.unusedQuestionCount === 1 ? "" : "s"} will carry over to the next game.</p> : null}
         </aside>
       </section>
       <FinalShameRow finals={finals} apiPath="/api/host/final-poke" />
