@@ -104,6 +104,17 @@ the server process. Two sources are missing from its watch lists, so editing
 only `client/host-presence.jsx` or `client/legal.jsx` does not rebuild until
 another watched file changes (see Known issues).
 
+If a server the watcher started goes away and the watcher did not ask it to, it
+starts another one, whatever the exit code or signal. The backoff and the
+give-up live in `standalone/dev-supervisor.mjs` so they are unit tested: 500 ms
+doubling to a 5 s ceiling, the streak resets once a server has stayed up ten
+seconds, and after eight quick failures the watcher exits non-zero so the
+container's `restart: unless-stopped` policy replaces the whole process. That
+last part matters: a watcher that stays alive with no server is what kept a
+dead development container reporting itself as "Up" for six days
+([record](../verification/2026-10-18-dev-watcher/README.md)).
+`npm run drill:dev-restart` proves it on port 3197.
+
 ### Docker targets
 
 The base image is `node:24-alpine`, pinned by digest. The server runs as the
@@ -147,10 +158,28 @@ builds the `gahookz` service; when `GAHOOKZ_DRAIN_WAIT_SECONDS` is above 0 and
 `GAHOOKZ_METRICS_TOKEN` is set, calls `POST /api/drain` and waits up to that many
 seconds for `activeRooms` to reach 0; then force-recreates only the `gahookz`
 service and waits for healthy, the expected image and a matching `revision`.
-Without a drain wait it warns that active games will end.
-`docker-status.sh` prints Compose status, health, release, revision, instance,
-draining state, active rooms and recent logs. `docker-update.sh` calls the
-deploy script.
+
+It refuses, rather than warning, in every case where it would end a game nobody
+agreed to end: rooms active with no drain window, a drain wait that expires with
+rooms left (cancelling the drain on the way out, including on an interrupt), or
+no metrics token to drain with while rooms are active. `GAHOOKZ_FORCE_REPLACE=1`
+is the only way past, and says so. It also tags the running image as
+`gahookz:rollback-prod-<date>-<time>` before building. The decisions are held by
+`scripts/docker-deploy.test.sh` (`npm run test:deploy-script`, in CI), which runs
+the real script against a stubbed `docker` and `curl`: six of its eight cases
+fail against the pre-2026-10-18 script.
+`docker-status.sh` prints Compose status and then, **for every service in the
+project**, its health and the release, revision, instance, draining state and
+active rooms its own server reports from inside the container, followed by
+production's recent logs. Anything not healthy, or up but not answering, gets
+an `ATTENTION` line and makes the script exit non-zero. It inspected the
+`gahookz` service alone until 2026-10-18, which is why nobody saw dev go down.
+`docker-update.sh` calls the deploy script.
+
+`stop-test-server.sh <port>` stops one test server by its listening pid. It
+refuses 3101/3102/3103 and any port a container publishes, which is the whole
+point: `pkill -f server.js` matches the live containers from the host and has
+already restarted production twice.
 
 ### CI
 
@@ -174,9 +203,11 @@ never be read or committed.
 
 Every build or test run holds the shared lock so only one heavy job runs on this
 two-core machine, and port 3199 is never contested:
-`flock /tmp/gahookz-verify.lock <command>`. Use Node 24 by prefixing
-`PATH=/usr/bin:$PATH` (some shells put Node 26 first; a timing-sensitive smoke
-failed there and passed under 24). Runtime dependencies are `pg` and `tsx`;
+`flock /tmp/gahookz-verify.lock <command>`. `engines.node` is `>=24.0.0`, so
+Node 24 is the required runtime; prefix runs with `PATH=/usr/bin:$PATH` to keep
+a stray Node 26 off `PATH` (a timing-sensitive smoke failed under 26 and passed
+under 24). This laptop's system Node is 22 until it is upgraded, which is a
+backlog item. Runtime dependencies are `pg` and `tsx`;
 React and Redux are vendored under `standalone/public/vendor`.
 
 ## Invariants
@@ -225,6 +256,9 @@ server and no Docker.
 ## Known issues
 
 - `dev.mjs` does not watch `client/host-presence.jsx` or `client/legal.jsx`.
+- Nothing acts on a failing container health check. Docker will not restart an
+  unhealthy container, and `docker-status.sh` reports one only when somebody
+  runs it.
 - `docker-deploy.sh` checks the running image against `gahookz:local`, while the
   Compose default for production is `gahookz:prod-local`; the check passes only
   if the host's `.env` sets `GAHOOKZ_PROD_IMAGE=gahookz:local` (unverified).
@@ -233,6 +267,10 @@ server and no Docker.
   `GAHOOKZ_BETA_IMAGE`.
 - `CLAUDE.md` deploy and status commands still say `cd /srv/gahookz`, which the
   same file says is not the production source.
-- `package.json` allows Node `>=20` while CI, Docker and the verified runtime are Node 24.
+- `package.json` declares Node `>=24.0.0` since 2026-10-19, but this laptop's
+  system Node is 22, so local verification runs below the declared floor until
+  Node 24 is installed (`engines` is advisory here — there is no `.npmrc`, so
+  npm warns rather than refuses). Installing it needs root, so it is on Tyson's
+  list ([record](../verification/2026-10-19-node-24/README.md)).
 
 Live backlog: [`../backlog.md`](../backlog.md).

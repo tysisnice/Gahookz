@@ -19,6 +19,7 @@ A fast pile of Gahooks becomes an **Ultimate Gahook**, and a big enough pile is 
 - **Ultimate Congratulations:** 8 congratulations from at least 3 players in quick succession (details in the [area guide](../areas/social.md)).
 - A Gahook needs a connected target. Being Gahooked wipes your own lobby paint ([Lobby painting](lobby-painting.md)).
 - **Known gap:** with effects **Off**, the in-question button still sends a harmless Gahook ([area guide](../areas/social.md#known-issues)).
+- **GET GOT cannot happen during a question.** Fifty Gahooks in one unbroken 1.2 s streak is out of reach when every sender gets one per question and a room holds 32, so the −1,000 lands nowhere: a pile-up can only be built in the lobby or at the finale, where no points move. Decided 2026-10-19 to leave it that way ([record](../verification/2026-10-18-host-poke-claim/README.md)).
 
 ## Where it lives
 

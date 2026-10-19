@@ -5,10 +5,11 @@ base image is pinned by digest, and `erasableSyntaxOnly` is on in
 `tsconfig.base.json`. Corrected below: `tsx` loads the TypeScript modules only
 for development, tests and `npm start`; the production image runs plain
 `node standalone/server.js` and relies on Node 24's own type stripping.
-`package.json` still allows Node `>=20`, but CI, Docker and the verified runtime
-are Node 24. Production, beta and dev have built from the Store repository since
+`package.json` declares Node `>=24.0.0` since 2026-10-19, matching CI, Docker
+and the verified runtime; this laptop's system Node is 22 until it is upgraded.
+Production, beta and dev have built from the Store repository since
 2026-10-02. Run the matrix under `flock /tmp/gahookz-verify.lock` with
-`PATH=/usr/bin:$PATH` so Node 24 is used.
+`PATH=/usr/bin:$PATH`, which keeps a stray Node 26 off `PATH`.
 
 Gahookz runs on two runtime dependencies — `pg` and `tsx` — and that is a
 deliberate property, not an accident of youth. It is why a security advisory

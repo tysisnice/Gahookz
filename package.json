@@ -14,6 +14,7 @@
     "test:unit": "node --import tsx --test packages/*/test/*.test.ts standalone/server/*.test.mjs standalone/*.test.mjs standalone/public/client/*.test.ts",
     "test:simulation": "node --import tsx standalone/simulate-games.mjs",
     "test:rooms": "node standalone/simulate-room-flows.mjs",
+    "test:herd-boundaries": "node standalone/simulate-herd-boundaries.mjs",
     "check": "npm run typecheck && npm run test:unit && npm run build",
     "standalone:build": "node standalone/build-client.mjs",
     "standalone:smoke:room-expiry": "node standalone/smoke-room-expiry.mjs",
@@ -39,6 +40,7 @@
     "standalone:smoke:deployment": "node standalone/smoke-deployment.mjs",
     "standalone:smoke:security": "node standalone/smoke-security.mjs",
     "deploy:fedora": "bash scripts/docker-deploy.sh",
+    "test:deploy-script": "bash scripts/docker-deploy.test.sh",
     "status:fedora": "bash scripts/docker-status.sh",
     "deploy:docker": "bash scripts/docker-deploy.sh",
     "update:docker": "bash scripts/docker-update.sh",
@@ -61,10 +63,12 @@
     "test:browser:herd-report": "node standalone/browser-herd-report.mjs",
     "clean:generated": "node standalone/clean-generated.mjs",
     "drill:resilience": "node standalone/drill-resilience.mjs",
-    "standalone:smoke:shared": "npm run standalone:smoke:security && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:host-controls && npm run standalone:smoke:desktop-ui && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment && npm run standalone:smoke:review-repairs",
+    "drill:dev-restart": "node standalone/drill-dev-restart.mjs",
+    "standalone:smoke:shared": "npm run standalone:smoke:security && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:host-controls && npm run standalone:smoke:host-poke-claim && npm run standalone:smoke:desktop-ui && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment && npm run standalone:smoke:review-repairs",
     "standalone:smoke:review-repairs": "node --import tsx standalone/smoke-review-repairs.mjs",
     "test:disposable": "node standalone/test-disposable.mjs",
     "standalone:smoke:host-controls": "node standalone/smoke-host-controls.mjs",
+    "standalone:smoke:host-poke-claim": "node standalone/smoke-host-poke-claim.mjs",
     "standalone:smoke:desktop-ui": "node standalone/smoke-desktop-ui.mjs",
     "docs:check": "node scripts/check-docs.mjs",
     "icons:render": "node scripts/render-icons.mjs",
@@ -72,7 +76,7 @@
     "test:browser:audio": "node standalone/browser-audio-cues.mjs"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

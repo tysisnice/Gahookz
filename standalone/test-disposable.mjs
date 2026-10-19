@@ -30,7 +30,7 @@ Object.assign(env, {
 // these two, only when the caller set them explicitly, and after the defaults
 // above so an explicit value wins. This is what lets a before/after be
 // measured on one build rather than compared across two.
-for (const key of ['GAHOOKZ_BROADCAST_FLOOR_MS', 'GAHOOKZ_MAX_ACTIVE_ROOMS']) {
+for (const key of ['GAHOOKZ_BROADCAST_FLOOR_MS', 'GAHOOKZ_MAX_ACTIVE_ROOMS', 'GAHOOKZ_DEBUG_SPAM']) {
   if (process.env[key] !== undefined) env[key] = process.env[key];
 }
 const server = spawn(process.execPath, ['--import', 'tsx', 'standalone/server.js'], { env, stdio: ['ignore', 'pipe', 'pipe'] });

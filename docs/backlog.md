@@ -21,20 +21,34 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Engineering P1
 
-- `docker-deploy.sh` replaces production anyway when `GAHOOKZ_METRICS_TOKEN` is missing or the drain wait expires, and an abort mid-wait leaves production draining. (platform; LEDGER docs-runbook, `scripts/docker-deploy.sh`)
-- `docker-deploy.sh` checks the running image against `gahookz:local` while compose defaults production to `gahookz:prod-local`. (platform; [platform](areas/platform.md))
-- `skipPhase` in `standalone/server.js` never checks `room.paused`, so a host can skip while paused. (game-flow; LEDGER docs-game-a)
+- Nothing notices an unhealthy container between sessions: Docker does not
+  restart on a failing health check, and no alert exists. A development
+  container sat up-but-dead for six days in October.
+  `scripts/docker-status.sh` now reports it and exits non-zero, but only when
+  somebody runs it. (platform;
+  [2026-10-18 dev-watcher record](verification/2026-10-18-dev-watcher/README.md))
+
 - A disconnected Herd writer blocks Start (Skip or force-start get past it). (game-flow; LEDGER docs-game-a)
 - No install button: `usePwaInstall` in `client/offline.jsx` is exported but used nowhere. (ui-shell; LEDGER docs-core-b)
-- Tested rollback: rollback images exist (2026-10-02) but no rollback has been rehearsed; runbook says "revert and redeploy" first. (platform; OPS section 10, [runbook](operations/runbook.md))
+- Tested rollback: Option 2 (recreate from a kept image) was rehearsed on beta on
+  2026-10-18 and works; Option 1 (revert and redeploy) and a production rollback are
+  still untested. The three `20261002` rollback images report `revision: unknown`, so
+  a service rolled back to one cannot be identified by `/api/health` revision.
+  (platform; [rehearsal record](verification/2026-10-18-rollback-rehearsal/README.md))
 - Split the monoliths: `server.js` (5,612 lines), `app.jsx` (5,496), `styles.css` (11,414). (platform, ui-shell; OPS section 10, [typescript plan](plans/typescript-migration.md))
 - Runtime schemas at the HTTP/SSE boundary are only partly present (`packages/contracts/src/schemas.ts`); full role-filtered payload validation is open. (systems; PP P01/P02)
 - The engine's phase maths is not what runs: `nextPhase`, `resumeDeadline`, `estimatedDurationMs` are tested but unused; the live machine has its own. (game-flow; [game-flow](areas/game-flow.md))
 - Dependency and base-image update cadence: nothing schedules re-resolving the digest or scanning advisories. (platform; OPS section 10, [dependency policy](operations/dependency-policy.md))
 - Per-address SSE cap (32) versus a real party behind one address: measure before a large session. (systems; OPS section 10)
 - Structured, redacted logging instead of ad hoc console logs. (systems; OPS section 10)
-- `package.json` allows Node `>=20` while CI, Docker and the verified runtime are Node 24. (platform; [platform](areas/platform.md))
-- `.env.example` omits `GAHOOKZ_DRAIN_TIMEOUT_MS`, `GAHOOKZ_MAX_ACTIVE_ROOMS`, `GAHOOKZ_BROADCAST_FLOOR_MS`, `GAHOOKZ_PROD_IMAGE`, `GAHOOKZ_BETA_IMAGE`. (platform; LEDGER docs-core-a)
+- **Install Node 24 on this laptop** — `engines.node` is `>=24.0.0` since
+  2026-10-19 (owner decision), matching CI and the `node:24-alpine` image, but
+  the system Node is 22, so local verification still runs below the declared
+  floor. Nothing refuses (no `.npmrc`, so npm only warns `EBADENGINE`), but a
+  timing-sensitive result cannot be trusted to match production. Needs root, so
+  it is Tyson's: Fedora 44 has `nodejs24` 24.18.0 in `updates`, and nothing but
+  its own subpackages requires the installed `nodejs22`. (platform;
+  [record](verification/2026-10-19-node-24/README.md))
 - Data export (`GET /api/account/export`) is not built; no email-free recovery, Apple sign-in or passkeys. (accounts; [accounts](areas/accounts.md))
 - Stage acceptance P01-P12 of the overhaul is still "Partial" apart from P00 (stable option identities, rematch author rotation, party-sized load and reconnect-storm measurements, typed state engine, JSX decomposition, remaining browser matrix). Re-verify per stage before claiming any as done. (quality; PP, IP)
 
@@ -70,9 +84,9 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 - Journal-volume replacement probe (`standalone/verify-journal-volume.mjs`) has never been recorded as run; it needs an isolated `gahookz:review-*` image. (accounts, platform; RC, [accounts](areas/accounts.md))
 - PostgreSQL probe: passes since the 2026-09-25 accounts work (see Checked and closed), but only against a disposable database; production has none. Run it against the real provisioned database before enabling accounts. (accounts; [accounts record](verification/2026-09-25-update/accounts.md))
-- Rollback rehearsal on beta (monthly cadence in the runbook, never done). (platform; [runbook](operations/runbook.md))
-- `/srv/gahookz` is a stale clone (`81a70d2`), not production; production, beta and dev run from the Store repository since 2026-10-02. The documents were corrected on 2026-10-07; Tyson may want to remove the clone. (platform; [docs audit](verification/2026-09-25-update/docs-audit.md))
-- Rotate the Nginx Proxy Manager JWT signing key (`keys.json` was exposed to a terminal on 2026-09-05). (platform; OPS section 10)
+- Rollback rehearsal on beta: done 2026-10-18; next one due by 2026-11-18 under the
+  runbook's monthly cadence. (platform; [runbook](operations/runbook.md))
+- `/srv/gahookz`: files removed 2026-10-08 (its `.env` files backed up to `~/.config/gahookz/` on the laptop); the empty directory needs `sudo rmdir`. (platform)
 - Phone Syncthing can delete files in the Store working copy (happened 2026-09-30); make the phone receive-only or ignore `Projects/`. (platform; LEDGER)
 
 ## Human and device testing
@@ -91,6 +105,40 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Resume the separate Arena project once the update is verified on `main` (priority set 2026-10-04). (arena; LEDGER)
 
 ## Checked and closed
+
+- **GET GOT during live rounds: decided 2026-10-19 — leave it.** Tyson's
+  decision is to forget about live-phase GET GOT, so its unreachability is not a
+  bug to chase: no work on making the −1,000 penalty reachable, no live-phase
+  test coverage for it, and the lobby-based assertions in `smoke-gahooks` stay
+  as they are. Nothing in the game changed when this was decided
+  ([record](verification/2026-10-18-host-poke-claim/README.md)).
+
+- `docker-deploy.sh` replacing production when it could not drain, when the
+  drain wait expired, or when no token was configured, and leaving production
+  draining after an abort: all four refuse or clean up now, with a stubbed test
+  (2026-10-18, [record](verification/2026-10-18-deploy-safety/README.md)).
+
+- `dev.gahookz.com` dead for six days behind an "Up" container, and production
+  and beta restarted twice by a host-side `pkill -f server.js`: the watcher now
+  replaces any server that goes away, `scripts/docker-status.sh` covers every
+  service, and `scripts/stop-test-server.sh` is the safe way to stop a test
+  server (2026-10-18,
+  [record](verification/2026-10-18-dev-watcher/README.md)).
+- `.env.example` documents `GAHOOKZ_DRAIN_TIMEOUT_MS`, `GAHOOKZ_MAX_ACTIVE_ROOMS`,
+  `GAHOOKZ_BROADCAST_FLOOR_MS`, `GAHOOKZ_PROD_IMAGE`, `GAHOOKZ_BETA_IMAGE`,
+  `GAHOOKZ_DRAIN_WAIT_SECONDS` and `GAHOOKZ_FORCE_REPLACE` (2026-10-18).
+- `docker-deploy.sh` checked the running image against `gahookz:local` while
+  compose defaults production to `gahookz:prod-local`: fixed 2026-10-18, with
+  four offline checks in `smoke-deployment`.
+
+- A host who created a room but never joined it could Gahook a live round
+  without the per-question claim gate, up to GET GOT: fixed 2026-10-18
+  (`ca0b74d`), regression smoke `standalone:smoke:host-poke-claim`. The same
+  defect was the long-running `smoke-gahooks` "time-threshold Ultimate"
+  failure, now green
+  ([record](verification/2026-10-18-host-poke-claim/README.md)).
+
+- Nginx Proxy Manager JWT signing key rotated 2026-10-09 (new key pair; all sites checked).
 
 - Herd authorship was a pure function of the question author's position: `packages/game-engine/src/herd.ts` now assigns answers least-loaded with a shuffled remainder.
 - Other players' picks visible before the reveal: fixed in every mode by U23 (`79d1f8b`, merged 2026-10-07).

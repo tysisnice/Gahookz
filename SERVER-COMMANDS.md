@@ -19,25 +19,34 @@ behind any of it, see `OPERATIONS-AND-ROADMAP.md`; for the standing rules, see
 
 | Path | What it is | Deploy from here? |
 | --- | --- | --- |
-| `/mnt/storage/syncthing/Store/Projects/gahookz` | The working repository (source synced by Syncthing; `.git` local). Production (`gahookz-prod`), beta and dev (`gahookz`) run from here; dev bind-mounts this tree. | **Yes — but only when Tyson asks for a deploy.** |
+| `/mnt/storage/syncthing/Store/Projects/gahookz` | The working repository (source synced by Syncthing; `.git` local). **All three services — production, beta and dev — run from here under the one Compose project `gahookz-prod`** (since 2026-10-10); dev bind-mounts this tree. A bare `docker compose up -d` here therefore recreates production: always name the service. | **Yes — but only when Tyson asks for a deploy.** |
 | `/mnt/storage/syncthing/codex/2026-07-01/Gahookz` | The old working tree, kept as an untouched backup. | **No.** |
 | `/srv/gahookz` | Older clean clone, at `81a70d2`; not the production source. | **No.** |
 
 Rollback images from the 2026-10-02 move: `gahookz:rollback-prod-20261002`,
 `gahookz:rollback-beta-20261002`, `gahookz:rollback-dev-20261002`.
 
-Production runs under the Compose project `gahookz-prod`; development and
-beta run under `gahookz`. All three were started from the Store repository on
-2026-10-02. Before any deploy (only when Tyson asks), confirm from the Store
-repository that `docker compose ps -q gahookz` prints the production container,
-as `docs/operations/runbook.md` section 4 describes; the deploy script refuses
-to continue when the production port belongs to a project it does not own.
+All three services run under the **single** Compose project `gahookz-prod`,
+recreated together that way on 2026-10-10 (they came from the Store repository
+from 2026-10-02, production under `gahookz-prod` and the other two under
+`gahookz`). One project and one `.env` means a bare `docker compose up -d` in
+that folder recreates **production** as well as dev and beta, so always name
+the service:
+
+```bash
+docker compose up -d --no-deps --force-recreate gahookz-dev     # dev only
+```
+
+Before any deploy (only when Tyson asks), confirm from the Store repository
+that `docker compose ps -q gahookz` prints the production container, as
+`docs/operations/runbook.md` section 4 describes; the deploy script refuses to
+continue when the production port belongs to a project it does not own.
 
 ## Look without changing anything
 
 ```bash
 cd /mnt/storage/syncthing/Store/Projects/gahookz
-bash scripts/docker-status.sh          # container, health, release, revision
+bash scripts/docker-status.sh          # every service: health, release, revision, rooms
 docker compose ps
 
 curl -fsS http://127.0.0.1:3102/api/health; echo    # production, loopback

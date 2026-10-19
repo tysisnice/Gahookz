@@ -345,8 +345,8 @@ asset version and can change during a source build.
 
 ### Option A: local Node development
 
-Use this on a normal development computer. Node 20+ is declared, but Node 24 is
-the closest match to the Docker runtime.
+Use this on a normal development computer. Node 24 is required
+(`engines.node` is `>=24.0.0`) and matches the Docker runtime.
 
 ```bash
 git status --short --branch

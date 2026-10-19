@@ -118,13 +118,24 @@ bash scripts/agent-worktree.sh --reuse <name>    # attach an existing agent/<nam
 
 ### Run the checks
 
-Every build or test holds one shared lock: the machine has two cores and runs the
-live game. Use Node 24; some shells put a newer Node first on `PATH`, and a
-timing-sensitive smoke has failed under Node 26 and passed under 24.
+Every build or test holds one shared lock, because the machine also runs the live
+game. The laptop has twelve cores and 15 GB as of 2026-10-18 — the "two cores, so
+tests time out here" advice in older documents is stale, and the full matrix runs
+in about four minutes.
+
+**Node 24 is the required runtime.** `package.json` declares `>=24.0.0`
+(owner decision 2026-10-19), which matches the `node:24-alpine` image and CI.
+This laptop's system Node is still **22**, so until Node 24 is installed local
+runs sit below the declared floor: npm only warns (`EBADENGINE`) because there
+is no `.npmrc`, so nothing refuses, but a timing-sensitive result cannot be
+trusted to match production. A smoke has failed under Node 26 and passed under
+24; nothing has failed under 22 so far, but a disagreement between a local run
+and CI is the first thing to suspect. See
+[the Node 24 record](../verification/2026-10-19-node-24/README.md).
 
 ```bash
 cd ~/gahookz-agent-worktrees/<name>
-export PATH=/usr/bin:$PATH; node --version                        # must say v24
+export PATH=/usr/bin:$PATH; node --version                        # keeps a stray Node 26 out; says v22 until Node 24 is installed
 
 flock /tmp/gahookz-verify.lock npm run check                      # typecheck + unit tests + build, about 30 s
 flock /tmp/gahookz-verify.lock npm test                           # full stateful suite, about 3 min
@@ -137,9 +148,12 @@ flock /tmp/gahookz-verify.lock npm run docs:check
 - Run the stateful batches one after another. Never start a server by hand, and never
   wrap `npm test` in `test:disposable`: it manages its own servers.
 - `test:disposable` refuses an occupied port 3199; leave unfamiliar listeners alone. To
-  stop a stray test server of your own, find its pid with
-  `ss -lptnH "sport = :3199" | grep -oP 'pid=\K[0-9]+'`. Never `pkill -f server.js`: that
-  pattern matches the live containers.
+  stop a stray test server of your own, run `bash scripts/stop-test-server.sh 3199`:
+  it stops that one listener and refuses any port a container publishes. Never
+  `pkill -f server.js` — that pattern matches the live containers, and on
+  2026-10-12 and 2026-10-13 it restarted production and beta and left
+  `dev.gahookz.com` dead for six days
+  ([record](../verification/2026-10-18-dev-watcher/README.md)).
 - A build rewrites three tracked shell files (`index.html`, `service-worker.js`,
   `vendor-bootstrap.js`); commit them after the final build or CI fails. Generated `.js`
   files are gitignored; remove them with `npm run clean:generated`.
@@ -158,10 +172,17 @@ asked, and give it a drain window.
    empty. The script stamps `-dirty` rather than refusing, so a dirty tree ships
    uncommitted work.
 2. **Check who is playing** (`activeRooms`, [section 2](#2-look-without-changing-anything)) and warn players.
-3. **Tag the running image** so there is something to roll back to ([section 5](#5-rollback)).
+3. **The rollback image tags itself.** The script tags whatever is running as
+   `gahookz:rollback-prod-<date>-<time>` before it builds, and prints the one-line
+   command that restores it ([section 5](#5-rollback)). Tag by hand only if it
+   reports that it could not.
 4. **Confirm the Compose project.** The script runs `docker compose` in its own
-   directory. Production must resolve to `gahookz-prod`, dev to `gahookz`, and both now
-   come from the Store tree. This must print the live production container id:
+   directory. **Since 2026-10-10 all three services — production, beta and
+   development — run under the single project `gahookz-prod`** from the Store tree
+   (`docker compose ls`), because that folder's `.env` sets
+   `COMPOSE_PROJECT_NAME=gahookz-prod`. The hazard that follows: a bare
+   `docker compose up -d` there brings up **production** as well, so always name the
+   service you mean. This must print the live production container id:
 
    ```bash
    docker compose ps -q gahookz
@@ -170,7 +191,7 @@ asked, and give it a drain window.
    If it prints nothing, or the script stops with "Port 3102 is published by Compose
    project ... which this deploy does not own", stop and fix the project name first: a
    wrong project builds an image, fails on the busy port, and leaves production on old
-   code beside a broken container. How one `.env` serves both projects is unverified.
+   code beside a broken container.
 
 ### Run it
 
@@ -181,17 +202,25 @@ git pull --ff-only origin main
 GAHOOKZ_DRAIN_WAIT_SECONDS=300 bash scripts/docker-deploy.sh   # same as: npm run deploy:docker
 ```
 
-The script stamps the 12-character revision, validates Compose, builds the `gahookz`
-image, drains, force-recreates **only** the `gahookz` service (dev and beta are
-untouched) and waits for a healthy container reporting the expected revision. Without
-`GAHOOKZ_DRAIN_WAIT_SECONDS` it replaces production at once and says so. Watch for:
+The script stamps the 12-character revision, validates Compose, tags a rollback
+image, builds the `gahookz` image, drains, force-recreates **only** the `gahookz`
+service (dev and beta are untouched) and waits for a healthy container reporting the
+expected revision.
 
-- **No drain without a token.** The drain needs `GAHOOKZ_METRICS_TOKEN` in the host's
-  `.env`. If the script prints "No GAHOOKZ_METRICS_TOKEN in .env, so the node cannot be
-  drained first." it then replaces production anyway, ending games.
-- **The wait is a limit.** After 300 s it proceeds even if rooms remain, ending them.
-- **Aborting mid-wait leaves drain on.** Production refuses new rooms until it restarts
-  or drain is cancelled with `POST /api/drain` `{"active":false}` (bearer token needed).
+Since 2026-10-18 it **refuses rather than warns** wherever it would otherwise end a
+game nobody agreed to end. `scripts/docker-deploy.test.sh`
+(`npm run test:deploy-script`, also in CI) holds each of these as a case against a
+stubbed Docker:
+
+- **Rooms active and no drain window** → refuses. It reads `activeRooms` from the
+  published port, which needs no token.
+- **The drain wait expires with rooms still playing** → refuses, and **cancels the
+  drain on the way out**, so production does not sit refusing new rooms. Aborting or
+  interrupting mid-wait cancels it too.
+- **No `GAHOOKZ_METRICS_TOKEN`** → it cannot drain, so it checks `activeRooms` and
+  refuses if anyone is playing instead of replacing anyway.
+- **`GAHOOKZ_FORCE_REPLACE=1`** is the one way past all of the above. It says plainly
+  that those games will end.
 
 ### Confirm what is live
 
@@ -217,8 +246,12 @@ and never deploys source changes.
 
 ## 5. Rollback
 
-> **Untested plan.** The rollback images exist, but no rollback has ever been
-> rehearsed. Check each step as you go. It replaces the process, so it ends live games.
+> **Option 2 was rehearsed on beta on 2026-10-18** and worked: the kept image came
+> up healthy in about nine seconds, hosted a real room, and beta was restored just as
+> quickly, with production and development untouched
+> ([record](../verification/2026-10-18-rollback-rehearsal/README.md)). Option 1 and a
+> production rollback are still untested. Rolling back replaces the process, so it ends
+> live games.
 
 ### Before every deploy: keep a known-good image
 
@@ -251,14 +284,28 @@ GAHOOKZ_PROD_IMAGE=gahookz:rollback-prod-20261002 \
 curl -fsS http://127.0.0.1:3102/api/health; echo
 ```
 
-Expect the old image's revision, which will not match `git rev-parse HEAD`. The override
+Add `--no-deps` and name the service: all three services share the one Compose project,
+so an unqualified `up` reaches more than you meant.
+
+**A rolled-back server may not be able to tell you what it is.** The three `20261002`
+images predate revision stamping and report `"revision": "unknown"`, so the usual
+`/api/health` revision check is useless after rolling back to one. Identify it by image
+tag and `builtAt`:
+
+```bash
+docker inspect --format '{{.Config.Image}}' gahookz-prod-gahookz-1
+curl -fsS http://127.0.0.1:3102/api/health          # read "builtAt" and "release"
+```
+
+Rollback images the deploy script tags from now on do carry a revision. The override
 lasts for that command only; the next `docker compose up` or deploy returns to the
 default tag. The 20261002 images hold what ran before the move to the Store tree, so use
 one only if nothing newer was tagged.
 
-**Rehearse it on beta first.** Beta is capped at two rooms and nobody depends on it. Run
-the Option 2 steps once with `GAHOOKZ_BETA_IMAGE=gahookz:rollback-beta-20261002`, service
-`gahookz-beta` and port 3103, and write down what actually happened here.
+**Rehearsing it again on beta** costs about a minute and ends nothing anyone depends on:
+run the Option 2 steps with `GAHOOKZ_BETA_IMAGE=gahookz:rollback-beta-20261002`, service
+`gahookz-beta` and port 3103, then recreate `gahookz-beta` without the override to
+restore it. The 2026-10-18 record above is what to compare against.
 
 ## 6. Logs and troubleshooting
 

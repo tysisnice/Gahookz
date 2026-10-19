@@ -1,4 +1,4 @@
-# Overhaul progress — audited 2026-09-19
+# Overhaul progress — audited 2026-09-19, Next work updated 2026-10-18
 
 `IMPLEMENTATION-PLAN.md` remains the approved scope. The latest handoff there supersedes older completion claims. **The overhaul is partial and not release-ready.** This correction does not remove requirements.
 
@@ -16,7 +16,7 @@ No stage is newly checked off. P00 retains historical completion; every other st
 | P03 | Partial | Saved scoring round-trip and missing Classic key repaired and HTTP-tested; family lengths remembered. Steps 2–6 still need stable option identities through edits, all role/start/reconnect labels and full preservation, approval, race and rematch coverage. |
 | P04 | Partial | Atomic settings, stale modal draft and initial focus trapping repaired; real two-tab Save/Cancel and focus checks pass. Steps 1, 4–7 and acceptance still need all policy/media paths, both host routes, 320px/short-landscape dialog, touch and screen-reader checks. Hidden-avatar preservation alone does not prove all media visibility is enforced. |
 | P05 | Partial | Shared autofill, credential/phase-bound suggestions, owned metadata and unset keys repaired. Catalogue tests and one real browser suggestion pass. Steps 2, 5–7 still need stable option-ID editing and full suggest/edit/approve/fill/reveal/reset/reconnect coverage across modes; factual and read-aloud content review remains pending. |
-| P06 | Partial | Capped allocator and legal simulations pass; 20-player Quick plays 8 rounds with spread 1. Steps 2, 6–7 still need author rotation by stable ID over rematches, honest waiting/duration/carryover status, and complete Quick/Full/Custom plus 2/3/5-player boundary coverage. Human timing comparison is pending. |
+| P06 | Partial | Capped allocator and legal simulations pass; 20-player Quick plays 8 rounds with spread 1. Author rotation by stable ID across rematches and the 2/3/5-player × Quick/Full/Custom boundary coverage are **done and merged** (2026-10-18; `npm run test:herd-boundaries`, `question-rotation.test.mjs`). Step 2 still needs honest waiting/duration/carryover status copy in the client. Human timing comparison is pending. |
 | P07 | Partial | Torn-tail append, fsync ordering, bounded exhausted storage and I/O error tests pass; career status wired. Steps 3–7 still need real PostgreSQL acceptance (probe failed), full account-app status, persistent-volume/container replacement, disk-full/power-loss and operational replay proof. |
 | P08 | Partial | Named heartbeat, jitter, stale-pending rejection and timed backpressure repaired. Chromium observed 0 polls over 32 quiet seconds. Steps 1, 3–6 still need party-sized measurements, suspension/credential/reconnect storms, real socket/counter cleanup, bounded RSS and p95 comparison. No material-latency-regression or 90%-reduction claim is proven by this one sample. |
 | P09 | Partial | Pause defect repaired and host route policy invoked. Steps 1–6 still lack the planned typed private/public state, authoritative transition/effect engine, route/lifecycle extraction, deterministic replay and materially smaller orchestration. A tested phase helper does not complete this stage. |
@@ -44,9 +44,13 @@ The real PostgreSQL probe failed in the interrupted run with unhandled Pool erro
 
 ## Next work
 
-1. Resolve the integration regression between `compose.yaml`'s configurable/default prod image and `scripts/docker-deploy.sh`'s hard-coded `gahookz:local` verification. Use offline/stubbed checks; never execute a real deployment here.
-2. Repair readiness and Pool-error/cleanup handling in the disposable PostgreSQL probe and account repository; run migration, deduplication, outage/restart and partial-account recovery assertions to completion. This needs local engineering, not Tyson's production credentials.
-3. Verify a current isolated image's read-only/non-root journal volume across replacement, then finish the outstanding stage acceptance above. Preserve old immutable images and rehearse drain/rollback on an isolated stack before any later deployment request.
+Items 1 and 2 are done. Updated 2026-10-18.
+
+1. ~~The deploy script's hard-coded `gahookz:local` image check.~~ **Done**, merged 2026-10-18 (`GAHOOKZ_PROD_IMAGE`, four offline checks in `smoke-deployment`).
+2. ~~Readiness and Pool-error handling in the disposable PostgreSQL probe.~~ **Done** on `main` via `d5f2b12` (unix-socket chown workaround) and the 2026-09-25 accounts work. The 2026-10-10 TCP-loopback variant that also avoided the SELinux socket-cleanup failure was lost with its branch and must be rebuilt if wanted.
+3. Finish `agent/deploy-safety`: the stubbed `docker`/`curl` test (`scripts/docker-deploy.test.sh`, not written), runbook section 4 and `docs/areas/platform.md`, and the single-Compose-project correction. Then **rehearse a rollback on beta** — never done — and only then deploy production, which has been 28 commits behind `main` since 2026-10-08.
+4. Verify a current isolated image's read-only/non-root journal volume across replacement (`standalone/verify-journal-volume.mjs` needs a `gahookz:review-*` image), then continue the stage acceptance above.
+5. P06 step 2's remaining piece: honest waiting/duration/carryover status copy in the client.
 
 ## Owner-dependent gates
 

@@ -18,9 +18,10 @@ Everyone starts a game on 0. Points are whole numbers and the server decides all
 | [Herd](herd.md) voters | Anyone who votes for the winning answer | `round(500 − 250 × seconds used ÷ 14)`, from 500 down to 250. |
 | Herd authors | The writer of every answer | `round(500 × votes ÷ eligible players)`, winning or not. |
 | Gahook steal | One Gahook at another player during a question | 50 moves from the target to the sender. |
-| GET GOT | The player a Gahook pile-up lands on | −1,000. |
+| GET GOT | The player a Gahook pile-up lands on | −1,000 — but unreachable in practice, see below. |
 
 - **Chaos rule.** The two Gahook rows apply only when the host's Gahook effects rule is **Chaos**, the default. On "Off" or "Visual only" nobody loses points to a Gahook ([Lobby rules](lobby-rules.md)). They also apply only during a question, and each player gets one Gahook per question. In the lobby and at the finale a Gahook is just a reaction.
+- **GET GOT is never actually charged.** It needs fifty Gahooks in one unbroken streak, which the one-per-question limit and the 32-player cap make impossible during a question, and a pile-up built in the lobby or at the finale costs nothing. The row above is what the code would pay; the game as played never reaches it. Decided 2026-10-19 to leave it that way ([record](../verification/2026-10-18-host-poke-claim/README.md)).
 - Nothing stops a score going below zero.
 - **The Gahook Arena awards no points.** A duel changes nothing on the scoreboard.
 
