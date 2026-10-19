@@ -50,7 +50,7 @@ Items 1 and 2 are done. Updated 2026-10-18.
 2. ~~Readiness and Pool-error handling in the disposable PostgreSQL probe.~~ **Done** on `main` via `d5f2b12` (unix-socket chown workaround) and the 2026-09-25 accounts work. The 2026-10-10 TCP-loopback variant that also avoided the SELinux socket-cleanup failure was lost with its branch and must be rebuilt if wanted.
 3. Finish `agent/deploy-safety`: the stubbed `docker`/`curl` test (`scripts/docker-deploy.test.sh`, not written), runbook section 4 and `docs/areas/platform.md`, and the single-Compose-project correction. Then **rehearse a rollback on beta** — never done — and only then deploy production, which has been 28 commits behind `main` since 2026-10-08.
 4. Verify a current isolated image's read-only/non-root journal volume across replacement (`standalone/verify-journal-volume.mjs` needs a `gahookz:review-*` image), then continue the stage acceptance above.
-5. P06 step 2's remaining piece: honest waiting/duration/carryover status copy in the client.
+5. P06 step 2's remaining piece: honest waiting/duration/carryover status copy in the client. **Done on `agent/herd-status-copy`** (2026-10-20 night-shift block; `e45480b`, build + 248/248 unit tests pass, [record](docs/verification/2026-10-20-herd-status-copy/README.md)) — awaiting review and merge; stage acceptance stays Partial until re-verified on `main` after merge.
 
 ## Owner-dependent gates
 

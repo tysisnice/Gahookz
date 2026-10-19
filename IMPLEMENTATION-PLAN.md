@@ -833,6 +833,28 @@ the client. That is text and client-side, so it suits the local model.
 - **Production touched:** no. No deploy, no container changed.
 - **Next exact task:** deploy only with Tyson's approval.
 
+### Handoff — 2026-10-20 — night-shift block: Herd status copy (P06 step 2 final piece)
+
+- **Last updated:** 2026-10-20.
+- **Branch:** `agent/herd-status-copy` (from `main` @ `987772b`), worktree
+  `gahookz-herd-status-copy` (Store tree). Commits `e45480b` (code) and
+  `d869680` (verification record). Not merged, not pushed, not deployed.
+- **What changed:** `standalone/public/app.jsx` only — the honest
+  waiting/duration/carryover status copy left open from P06 step 2 (see
+  "Still open from P06 step 2" above and `PLAN-PROGRESS.md` Next work item 5):
+  live Herd writing progress with pending-writer names on the host panel
+  (`herdWritingStatusText`), a room progress line in the player Herd view, a
+  duration estimate that says it covers live play only, and a carryover note
+  on the finished screen when unused questions exist.
+- **Verification:** `npm run build` passes (worktree build hash
+  `release-2d4ac000cb3ed0e2`; generated hash rewrites reverted before
+  committing, so the commit is `app.jsx` only); `npm run test:unit` 248/248.
+  Evidence: [the record](docs/verification/2026-10-20-herd-status-copy/README.md).
+- **Production touched:** no. `main` untouched.
+- **Next exact task:** orchestrator/Tyson review and merge
+  `agent/herd-status-copy`; optional browser pass over the Herd writing copy
+  at merge time.
+
 ## Appendix A — 20 new educational prompts
 
 Suggested audience: general mixed-age play; easy-to-medium, stable facts. These are additional entries, not a new replacement bank. Store the correct answer by stable option ID, then shuffle all four options per instance. The correct-answer column is content metadata, not a fixed on-screen position. Explanations appear only at the appropriate reveal.
