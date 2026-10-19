@@ -851,9 +851,11 @@ the client. That is text and client-side, so it suits the local model.
   committing, so the commit is `app.jsx` only); `npm run test:unit` 248/248.
   Evidence: [the record](docs/verification/2026-10-20-herd-status-copy/README.md).
 - **Production touched:** no. `main` untouched.
-- **Next exact task:** orchestrator/Tyson review and merge
-  `agent/herd-status-copy`; optional browser pass over the Herd writing copy
-  at merge time.
+- **Merge — 2026-10-20 (night-shift orchestrator):** merged into `main` as
+  `233f8cc` after re-verification on the merge branch (Node 24, desktop):
+  `npm run check` (248/248 unit tests, build), full `npm test` exit 0,
+  `test:browser:herd-writing` exit 0, `standalone:smoke:herd-flow` exit 0.
+  Changelog entry added. Production untouched; deploy remains gated on Tyson.
 
 ## Appendix A — 20 new educational prompts
 

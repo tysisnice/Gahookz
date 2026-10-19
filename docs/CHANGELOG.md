@@ -10,6 +10,12 @@ repeating them here.
 Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Players
+- During Herd writing, the host panel now shows how far the room has got —
+  "N/M answers written · waiting for <names>" — and players see a room progress
+  line under the workshop banner. The game-length estimate now says it covers
+  live play only, and the finished screen notes that unanswered questions carry
+  over to the next game (merge `233f8cc`,
+  [record](verification/2026-10-20-herd-status-copy/README.md)).
 - Pressing **Skip** while the game is paused no longer jumps the phase. The host
   is asked to resume first, so a deliberately stopped countdown stays stopped
   (merge `d1c00fe`,
