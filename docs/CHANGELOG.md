@@ -46,6 +46,9 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
   them; a connected writer who has not finished still holds the room.
 
 ### Developer
+- `publicMajorityResults` in `standalone/server.js` set `unanimous` twice; the
+  dead second key is removed, and `standalone/server-duplicate-keys.test.mjs`
+  now refuses any repeated key in that function's returned object.
 - Stale deploy documentation corrected: the runbook's "Known issue: the image
   check" described the retired hard-coded `gahookz:local` comparison (fixed
   2026-10-18), four entries in `docs/areas/platform.md`'s Known issues were

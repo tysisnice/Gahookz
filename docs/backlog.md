@@ -63,7 +63,6 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - `docs/agents/{systems,accounts}.md` show `drill:resilience` without `test:disposable`; `browser-flow` has a 60 s launch timeout against 120 s elsewhere; run times of rooms/browser/drill unmeasured; some smokes mix HTTP and source-text assertions. (quality; [quality](areas/quality.md), LEDGER docs-core-a)
 - Content: 11 legacy Herd seeds unreachable; only two styles with `fun`/`funny` naming mismatch; names capped at 24 characters inside prompts. (content; [content](areas/content.md))
 - Unify prompt libraries and mode terminology so Education fallback and host metrics follow the selected mode. (content; OPS section 10)
-- `publicMajorityResults` sets `unanimous` twice. (game-flow; LEDGER docs-game-a)
 - Ownership map in the ui-shell guide omits `history.jsx`, `back-stack.ts`, `QuickMenu`, `useMediaQuery`. (ui-shell; [ui-shell](areas/ui-shell.md))
 - Saved Gahooks sit in PostgreSQL rows (about 11 MB worst case per account); move to object storage at scale. Guests have no device library of custom Gahooks. Session cache can honour a removed session for up to 60 s. (accounts; [accounts](areas/accounts.md))
 - Bans last only as long as the room, per device key. (systems; [systems](areas/systems.md))
@@ -101,6 +100,8 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - Resume the separate Arena project once the update is verified on `main` (priority set 2026-10-04). (arena; LEDGER)
 
 ## Checked and closed
+
+- `publicMajorityResults` set `unanimous` twice: the dead second key is removed (fixed 2026-10-21), with the regression test `standalone/server-duplicate-keys.test.mjs` refusing any repeated key in that function's returned object. (game-flow; LEDGER docs-game-a)
 
 - Six long-standing shell and moderation items, all on 2026-10-19
   ([record](verification/2026-10-19-small-fixes/README.md)): the install button
