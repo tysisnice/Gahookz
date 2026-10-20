@@ -873,8 +873,33 @@ the client. That is text and client-side, so it suits the local model.
   guard fails when the duplicate is re-added. Evidence:
   [the record](docs/verification/2026-10-21-dup-unanimous-key/README.md).
 - **Production touched:** no. `main` untouched.
-- **Next step:** orchestrator re-verifies and merges to `main` on the next
-  task run (merge remains gated per the working agreement); no deploy.
+- **Merge — 2026-10-21 (night-shift orchestrator):** merged into `main` as
+  `92bd7f9` after re-verification; changelog entry included.
+
+### Handoff — 2026-10-21 — night-shift orchestrator: merge `agent/reduce-mute-split`
+
+- **Last updated:** 2026-10-21.
+- **Merge:** `agent/reduce-mute-split` (`64203ee`, from `main` @ `92bd7f9`)
+  merged into `main` as `5b80fdd` (merge commit, no conflicts; 12 files,
+  +139/−55). Flow per the working agreement: desktop `~/gahookz-dev`
+  (`orchestrator/merge-reduce-mute-split`, pushed to the laptop as
+  `agent/orchestrator`), Store `main` fast-forwarded, GitHub `main` pushed
+  from the laptop. Stale generated release-hash files in the desktop
+  checkout (`index.html`, `service-worker.js`, `vendor-bootstrap.js`, left by
+  an earlier build at `release-2d4ac000cb3ed0e2`) were reverted before the
+  merge; the branch carries its own regenerated hashes for
+  `release-2e544d33f0fabce4`.
+- **Re-verification on the merge branch (Node v24.13.1, desktop, under the
+  shared lock):** `npm run check` green — typecheck, 250/250 unit tests,
+  build `release-2e544d33f0fabce4`; `test:disposable --
+  standalone:smoke:party-view` exit 0; full `npm test` exit 0. Evidence
+  record: [the branch's record](docs/verification/2026-10-21-reduce-mute-split/README.md).
+- **Production touched:** no. No deploy, no container changed; deploy stays
+  gated on Tyson.
+- **Next step:** PLAN-PROGRESS item 4 (journal-volume replacement verify)
+  needs a `gahookz:review-*` image — Docker access the agent user does not
+  have; the P01–P12 stage-acceptance pieces in `docs/backlog.md` Engineering
+  P1 remain the next clear code work.
 
 ## Appendix A — 20 new educational prompts
 
