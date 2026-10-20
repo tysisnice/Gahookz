@@ -51,6 +51,11 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
   them; a connected writer who has not finished still holds the room.
 
 ### Developer
+- `assertRoomAssetCapacity` and `roomAssetChars` in `standalone/server/room.mjs`
+  were dead exports nothing imported; they are removed, `MAX_ROOM_ASSET_CHARS`
+  stays as the cap `standalone/server/media.mjs` uses, and
+  `standalone/room-dead-exports.test.mjs` now guards against their return
+  ([record](verification/2026-10-21-remove-dead-room-exports/README.md)).
 - `publicMajorityResults` in `standalone/server.js` set `unanimous` twice; the
   dead second key is removed, and `standalone/server-duplicate-keys.test.mjs`
   now refuses any repeated key in that function's returned object.
