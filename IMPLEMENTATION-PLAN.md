@@ -901,6 +901,34 @@ the client. That is text and client-side, so it suits the local model.
   have; the P01–P12 stage-acceptance pieces in `docs/backlog.md` Engineering
   P1 remain the next clear code work.
 
+### Handoff — 2026-10-21 — night-shift orchestrator: merge `agent/remove-dead-room-asset-exports`
+
+- **Last updated:** 2026-10-21.
+- **Merge:** `agent/remove-dead-room-asset-exports` (`0615e2e`, from `main` @
+  `64b96b1`) merged into `main` as `5ccf800` (merge commit, no conflicts; 6
+  files, +152/−24). Flow per the working agreement: desktop `~/gahookz-dev`
+  (`orchestrator/merge-remove-dead-room`, pushed to the laptop as
+  `agent/orchestrator`), Store `main` fast-forwarded, GitHub `main` pushed
+  from the laptop.
+- **What it closes:** backlog P2 "`assertRoomAssetCapacity` and
+  `roomAssetChars` in `server/room.mjs` are unused" — the two dead exports
+  are deleted; the working cap remains the byte check in
+  `standalone/server/media.mjs` derived from `MAX_ROOM_ASSET_CHARS`.
+- **Re-verification on the merge branch (Node v24.13.1, desktop, under the
+  shared lock):** `npm run check` green — typecheck, 252/252 unit tests,
+  build `release-2e544d33f0fabce4`; `test:disposable -- npm run
+  standalone:smoke:party-view` exit 0; full `npm test` exit 0; `docs:check`
+  111 Markdown files pass. Evidence record: [the branch's
+  record](docs/verification/2026-10-21-remove-dead-room-exports/README.md).
+- **Production touched:** no. No deploy, no container changed; deploy stays
+  gated on Tyson.
+- **Next step:** the P01–P12 stage-acceptance re-verifications in
+  `docs/backlog.md` Engineering P1 remain the next clear code work;
+  PLAN-PROGRESS item 4 (journal-volume replacement verify) stays blocked —
+  it needs a `gahookz:review-*` image and Docker access the agent user does
+  not have.
+
+
 ## Appendix A — 20 new educational prompts
 
 Suggested audience: general mixed-age play; easy-to-medium, stable facts. These are additional entries, not a new replacement bank. Store the correct answer by stable option ID, then shuffle all four options per instance. The correct-answer column is content metadata, not a fixed on-screen position. Explanations appear only at the appropriate reveal.
