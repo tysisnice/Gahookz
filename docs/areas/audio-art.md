@@ -371,12 +371,6 @@ hear. The output is under `docs/verification/2026-09-25-update/audio/`.
 
 Backlog: see [the backlog](../backlog.md). Found while writing this guide:
 
-- **The "Reduce Gahook effects" switches disagree.** The join-screen menu
-  (`EffectsPreferenceButtons`) and the host's Lobby rules row
-  (`EffectsPreferenceToggle`) go through `useReducedEffects`, which sets the
-  reduced preference **and** mutes sound; the Settings dialog's switch sets the
-  reduced preference only. See
-  [Preferences and accessibility](../wiki/preferences-and-accessibility.md).
 - **The welcome screen has no sound controls** and a host mid-game reaches
   personal sound settings only through Lobby rules in the lobby.
 - **Nobody has judged the music by ear.** Balance and levels were measured

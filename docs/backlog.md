@@ -58,7 +58,6 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 - `LockedGameRules` in `packages/contracts/src/host-settings.ts` is unused and differs from the stored `room.lockedRules`. (game-flow; [game-flow](areas/game-flow.md))
 - `assertRoomAssetCapacity` and `roomAssetChars` in `server/room.mjs` are unused. (systems; [systems](areas/systems.md))
 - `generateRoomCode` UUID fallback can yield digits that `normaliseRoomCode` rejects (unreachable in practice). (systems; [systems](areas/systems.md))
-- "Reduce Gahook effects" also mutes sound in the Lobby rules and join menu. (ui-shell; [ui-shell](areas/ui-shell.md))
 - `browser-mobile-ui` and `browser-desktop-ui` both write into dated historical evidence folders on every run, so a verification run dirties records it is not authoring (and `browser-desktop-ui` adds two screenshots that were never committed). Captures belong in the current update's folder. (quality; [ui-shell](areas/ui-shell.md))
 - `docs/agents/{systems,accounts}.md` show `drill:resilience` without `test:disposable`; `browser-flow` has a 60 s launch timeout against 120 s elsewhere; run times of rooms/browser/drill unmeasured; some smokes mix HTTP and source-text assertions. (quality; [quality](areas/quality.md), LEDGER docs-core-a)
 - Content: 11 legacy Herd seeds unreachable; only two styles with `fun`/`funny` naming mismatch; names capped at 24 characters inside prompts. (content; [content](areas/content.md))
@@ -101,6 +100,7 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Checked and closed
 
+- "Reduce Gahook effects" also muted sound in the Lobby rules and join menu: fixed 2026-10-21 — `useReducedEffects` in `app.jsx` now sets only the reduced-effects preference, with the regression guard `standalone/reduce-mute-split.test.mjs` refusing any `setEffectsMuted` call in that hook ([record](verification/2026-10-21-reduce-mute-split/README.md)). (ui-shell; [ui-shell](areas/ui-shell.md))
 - `publicMajorityResults` set `unanimous` twice: the dead second key is removed (fixed 2026-10-21), with the regression test `standalone/server-duplicate-keys.test.mjs` refusing any repeated key in that function's returned object. (game-flow; LEDGER docs-game-a)
 
 - Six long-standing shell and moderation items, all on 2026-10-19

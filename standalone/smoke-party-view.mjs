@@ -219,7 +219,10 @@ function runPartyViewSmoke() {
   assertIncludes(playerQuickMenu, ">Settings<", "Player menu should offer a Settings door");
   assertIncludes(playerQuickMenu, "<PlayerSettingsDialog", "Player menu should mount the settings dialog it opens");
   assertIncludes(playerSettingsDialog, "Reduce Gahook effects", "Player settings should expose the effect reduction control");
-  assertIncludes(playerSettingsDialog, "useReducedEffects()", "The reduction control should share the join screen path, reducing motion and flashes and muting sound");
+  assertIncludes(playerSettingsDialog, "useReducedEffects()", "The reduction control should share the join screen path, reducing motion and flashes without touching sound");
+  const reducedEffectsHook = getFunctionSection("useReducedEffects");
+  assertIncludes(reducedEffectsHook, "setEffectsReducedPreference", "The shared reduction hook should set the reduced-effects preference");
+  assertNotIncludes(reducedEffectsHook, "setEffectsMuted", "The shared reduction hook must not mute sound; the Mute and Music switches own sound");
   assertIncludes(playerSettingsDialog, "Mute sound effects", "Player settings should expose the audio control");
   assertIncludes(playerSettingsDialog, "useMutePreference", "The audio control should be bound to the mute preference");
   assertIncludes(playerSettingsDialog, "useMusicPreference", "Player settings should offer a Music switch separate from mute");

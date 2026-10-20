@@ -18,7 +18,7 @@ The game also follows the device's own "reduce motion" setting. Nothing in the g
 
 - **Where:** the player **Settings** dialog (all three, under Accessibility); the host's **Lobby rules** (Reduce Gahook effects and Music, labelled "on this device"); the join-screen **Menu** (Reduce Gahook effects, Music).
 - **Mute wins.** Muted counts as reduced effects too.
-- **Not the same everywhere.** The join menu and the host's Lobby rules switch set reduced effects *and* mute together. The Settings dialog's reduced-effects switch sets only reduced effects. This is a known inconsistency ([area guide](../areas/audio-art.md#known-issues)).
+- **Reduce is reduce everywhere.** The Reduce switch sets only reduced motion — in the Settings dialog, the host's Lobby rules and the join menu alike. Mute is its own switch, and muting still counts as reduced effects.
 - Music defaults to on; the others to off.
 - Switches are real on/off switches that screen readers announce with their state. Menus and dialogs close on Escape and Back, and return focus to where they were opened ([Navigation](navigation-and-back-button.md)).
 - The welcome screen has no sound controls.

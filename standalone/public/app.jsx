@@ -2,7 +2,7 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Provider, useDispatch, useSelector } from "react-redux";
 import { createStore } from "redux";
-import { effectsMuted, setEffectsMuted, setEffectsReducedPreference, systemPrefersReducedEffects, useMusicPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
+import { effectsMuted, setEffectsReducedPreference, systemPrefersReducedEffects, useMusicPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
 import { OfflineExperience, ServerUpdateExperience, usePwaInstall, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
 import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
@@ -2009,13 +2009,16 @@ function ModeArt({ art }) {
 // state, so a player could not tell at a glance whether effects were currently
 // reduced — which is exactly what someone reaching for this setting wants to
 // know.
+//
+// The setter touches only the reduced-effects preference; sound belongs to the
+// Mute and Music switches. A muted player still reads as reduced here, because
+// mute counts as reduced effects everywhere.
 function useReducedEffects() {
   const [muted] = useMutePreference();
   const [reducedPreferred] = useReducedEffectsPreference();
   const reduced = muted || reducedPreferred;
   return [reduced, (next) => {
     setEffectsReducedPreference(next);
-    setEffectsMuted(next);
   }];
 }
 
@@ -3538,7 +3541,7 @@ function PlayerSettingsDialog({ open, onClose }) {
               label="Reduce Gahook effects"
               on={reducedEffects}
               onChange={setReducedEffects}
-              help="Gahooks still happen and still score. They arrive without the full-screen animation, the shaking and the flashing, and the sound is muted." />
+              help="Gahooks still happen and still score. They arrive without the full-screen animation, the shaking and the flashing. Sound is untouched — use the Mute and Music switches for that." />
             <RuleToggleRow
               label="Mute sound effects"
               on={muted}

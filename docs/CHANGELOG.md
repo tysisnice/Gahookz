@@ -10,6 +10,11 @@ repeating them here.
 Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Players
+- The **Reduce Gahook effects** switch no longer mutes sound anywhere: in the
+  join menu and the host's Lobby rules it now sets only reduced motion, as it
+  already did in the player Settings dialog. Sound is controlled by the **Mute**
+  and **Music** switches alone; muting still counts as reduced effects
+  ([record](verification/2026-10-21-reduce-mute-split/README.md)).
 - During Herd writing, the host panel now shows how far the room has got —
   "N/M answers written · waiting for <names>" — and players see a room progress
   line under the workshop banner. The game-length estimate now says it covers

@@ -324,8 +324,6 @@ the current update's folder.
 
 ## Known issues
 
-- "Reduce Gahook effects" also mutes sound in the host's Lobby rules and the join
-  menu (`useReducedEffects` sets both); `PlayerSettingsDialog` keeps them apart.
 - The ownership map omits `history.jsx`, `back-stack.ts`, `QuickMenu` and
   `useMediaQuery`.
 - `browser-mobile-ui` and `browser-desktop-ui` both write into dated historical
