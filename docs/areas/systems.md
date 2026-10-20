@@ -279,8 +279,6 @@ Unit tests: `admission.test.mjs`, `auth.test.mjs`, `transport.test.mjs`,
 
 ## Known issues
 
-- `assertRoomAssetCapacity` and `roomAssetChars` in `server/room.mjs` are not
-  called by anything else; the working cap is the byte check in `media.mjs`.
 - `generateRoomCode` falls back to a UUID slice that can contain digits, which
   `normaliseRoomCode` would reject. The path needs 200 random collisions among
   at most 64 rooms, so it is unreachable in practice.
