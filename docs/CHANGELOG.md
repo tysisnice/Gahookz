@@ -46,6 +46,13 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
   them; a connected writer who has not finished still holds the room.
 
 ### Developer
+- Stale deploy documentation corrected: the runbook's "Known issue: the image
+  check" described the retired hard-coded `gahookz:local` comparison (fixed
+  2026-10-18), four entries in `docs/areas/platform.md`'s Known issues were
+  already fixed or no longer true (`dev.mjs` now watches
+  `client/host-presence.jsx` and `client/legal.jsx`; `.env.example` lists the
+  tunables; `CLAUDE.md` no longer says `cd /srv/gahookz`), and the rollback
+  Option 2 heading now reflects its successful beta rehearsal.
 - **Node 24 is the declared runtime.** `engines.node` is `>=24.0.0`, matching
   CI and the `node:24-alpine` image instead of trailing four majors behind it,
   with `smoke-deployment`'s assertion moved in step so the two cannot drift.

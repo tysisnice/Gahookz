@@ -1,4 +1,4 @@
-# Overhaul progress — audited 2026-09-19, Next work updated 2026-10-18
+# Overhaul progress — audited 2026-09-19, Next work updated 2026-10-20
 
 `IMPLEMENTATION-PLAN.md` remains the approved scope. The latest handoff there supersedes older completion claims. **The overhaul is partial and not release-ready.** This correction does not remove requirements.
 
@@ -48,7 +48,7 @@ Items 1 and 2 are done. Updated 2026-10-18.
 
 1. ~~The deploy script's hard-coded `gahookz:local` image check.~~ **Done**, merged 2026-10-18 (`GAHOOKZ_PROD_IMAGE`, four offline checks in `smoke-deployment`).
 2. ~~Readiness and Pool-error handling in the disposable PostgreSQL probe.~~ **Done** on `main` via `d5f2b12` (unix-socket chown workaround) and the 2026-09-25 accounts work. The 2026-10-10 TCP-loopback variant that also avoided the SELinux socket-cleanup failure was lost with its branch and must be rebuilt if wanted.
-3. Finish `agent/deploy-safety`: the stubbed `docker`/`curl` test (`scripts/docker-deploy.test.sh`, not written), runbook section 4 and `docs/areas/platform.md`, and the single-Compose-project correction. Then **rehearse a rollback on beta** — never done — and only then deploy production, which has been 28 commits behind `main` since 2026-10-08.
+3. ~~Finish `agent/deploy-safety`: the stubbed `docker`/`curl` test (`scripts/docker-deploy.test.sh`, not written), runbook section 4 and `docs/areas/platform.md`, and the single-Compose-project correction. Then **rehearse a rollback on beta** — never done~~ — **Done.** The stubbed test exists and holds the decisions (`npm run test:deploy-script`, 8 cases, re-verified on `main` 2026-10-20), runbook section 4 and `docs/areas/platform.md` carry them, the single-Compose-project correction is in both the script and the runbook, and the beta rollback rehearsal ran 2026-10-18 ([record](docs/verification/2026-10-18-rollback-rehearsal/README.md)). Production was deployed 2026-10-18 as `74a489949e02` ([record](docs/verification/2026-10-18-deploy/README.md)); it is behind `main` again and every deploy stays gated on Tyson. The stale deploy docs that contradicted the fixed script (runbook "Known issue: the image check", four `platform.md` Known-issues entries, the rollback Option 2 heading) were corrected 2026-10-20.
 4. Verify a current isolated image's read-only/non-root journal volume across replacement (`standalone/verify-journal-volume.mjs` needs a `gahookz:review-*` image), then continue the stage acceptance above.
 5. P06 step 2's remaining piece: honest waiting/duration/carryover status copy in the client. **Done and merged to `main` 2026-10-20** (`e45480b`, merge `233f8cc`; re-verified on the merge branch under Node 24: `npm run check` 248/248 unit tests + build, full `npm test` exit 0, `test:browser:herd-writing` exit 0, `standalone:smoke:herd-flow` exit 0, [record](docs/verification/2026-10-20-herd-status-copy/README.md)). Stage acceptance stays Partial for the remaining P06 steps.
 
