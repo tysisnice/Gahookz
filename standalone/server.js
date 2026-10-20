@@ -5158,7 +5158,6 @@ function publicMajorityResults(room, question) {
     // The value the rule actually pays, so the reveal states it rather than
     // hard-coding a number that could drift from the engine.
     authorBonusValue: MAJORITY_AUTHOR_BONUS,
-    unanimous: Boolean(results.unanimous),
     groups: (results.groups || []).map((group) => ({
       answerId: group.answerId,
       label: group.label,

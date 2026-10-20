@@ -857,6 +857,25 @@ the client. That is text and client-side, so it suits the local model.
   `test:browser:herd-writing` exit 0, `standalone:smoke:herd-flow` exit 0.
   Changelog entry added. Production untouched; deploy remains gated on Tyson.
 
+### Handoff — 2026-10-21 — night-shift block: duplicate `unanimous` key removed
+
+- **Last updated:** 2026-10-21.
+- **Branch:** `agent/dup-unanimous-key` (from `main` @ `b9547ca`), worktree
+  `gahookz-dup-unanimous` (Store tree). Not merged, not pushed, not deployed.
+- **What changed:** closes the backlog item "`publicMajorityResults` sets
+  `unanimous` twice" — the dead second key is deleted from
+  `standalone/server.js`, and `standalone/server-duplicate-keys.test.mjs`
+  (new, matched by the `test:unit` glob) refuses any repeated key in that
+  function's returned object. Backlog item moved to Checked and closed;
+  changelog entry added.
+- **Verification:** `node --check` clean; focused guard 1/1;
+  `npm run test:unit` 249/249 (Node v26.7.0). Negative control confirmed the
+  guard fails when the duplicate is re-added. Evidence:
+  [the record](docs/verification/2026-10-21-dup-unanimous-key/README.md).
+- **Production touched:** no. `main` untouched.
+- **Next step:** orchestrator re-verifies and merges to `main` on the next
+  task run (merge remains gated per the working agreement); no deploy.
+
 ## Appendix A — 20 new educational prompts
 
 Suggested audience: general mixed-age play; easy-to-medium, stable facts. These are additional entries, not a new replacement bank. Store the correct answer by stable option ID, then shuffle all four options per instance. The correct-answer column is content metadata, not a fixed on-screen position. Explanations appear only at the appropriate reveal.
