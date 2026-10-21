@@ -1,5 +1,7 @@
 # Overhaul progress — audited 2026-09-19, Next work updated 2026-10-20
 
+**Current navigation (2026-10-21):** [docs/ROADMAP.md](docs/ROADMAP.md) is the ordered execution index; [docs/HANDOFF.md](docs/HANDOFF.md) records the current main and fresh verification. The branch/dirty-tree/177-test checkpoint below is the historical September audit, not current source state. Preserve its incomplete P01–P12 acceptance: later focused merges and 252 passing current unit tests do not make every stage complete.
+
 `IMPLEMENTATION-PLAN.md` remains the approved scope. The latest handoff there supersedes older completion claims. **The overhaul is partial and not release-ready.** This correction does not remove requirements.
 
 Branch: `overhaul/quiz-herd-p00-p12`. HEAD: `e31cdc88989a78d7e1dabb468f589f46f18546b2` plus uncommitted review repairs. Browser build: `release-4a97d7b7c3b5edca`. No new candidate commit/image digest exists. Production, beta and port 3102 were not queried or changed; `/Vault` was read-only.

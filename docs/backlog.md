@@ -1,5 +1,7 @@
 # Gahookz backlog
 
+**2026-10-21 audit precedence:** this is the issue inventory; [ROADMAP.md](ROADMAP.md) orders execution and [HANDOFF.md](HANDOFF.md) is the current checkpoint. Dates/line counts below include historical entries. Recheck code before accepting an open/closed claim. Node 24 is installed (`/usr/bin/node-24`; default `/usr/bin/node` remains 22). Static serving now supports ETag/304 revalidation (`serveFile`), so the old no-store-only item below is superseded, not an instruction to apply immutable caching to mutable URLs. The `/information` internal-report decision is already resolved by P11; current content is player guides. Arena is an active separate project, not waiting for Gahookz's completion. Exact pre-reveal privacy rules are documented in the corrected game-flow guide.
+
 Status: 2026-10-07, checked against the code of branch `agent/docs-backlog`
 (merged with `orchestrator/2026-09-25-update`). This is the single live list of
 open work. One line per item: description, owning area, source. Work in flight

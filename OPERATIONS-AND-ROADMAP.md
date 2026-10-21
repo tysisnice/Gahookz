@@ -1,5 +1,7 @@
 # Gahookz operations, maintenance, architecture, and future roadmap
 
+> **Navigation correction — 2026-10-21:** this layered document preserves historical architecture, proposals and rationale. Its section 10 is NOT the sole current backlog, despite older wording below. Use `docs/ROADMAP.md` for execution order, `docs/HANDOFF.md` for the current checkpoint, `docs/backlog.md` for the live issue inventory, and `docs/operations/runbook.md` for operational procedures. Historical permissions, live revisions, hardware and paths do not grant current operational authority.
+
 Last audited: 2026-09-06 AEST (second pass, after the first public deploy of
 the audit work)
 Live production revision at audit: `815c7e494bef`

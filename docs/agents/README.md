@@ -1,5 +1,7 @@
 # Agent working agreement
 
+**Current workflow override — 2026-10-21:** read [delivery roadmap](../ROADMAP.md) and [coordination contract](../COORDINATION.md). They supersede older desktop-only/two-core/path claims below. The laptop has installed Node 24 at `/usr/bin/node-24`; `/usr/bin/node` remains 22. Verify the actual executable, not just a PATH assumption. New isolated worktrees belong under `Projects/gahookz/worktrees`; preserve existing older worktrees. Use the shared verification lock and disposable services. Owner communication goes through Store/User reports and canonical Vault tasks, never scattered root to-do notes. Historical workstation recipes remain reference, not a mandate to move work.
+
 Gahookz is maintained by a small team of coding agents, coordinated by an
 orchestrator and supervised by the owner, Tyson. This file is the contract
 every agent follows. Each role has a short profile beside it; the profile says

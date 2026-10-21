@@ -1,5 +1,7 @@
 # Gahookz
 
+**Current work and owner view:** [delivery roadmap](docs/ROADMAP.md) → [handoff](docs/HANDOFF.md) → [coordination and feedback](docs/COORDINATION.md). These current indexes resolve stale next-step claims in older plans; the detailed approved scope remains preserved.
+
 Gahookz is a dependency-light, real-time Node.js party game with three active
 modes: classic Quiz, opinion-led Majority Rulz, and the collaborative Herd.
 The authoritative server provides the browser app and JSON API, while
@@ -18,8 +20,10 @@ deployment without PostgreSQL when `GAHOOKZ_REQUIRE_POSTGRES=1`.
 
 ## Requirements
 
-- Node.js 20 or newer and npm for local development (the pinned `tsx` runtime
-  loads the incrementally migrated TypeScript modules)
+- Node.js 24 or newer and npm for local development (owner decision, 2026-10-19).
+  On this laptop Node 24 is installed as `/usr/bin/node-24`; verify the executable
+  because plain `/usr/bin/node` still selects 22. Local scripts retain `tsx`;
+  production executes erasable TypeScript with the Node-24 image.
 - Docker Engine with the Docker Compose plugin for the two-container setup
 - Nginx on the server when exposing the app through a domain
 
