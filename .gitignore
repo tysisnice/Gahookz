@@ -1,3 +1,6 @@
+# Local isolated agent/audit worktrees (never part of deploy build context).
+/worktrees/
+
 # Dependencies
 node_modules
 .pnpm-store/

@@ -1,17 +1,16 @@
 # syntax=docker/dockerfile:1
 
 # The base image is pinned by digest so a rebuild cannot silently pick up a new
-# Node release. node:24-alpine@sha256:e67514e5d0f6...
-# currently resolves to Node v24.20.0. Update it deliberately: re-resolve with
-#   docker buildx imagetools inspect node:24-alpine --format '{{.Manifest.Digest}}'
-# then rebuild and run the full smoke suite before deploying.
+# Node release. This digest was checked against the official registry on
+# 2026-10-21: linux/amd64 config reports NODE_VERSION=24.22.0.
+# Update deliberately, then run the full smoke suite before deploying.
 
 # The Git revision of the source being built, surfaced at /api/health so a
 # server-only change is identifiable. The browser release hash cannot do this.
 ARG GAHOOKZ_REVISION=unknown
 ARG GAHOOKZ_BUILT_AT=
 
-FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS dependencies
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS dependencies
 
 WORKDIR /build
 
@@ -24,7 +23,7 @@ COPY packages/game-engine/package.json ./packages/game-engine/package.json
 ENV PUPPETEER_SKIP_DOWNLOAD=1
 RUN npm ci --include=dev
 
-FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS production-dependencies
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS production-dependencies
 
 WORKDIR /build
 
@@ -37,7 +36,7 @@ RUN npm ci --omit=dev
 # The development target keeps esbuild available and runs the project's file
 # watchers. Compose bind-mounts standalone/ over this copy so source edits are
 # rebuilt and connected browsers reload without rebuilding the image.
-FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS development
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS development
 
 ARG GAHOOKZ_REVISION
 ARG GAHOOKZ_BUILT_AT
@@ -78,7 +77,7 @@ COPY standalone/sync-artifacts.mjs ./standalone/sync-artifacts.mjs
 COPY standalone/public ./standalone/public
 RUN node standalone/build-client.mjs
 
-FROM node:24-alpine@sha256:e67514e5d0f6c46656005e1b693b2ec9d52e80b641307de684d4a015ba7a4eaf AS production
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS production
 
 ARG GAHOOKZ_REVISION
 ARG GAHOOKZ_BUILT_AT
