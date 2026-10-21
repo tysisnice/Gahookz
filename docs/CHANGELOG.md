@@ -51,6 +51,20 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
   them; a connected writer who has not finished still holds the room.
 
 ### Developer
+- The role and phase privacy contract is executable instead of described:
+  `standalone/smoke-privacy-contract.mjs` (in the shared smoke chain) refuses
+  every one of the twenty `/api/host/*` routes for an ordinary player, a
+  stranger, a caller with no credential and a player who also claims
+  `role: "host"`, and proves that no payload another writer, a party screen
+  or a stranger can obtain carries a writer's Herd answer before the reveal —
+  in the snapshot **and** in a real event-stream frame. Nothing about the game
+  changed; the rules were already right and almost untested
+  ([record](verification/2026-10-21-privacy-moderation-contract/README.md)).
+- `publicHerdAssignments` set `namedPlayerNames` twice in the host's Herd
+  review payload. The dead line is gone, and the duplicate-key guard no longer
+  looks at one function's own `return {`: it scans every object literal in
+  every source file under `standalone/` and `packages/`, which is how this one
+  was found two objects deep inside a `.map`.
 - Documentation has a single current execution index again:
   [`docs/ROADMAP.md`](ROADMAP.md) orders the work, and
   [`docs/COORDINATION.md`](COORDINATION.md) records the session/owner-feedback

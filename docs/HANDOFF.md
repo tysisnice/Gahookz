@@ -1,6 +1,53 @@
 # Handoff — state of the project
 
-## Current checkpoint — coordinator audit, 2026-10-21
+## Current checkpoint — executor session, 2026-10-21
+
+**Current.** `main` is at the privacy-contract merge; the branch
+`agent/privacy-moderation-contract` (worktree
+`Projects/gahookz/worktrees/privacy-moderation-contract`) carried it. Two blocks
+landed today, in this order:
+
+1. The coordinator's audit documentation, integrated as named files after a
+   line-by-line review (`273a372`). Every factual claim I could test, I tested:
+   the pre-reveal privacy rule against `publicAnswerSelections`, ETag/304 in
+   `serveFile`, `node:24-alpine` in every Dockerfile stage. Two pieces were
+   **held back** deliberately — see *Limits*.
+2. Roadmap section 2, items 1 and 2: the role and phase privacy contract as
+   executable negative cases, plus one real duplicate key removed from the
+   host's Herd review payload and a guard generalised to catch its whole class
+   ([record](verification/2026-10-21-privacy-moderation-contract/README.md)).
+
+Verified on Node 24.18.0: `npm run check` (254/254 unit, strict TypeScript,
+build `release-2e544d33f0fabce4`), the full `npm test` chain, and `docs:check`
+(113 files). Every new assertion was proved non-vacuous by breaking the rule it
+protects and watching it fail; the four mutations and their messages are in the
+record.
+
+**Next.** Roadmap section 2 continues. The obvious next slice is the one this
+block deliberately did not take: **runtime validation** of the payloads whose
+privacy is now proven (P01 steps 2 and 5), or the P02 step 1/4 permutation and
+seeded attack fixtures. Both are bounded and need no owner decision. Section 3's
+characterized Gahook extraction remains the larger next move after that.
+
+**Limits and what needs Tyson.**
+
+- `CLAUDE.md` is protected, so the audit's `CLAUDE.md` commit (`84a8032` on
+  `coordinator/audit-20261021`) was **not** applied by me. It is ready on the
+  branch for Tyson to land. The same two documents are linked from the README,
+  this handoff and the working agreement, so nothing depends on it.
+- `1282bce` on that branch pins a new `node:24-alpine` digest (24.22.0) and adds
+  `.node-version`/`.nvmrc`. It arrived after the verification, it changes the
+  image production is built from, and it pins 24.22.0 while this laptop has
+  24.18.0 — so it needs a rebuild and the full smoke suite as its own slice.
+  Only its two ignore-file lines were taken. **Not integrated.**
+- Production is still `74a489949e02` and the gap to `main` keeps growing. No
+  deploy was made or implied.
+- The main checkout's `node_modules` was found empty (timestamped 14:27 today)
+  and was reinstalled. npm 11 denies install scripts by default; esbuild and
+  Puppeteer both still work, but a future "nothing builds" report may start
+  here.
+
+## Earlier checkpoint — coordinator audit, 2026-10-21
 
 Baseline main `170105c`; current ordered work is [ROADMAP.md](ROADMAP.md), with the [coordination contract](COORDINATION.md). The dated 18–19 Oct account below is retained historical context, not today's next-task list. Recent night-shift merges include Herd status copy, independent reduced-effects/mute, duplicate-key and dead-export cleanup.
 
