@@ -4066,7 +4066,6 @@ function publicHerdAssignments(room, playerId = "") {
         id: question.id,
         text: question.text,
         namedPlayerNames: question.namedPlayerNames || [],
-    namedPlayerNames: question.namedPlayerNames || [],
         imageDataUrl: question.imageDataUrl || "",
         author: publicQuestionAuthor(room, question)
       },

@@ -101,6 +101,8 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Checked and closed
 
+- Host authority was effectively untested: two of the twenty `/api/host/*` routes had a refusal case and nothing inspected an SSE frame at all. Closed 2026-10-21 — `standalone/smoke-privacy-contract.mjs` refuses every host route for four kinds of impostor and checks a real event frame, with the route list imported from `server/route-policy.mjs` so a new route joins the matrix by existing ([record](verification/2026-10-21-privacy-moderation-contract/README.md)). (quality; PP P01/P02)
+- The duplicate-key guard only saw one named function's own `return {`: a second live duplicate (`namedPlayerNames` in `publicHerdAssignments`, two objects deep inside a `.map`) was invisible to it. Fixed 2026-10-21 — the dead line is gone and `standalone/server-duplicate-keys.test.mjs` now scans every object literal in every source file under `standalone/` and `packages/`, generated and vendor files excluded, with the scanner tested in both directions ([record](verification/2026-10-21-privacy-moderation-contract/README.md)). (systems; [systems](areas/systems.md))
 - Local verification ran below the declared `engines.node` floor: closed
   2026-10-21 — Tyson installed `nodejs24` 24.18.0 and `nodejs24-npm` 11.16.0,
   which coexist with 22 as `/usr/bin/node-24` and `/usr/bin/npm-24`. A run only
