@@ -51,6 +51,21 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
   them; a connected writer who has not finished still holds the room.
 
 ### Developer
+- Documentation has a single current execution index again:
+  [`docs/ROADMAP.md`](ROADMAP.md) orders the work, and
+  [`docs/COORDINATION.md`](COORDINATION.md) records the session/owner-feedback
+  contract Tyson approved on 2026-10-21. The older layered plans keep their
+  detail but no longer compete as next-task lists, and four stale claims are
+  corrected in place: Node 20, the pre-reveal privacy rules, `no-store`-only
+  static caching and the `/information` internal-report question.
+- Node 24 is installed on the laptop (`/usr/bin/node-24`, `/usr/bin/npm-24`,
+  alongside 22). Verification needs an explicit PATH shim: `npm-24 run <script>`
+  hands lifecycle scripts Node 22, because npm puts its own interpreter's
+  directory on their PATH. The recipe and the measurement are in
+  [the working agreement](agents/README.md).
+- `/worktrees/` is ignored by git and excluded from the Docker build context, so
+  an isolated worktree created inside the project (as the coordination contract
+  asks) cannot be committed or shipped by accident.
 - `assertRoomAssetCapacity` and `roomAssetChars` in `standalone/server/room.mjs`
   were dead exports nothing imported; they are removed, `MAX_ROOM_ASSET_CHARS`
   stays as the cap `standalone/server/media.mjs` uses, and

@@ -1,5 +1,16 @@
 # Handoff — state of the project
 
+## Current checkpoint — coordinator audit, 2026-10-21
+
+Baseline main `170105c`; current ordered work is [ROADMAP.md](ROADMAP.md), with the [coordination contract](COORDINATION.md). The dated 18–19 Oct account below is retained historical context, not today's next-task list. Recent night-shift merges include Herd status copy, independent reduced-effects/mute, duplicate-key and dead-export cleanup.
+
+The existing tmux `gahookz` session is idle at the audit capture; `deploy it` is an unsubmitted draft and was not executed. Latest visible Claude plan: Gahook subsystem extraction. Reconcile the roadmap before resuming, and do not confuse later night-shift commits with a currently running Claude turn.
+
+Fresh audit verification on installed Node 24.18.0: `npm run check` (252/252 unit, strict TS, build), full `npm test`, disposable `test:rooms` (12 games), disposable `test:browser` (18 checks), `test:deploy-script` (8 cases), `docs:check` (111 files before audit edits), all exit 0. Full raw output: `/Vault/Assistant/Tasks/Output/Gahookz and Arena audit 2026-10-21/`. No PostgreSQL/container-volume/load, physical-device or human fun claim is implied.
+
+Read-only public health reported production `74a489949e02`, account persistence `memory`, Google login unavailable; it remains older than main. No deployment in this audit. Node 24 **is installed** at `/usr/bin/node-24`, though `/usr/bin/node` still points to 22; use an explicit Node-24 PATH rather than asking Tyson to install it again. No current product decision blocks the roadmap's engineering slices.
+
+
 **Written 2026-10-18, updated 2026-10-19 by Claude Code (executor session).** Read this, then
 [`CLAUDE.md`](../CLAUDE.md). This is the short version: where things stand, what
 is half-finished, what to do next. The detailed history is
@@ -122,6 +133,12 @@ Answered on 2026-10-19, for the record:
 - **Node version: Node 24.** The floor is raised and every document that
   described the old `>=20` state is updated
   ([record](verification/2026-10-19-node-24/README.md)).
+- **Node 24 is installed** (done by Tyson, found 2026-10-21): `nodejs24`
+  24.18.0 and `nodejs24-npm` 11.16.0, as `/usr/bin/node-24` and
+  `/usr/bin/npm-24`. `/usr/bin/node` is still 22 and the packages are designed
+  to coexist, so a verification run needs an explicit Node 24 PATH — the tested
+  recipe, and the trap that makes `npm-24 run` insufficient, are in
+  [the agent working agreement](agents/README.md).
 
 Two operational suggestions, neither urgent:
 

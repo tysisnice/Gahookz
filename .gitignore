@@ -1,3 +1,7 @@
+# Local isolated agent/audit worktrees (never part of a commit or the deploy
+# build context). Created inside the project per the coordination contract.
+/worktrees/
+
 # Dependencies
 node_modules
 .pnpm-store/

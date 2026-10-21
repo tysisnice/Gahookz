@@ -1,5 +1,7 @@
 # Game flow — area guide
 
+**Privacy correction, verified 2026-10-21 against `publicAnswerSelections`:** during `answering`, Classic intentionally shows live picks (owner decision 2026-10-08); Majority/Herd send another player's answered status but no `answerId`, retaining the viewer's own choice. Reveal exposes choices. Older claims below that the U23 protection is still pending are historical and superseded. The Herd answer-removal route now requires question identity with a color-slot target; its former cross-prompt defect is repaired. The duplicate `unanimous` key is also removed. See [current roadmap](../ROADMAP.md) before proposing work.
+
 Last verified against the code: 2026-10-04, commit 56497b9
 
 ## Purpose

@@ -83,3 +83,13 @@ npm run docs:check
 ```
 
 Results are recorded in the commit message for the change.
+
+## Installed 2026-10-21
+
+Tyson installed it. `nodejs24` 24.18.0 and `nodejs24-npm` 11.16.0 are present
+as `/usr/bin/node-24` and `/usr/bin/npm-24`; `/usr/bin/node` remains 22, which
+is how the Fedora packages are meant to coexist, so the laptop now *can* run at
+the declared floor but does not do so by default. The gap this record described
+is therefore closed by a PATH shim rather than by a swap, and
+[the working agreement](../../agents/README.md) carries the recipe plus the
+measured reason `npm-24 run` does not achieve it.

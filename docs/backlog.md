@@ -1,5 +1,7 @@
 # Gahookz backlog
 
+**2026-10-21 audit precedence:** this is the issue inventory; [ROADMAP.md](ROADMAP.md) orders execution and [HANDOFF.md](HANDOFF.md) is the current checkpoint. Dates/line counts below include historical entries. Recheck code before accepting an open/closed claim. Node 24 is installed (`/usr/bin/node-24`; default `/usr/bin/node` remains 22). Static serving now supports ETag/304 revalidation (`serveFile`), so the old no-store-only item below is superseded, not an instruction to apply immutable caching to mutable URLs. The `/information` internal-report decision is already resolved by P11; current content is player guides. Arena is an active separate project, not waiting for Gahookz's completion. Exact pre-reveal privacy rules are documented in the corrected game-flow guide.
+
 Status: 2026-10-07, checked against the code of branch `agent/docs-backlog`
 (merged with `orchestrator/2026-09-25-update`). This is the single live list of
 open work. One line per item: description, owning area, source. Work in flight
@@ -99,6 +101,14 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Checked and closed
 
+- Local verification ran below the declared `engines.node` floor: closed
+  2026-10-21 — Tyson installed `nodejs24` 24.18.0 and `nodejs24-npm` 11.16.0,
+  which coexist with 22 as `/usr/bin/node-24` and `/usr/bin/npm-24`. A run only
+  reaches 24 through an explicit PATH shim: `npm-24 run <script>` puts its own
+  interpreter's directory (`/usr/bin`, where `node` is 22) on the PATH for
+  lifecycle scripts, so the scripts get 22 — measured, not assumed. Recipe in
+  [the working agreement](agents/README.md). (platform;
+  [record](verification/2026-10-19-node-24/README.md))
 - `assertRoomAssetCapacity` and `roomAssetChars` in `server/room.mjs` were dead exports nothing imported (the working cap is the byte check in `server/media.mjs`): removed 2026-10-21, keeping `MAX_ROOM_ASSET_CHARS`, with the regression guard `standalone/room-dead-exports.test.mjs` refusing their return and refusing any live file under `standalone/` from importing them ([record](verification/2026-10-21-remove-dead-room-exports/README.md)). (systems; [systems](areas/systems.md))
 - "Reduce Gahook effects" also muted sound in the Lobby rules and join menu: fixed 2026-10-21 — `useReducedEffects` in `app.jsx` now sets only the reduced-effects preference, with the regression guard `standalone/reduce-mute-split.test.mjs` refusing any `setEffectsMuted` call in that hook ([record](verification/2026-10-21-reduce-mute-split/README.md)). (ui-shell; [ui-shell](areas/ui-shell.md))
 - `publicMajorityResults` set `unanimous` twice: the dead second key is removed (fixed 2026-10-21), with the regression test `standalone/server-duplicate-keys.test.mjs` refusing any repeated key in that function's returned object. (game-flow; LEDGER docs-game-a)

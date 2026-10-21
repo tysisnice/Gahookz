@@ -1,5 +1,29 @@
 # Agent working agreement
 
+**Current workflow override — 2026-10-21:** read [delivery roadmap](../ROADMAP.md) and [coordination contract](../COORDINATION.md). They supersede older desktop-only/two-core/path claims below. The laptop has installed Node 24 at `/usr/bin/node-24`; `/usr/bin/node` remains 22. Verify the actual executable, not just a PATH assumption. New isolated worktrees belong under `Projects/gahookz/worktrees`; preserve existing older worktrees. Use the shared verification lock and disposable services. Owner communication goes through Store/User reports and canonical Vault tasks, never scattered root to-do notes. Historical workstation recipes remain reference, not a mandate to move work.
+
+**The verified Node 24 invocation on this laptop.** `nodejs24` (24.18.0) and
+`nodejs24-npm` (11.16.0) are installed and coexist with 22, so there is nothing
+to install and nothing to swap:
+
+```bash
+mkdir -p ~/.local/node24/bin
+ln -sf /usr/bin/node-24 ~/.local/node24/bin/node
+ln -sf /usr/bin/npm-24  ~/.local/node24/bin/npm
+ln -sf /usr/bin/npx-24  ~/.local/node24/bin/npx
+export PATH=~/.local/node24/bin:/usr/bin:$PATH   # node --version -> v24.18.0
+```
+
+Running `npm-24 run <script>` instead is **not** equivalent, and the difference
+is invisible unless you look for it: npm puts the directory of its own
+interpreter (`/usr/bin`, where `node` is still 22) on the PATH it gives
+lifecycle scripts, so every script the run spawns gets Node 22. Measured
+2026-10-21 with a one-line `node --version` script: `npm-24 run` reported
+v22.23.1, the shim reported v24.18.0. Check `node --version` in the shell that
+will run the tests, and treat a "ran on Node 24" claim without that check as
+unproven. The `/usr/bin` in the shim keeps a stray Node 26 off the PATH; it is
+not what selects 24.
+
 Gahookz is maintained by a small team of coding agents, coordinated by an
 orchestrator and supervised by the owner, Tyson. This file is the contract
 every agent follows. Each role has a short profile beside it; the profile says
