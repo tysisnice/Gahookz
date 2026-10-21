@@ -1,6 +1,8 @@
 # Social — area guide
 
-Last verified against the code: 2026-10-07, commit 30ba1ce
+**Owner decision, 2026-10-19:** forget about GET GOT during live rounds. The attempted live-phase GET GOT penalty is unreachable under the question claim/host gates; do not make it reachable, reintroduce that feature, or expand its live-round test scope. Lobby GET GOT and one ordinary live-round Gahook per question remain separate behaviours. Older conditional descriptions below of a live-phase score penalty are not an instruction to implement it. Current execution index: [roadmap](../ROADMAP.md).
+
+Last verified against the code: 2026-10-07, commit 30ba1ce. The narrow owner-decision note above was checked against the current backlog and smoke test on 2026-10-21; the entire social guide has not been re-certified line-by-line since that earlier date.
 
 ## Purpose
 
