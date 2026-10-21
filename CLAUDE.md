@@ -1,5 +1,17 @@
 # Working on Gahookz
 
+**Coordination update — approved by Tyson, 2026-10-21:** read
+[the current delivery roadmap](docs/ROADMAP.md) for ordered work and
+[the coordination contract](docs/COORDINATION.md) for six-hour check-ins,
+Store/User reports, feedback pickup and canonical Vault tasks. These current
+indexes supersede older next-task and worktree-location recommendations below,
+including the claim that OPS section 10 is the live backlog; the detailed
+acceptance scope remains in `IMPLEMENTATION-PLAN.md`. New isolated worktrees
+belong inside `Projects/gahookz/worktrees/`; preserve existing worktrees and
+stashes, keep nested worktrees out of commits, and stage named files only.
+This update grants no deployment authority and changes none of the safety
+rules below.
+
 Read this first. It is the entry point for anyone — human or coding agent —
 picking the project up cold. It is deliberately short; it tells you the rules,
 the shape of the system, and which longer document answers which question.
