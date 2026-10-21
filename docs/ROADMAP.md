@@ -13,7 +13,7 @@ Quality means observable behaviour, not a count of merged tasks. A test that sea
 - **Current integrated baseline:** `170105c`, clean at audit start, matched the locally recorded `origin/main` (no fetch performed).
 - **Claude session:** laptop tmux `gahookz`, idle at audit capture, with an unsubmitted `deploy it` draft. Its last visible completed turn finished `agent/small-fixes`; its proposed next slice was Gahook subsystem extraction. Later repository work was merged by night-shift agents: see git and the implementation ledger, not the stale pane alone.
 - **Live versus integrated:** read-only public health on 2026-10-21 reported production revision `74a489949e02`, `accountPersistence: memory`, Google login unavailable. A green current branch is not a deployed release. This audit does not deploy or submit the draft.
-- **Runtime:** Node 24.18.0 is installed as `/usr/bin/node-24`; the system `/usr/bin/node` still resolves to 22.23.1. Use an explicit Node-24 PATH for verification. No root installation is necessary to run tests with the installed binary.
+- **Runtime:** Both repos require Node 24.0+ and pin developer selection to 24.22.0 (`.nvmrc`/`.node-version`). User-space Node 24.22.0 lives at `$HOME/.local/share/node-v24.22.0-linux-x64`; `$HOME/.local/bin/node`, `npm`, `npx` select it. A shell PATH drop-in exists at `$HOME/.bashrc.d/90-node24.sh`. Verified Gahookz and Arena checks use this version.
 
 ## Pipeline
 
