@@ -6,11 +6,15 @@ import {
   type EventSourceLike,
   type Json,
   type TimerLike,
+  type SnapshotOutcome,
+  SNAPSHOT_TIMEOUT_MS,
   connectionMessage,
   createApiClient,
   nextClockOffset,
   describeSnapshotCompatibility,
+  describeSnapshotResponse,
   createLiveConnection,
+  createSnapshotFetcher,
   createSnapshotGate,
   redactCredentials
 } from "./net.ts";
@@ -387,4 +391,197 @@ test("heartbeats refresh activity and retired streams cannot dispatch", async ()
   const count = h.events.length;
   first.emit("state", "{}"); first.emit("heartbeat", "{}");
   assert.equal(h.events.length, count);
+});
+
+// ---------------------------------------------------------------------------
+// Snapshot requests. Three callers ask for room state and none of them knows
+// about the others, which is how a tab on a dead connection used to stack one
+// unanswered request every five seconds for as long as the room stayed open.
+// Measured in a real browser before this module existed: eight in sixty
+// seconds, all eight still open
+// ([record](../../../docs/verification/2026-10-23-snapshot-adapter/README.md)).
+
+/** A fetch double whose answers are handed out one at a time. */
+function fetchHarness() {
+  const calls: Array<{
+    url: string;
+    init: Record<string, Json>;
+    settle: (body: Json, status?: number) => void;
+    fail: (error: unknown) => void;
+    aborted: () => boolean;
+  }> = [];
+  const doFetch = (url: string, init: Record<string, Json>) =>
+    new Promise<{ ok: boolean; status: number; json(): Promise<Json> }>((resolve, reject) => {
+      const signal = init["signal"] as AbortSignal | undefined;
+      signal?.addEventListener("abort", () => reject(new Error("This operation was aborted")));
+      calls.push({
+        url,
+        init,
+        settle: (body, status = 200) =>
+          resolve({ ok: status >= 200 && status < 300, status, json: async () => body }),
+        fail: reject,
+        aborted: () => Boolean(signal?.aborted)
+      });
+    });
+  return { doFetch, calls };
+}
+
+/** Let queued promise work run, without advancing any fake clock. */
+const flush = async (): Promise<void> => {
+  for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+};
+
+function snapshotHarness(options: { timeoutMs?: number } = {}) {
+  const clock = fakeTimers();
+  const net = fetchHarness();
+  const outcomes: SnapshotOutcome[] = [];
+  const fetcher = createSnapshotFetcher({
+    fetch: net.doFetch,
+    timers: clock.timers,
+    request: () => ({ code: "ABCD", role: "host", playerKey: "secret-key" }),
+    onOutcome: (outcome) => outcomes.push(outcome),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs })
+  });
+  return { clock, net, outcomes, fetcher };
+}
+
+test("however many callers ask at once, one request is in flight", async () => {
+  const h = snapshotHarness();
+
+  for (let ask = 0; ask < 5; ask += 1) h.fetcher.refresh();
+  await flush();
+
+  assert.equal(h.net.calls.length, 1, "five callers must not produce five requests");
+  assert.equal(h.fetcher.activeRequests, 1);
+});
+
+test("a request made while one is in flight is answered by exactly one follow-up", async () => {
+  const h = snapshotHarness();
+
+  h.fetcher.refresh();
+  await flush();
+  // Four more triggers arrive while the first request is still unanswered: a
+  // settled command, a visible tab, two recovery checks. Dropping them all
+  // could leave the newest state unseen, so one follow-up runs; four do not.
+  for (let ask = 0; ask < 4; ask += 1) h.fetcher.refresh();
+  h.net.calls[0]!.settle({ stateVersion: 1, phase: "lobby" });
+  await flush();
+
+  assert.equal(h.net.calls.length, 2);
+  assert.equal(h.fetcher.activeRequests, 1, "the follow-up starts as the first one finishes");
+
+  h.net.calls[1]!.settle({ stateVersion: 2, phase: "lobby" });
+  await flush();
+  assert.equal(h.net.calls.length, 2, "a follow-up must not keep queueing another");
+  assert.equal(h.fetcher.activeRequests, 0);
+  assert.deepEqual(h.outcomes.map((outcome) => outcome.kind), ["apply", "apply"]);
+});
+
+test("a request nobody answers is given up on, so the next attempt can start", async () => {
+  const h = snapshotHarness();
+
+  h.fetcher.refresh();
+  await flush();
+  assert.equal(h.net.calls[0]!.aborted(), false);
+
+  h.clock.advance(SNAPSHOT_TIMEOUT_MS);
+  await flush();
+
+  assert.equal(h.net.calls[0]!.aborted(), true, "the slot must not be held for ever");
+  assert.equal(h.fetcher.activeRequests, 0);
+  assert.deepEqual(h.outcomes, [{ kind: "unreachable" }]);
+
+  h.fetcher.refresh();
+  await flush();
+  assert.equal(h.net.calls.length, 2, "a new attempt must be possible after a timeout");
+});
+
+test("an answered request leaves no abort timer behind", async () => {
+  const h = snapshotHarness();
+  h.fetcher.refresh();
+  await flush();
+  h.net.calls[0]!.settle({ stateVersion: 3 });
+  await flush();
+  assert.equal(h.clock.pendingCount, 0);
+});
+
+test("an answer that arrives after the room is left is never dispatched", async () => {
+  const h = snapshotHarness();
+
+  h.fetcher.refresh();
+  await flush();
+  h.fetcher.dispose();
+  h.net.calls[0]!.settle({ stateVersion: 9, phase: "reveal" });
+  await flush();
+
+  assert.deepEqual(h.outcomes, [], "a view that has gone away must not be repainted");
+  h.fetcher.refresh();
+  await flush();
+  assert.equal(h.net.calls.length, 1, "a disposed fetcher must not start new requests");
+});
+
+test("a failed request never shows the player a browser-authored message", async () => {
+  const h = snapshotHarness();
+
+  h.fetcher.refresh();
+  await flush();
+  h.net.calls[0]!.fail(new TypeError("Failed to fetch"));
+  await flush();
+
+  assert.deepEqual(h.outcomes, [{ kind: "unreachable" }]);
+  const shown = connectionMessage(h.outcomes[0]);
+  assert.equal(shown, "Could not reach this room. Check the server, then retry.");
+  assert.ok(!shown.includes("fetch"), "the browser's own wording must not reach a player");
+});
+
+test("the snapshot request carries the credential in a POST body, never a URL", async () => {
+  const h = snapshotHarness();
+
+  h.fetcher.refresh();
+  await flush();
+
+  const call = h.net.calls[0]!;
+  assert.equal(call.url, "/api/state");
+  assert.ok(!call.url.includes("secret-key"), "a credential must never reach a URL");
+  assert.equal(call.init["method"], "POST");
+  assert.equal(call.init["cache"], "no-store", "a cached room snapshot is a stale room");
+  assert.deepEqual(call.init["headers"], {
+    "Content-Type": "application/json",
+    "X-Gahookz-Room": "ABCD"
+  });
+  assert.deepEqual(JSON.parse(String(call.init["body"])), {
+    code: "ABCD",
+    role: "host",
+    playerKey: "secret-key"
+  });
+});
+
+test("a room that has gone, a ban and a lock are told apart", () => {
+  assert.deepEqual(describeSnapshotResponse(404, false, { roomMissing: true }), { kind: "roomMissing" });
+  // A banned player in a locked room is out, not asked for the password again.
+  assert.deepEqual(describeSnapshotResponse(403, false, { banned: true, roomLocked: true }), { kind: "banned" });
+  assert.deepEqual(describeSnapshotResponse(403, false, { roomLocked: true }), { kind: "roomLocked" });
+  // A room code that is simply unknown is not a room that has gone missing.
+  assert.equal(describeSnapshotResponse(404, false, { error: "No room." }).kind, "refused");
+});
+
+test("the server's considered refusal is immediate, a bad second is not", () => {
+  const refused = describeSnapshotResponse(400, false, { error: "Join again." });
+  assert.deepEqual(refused, { kind: "refused", error: { error: "Join again." }, immediate: true });
+  const flaky = describeSnapshotResponse(502, false, { error: "upstream" });
+  assert.equal(flaky.kind === "refused" && flaky.immediate, false, "a 5xx waits for a second opinion");
+});
+
+test("a 200 that is not a snapshot is reported, not quietly dropped", () => {
+  for (const body of [null, "<html>down for maintenance</html>", [], 42, true]) {
+    assert.deepEqual(
+      describeSnapshotResponse(200, true, body),
+      { kind: "unreachable" },
+      "a proxy page or truncated body must fail loudly: " + JSON.stringify(body)
+    );
+  }
+  assert.deepEqual(describeSnapshotResponse(200, true, { phase: "lobby" }), {
+    kind: "apply",
+    snapshot: { phase: "lobby" }
+  });
 });

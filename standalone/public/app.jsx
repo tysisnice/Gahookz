@@ -5,7 +5,7 @@ import { createStore } from "redux";
 import { effectsMuted, setEffectsReducedPreference, systemPrefersReducedEffects, useMusicPreference, useMutePreference, useReducedEffectsPreference } from "./client/preferences.jsx";
 import { OfflineExperience, ServerUpdateExperience, usePwaInstall, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
-import { createApiClient, createLiveConnection, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
+import { createApiClient, createLiveConnection, createSnapshotFetcher, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
 import { FactCheckPanel, HerdRevealBreakdown, MajorityRevealBreakdown, PromptText, tieBreakLabel } from "./client/reveal.jsx";
 import { HostPresenceNotices } from "./client/host-presence.jsx";
 import {
@@ -1050,41 +1050,37 @@ function useEvents(mode, code, playerKey) {
       if (active) navigateTo(buildWelcomePath(code, { locked: true }));
     };
 
-    const fetchSnapshot = async () => {
-      try {
-        const response = await fetch("/api/state", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Gahookz-Room": code },
-          body: JSON.stringify({ code, role: mode, playerKey }),
-          cache: "no-store"
-        });
-        const snapshot = await response.json();
-        if (response.status === 404 && snapshot?.roomMissing) {
-          if (active) {
-            navigateTo(buildWelcomePath(code));
-          }
+    // The one request that still bypassed the adapter. Three callers ask for a
+    // snapshot — the recovery poll, every settled command and a tab becoming
+    // visible — and with no timeout and nothing shared between them, a tab on
+    // a dead connection used to stack a new request every five seconds for as
+    // long as the room stayed open. One at a time now, with a timeout, and the
+    // routing decided by a tested function in ./client/net.ts.
+    const snapshots = createSnapshotFetcher({
+      fetch: (url, init) => fetch(url, init),
+      timers: browserTimers,
+      request: () => ({ code, role: mode, playerKey }),
+      onOutcome: (outcome) => {
+        if (!active) return;
+        if (outcome.kind === "apply") {
+          queueSnapshot(outcome.snapshot);
           return;
         }
-        if (snapshot?.roomLocked || snapshot?.banned) {
-          if (active) {
-            dispatch({ type: "CONNECTED", value: false });
-            if (snapshot.banned) navigateTo(buildWelcomePath(code));
-            else await recoverLockedRoom();
-          }
+        if (outcome.kind === "roomMissing") {
+          navigateTo(buildWelcomePath(code));
           return;
         }
-        if (!response.ok) {
-          reportFailure(snapshot, { immediate: response.status >= 400 && response.status < 500 });
+        if (outcome.kind === "refused") {
+          reportFailure(outcome.error, { immediate: outcome.immediate });
           return;
         }
-        queueSnapshot(snapshot);
-      } catch (error) {
-        if (active) {
-          dispatch({ type: "CONNECTED", value: false });
-          reportFailure(error);
-        }
+        dispatch({ type: "CONNECTED", value: false });
+        if (outcome.kind === "banned") navigateTo(buildWelcomePath(code));
+        else if (outcome.kind === "roomLocked") void recoverLockedRoom();
+        else reportFailure(outcome);
       }
-    };
+    });
+    const fetchSnapshot = () => snapshots.refresh();
     window.gahookzRefreshSnapshot = fetchSnapshot;
 
     // The stream lifecycle lives in ./client/net.ts so that "exactly one open
@@ -1147,8 +1143,10 @@ function useEvents(mode, code, playerKey) {
       if (window.gahookzRefreshSnapshot === fetchSnapshot) {
         delete window.gahookzRefreshSnapshot;
       }
-      // Both own their own timers and stream, and both are safe to call twice.
+      // Each owns its own timers, stream or in-flight request, and all three
+      // are safe to call twice.
       gate.dispose();
+      snapshots.dispose();
       live.close();
       document.removeEventListener("visibilitychange", onVisible);
       clearInterval(interval);

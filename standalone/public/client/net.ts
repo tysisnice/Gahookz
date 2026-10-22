@@ -25,12 +25,6 @@
 
 export type Json = unknown;
 
-export interface StorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
-}
-
 export interface TimerLike {
   setTimeout(handler: () => void, ms: number): number;
   clearTimeout(handle: number): void;
@@ -193,7 +187,6 @@ export interface ApiClientOptions {
 export interface ApiCallOptions {
   readonly timeoutMs?: number;
   readonly refresh?: boolean;
-  readonly signal?: unknown;
 }
 
 /**
@@ -392,6 +385,161 @@ export function createLiveConnection(options: LiveConnectionOptions): LiveConnec
     },
     get openStreams() {
       return source ? 1 : 0;
+    }
+  };
+}
+
+/** What one `/api/state` answer means. Routing, decided once, in one place. */
+export type SnapshotOutcome =
+  | { readonly kind: "apply"; readonly snapshot: Record<string, Json> }
+  | { readonly kind: "roomMissing" }
+  | { readonly kind: "banned" }
+  | { readonly kind: "roomLocked" }
+  /** The server answered and said no. `error` is its own payload. */
+  | { readonly kind: "refused"; readonly error: Json; readonly immediate: boolean }
+  /** Nothing usable came back: unreachable, timed out, or not a snapshot. */
+  | { readonly kind: "unreachable" };
+
+/**
+ * Read one snapshot response.
+ *
+ * Pure, because these five branches decide whether a player stays in the room,
+ * goes back to the welcome screen, or is asked for the room password again,
+ * and until now they were inline in a `.jsx` effect where no test could reach
+ * them.
+ *
+ * A 200 that is not an object is treated as unreachable rather than applied.
+ * A proxy error page, a truncated body or a stray array used to be handed to
+ * the snapshot gate, which correctly refused to dispatch it — and the room
+ * then sat there with no explanation, because nothing had failed loudly.
+ */
+export function describeSnapshotResponse(status: number, ok: boolean, body: unknown): SnapshotOutcome {
+  const payload = body !== null && typeof body === "object" && !Array.isArray(body)
+    ? (body as Record<string, Json>)
+    : null;
+  if (status === 404 && payload?.["roomMissing"]) return { kind: "roomMissing" };
+  // Banned first: a banned player in a locked room is out, not re-admitted.
+  if (payload?.["banned"]) return { kind: "banned" };
+  if (payload?.["roomLocked"]) return { kind: "roomLocked" };
+  if (!ok) {
+    // A 4xx is the server's considered answer, so it is worth saying at once;
+    // a 5xx may be one bad second of a deploy and waits for a second opinion.
+    return { kind: "refused", error: payload ?? {}, immediate: status >= 400 && status < 500 };
+  }
+  if (!payload) return { kind: "unreachable" };
+  return { kind: "apply", snapshot: payload };
+}
+
+/**
+ * How long one snapshot request may hold the single slot.
+ *
+ * The stream sends a keepalive every 15 seconds and the client only reaches
+ * for a snapshot after 25 seconds of silence, so a request still unanswered
+ * after 10 has already lost its race with the next attempt. Holding the slot
+ * longer cannot produce fresher state; it only delays the attempt that might.
+ */
+export const SNAPSHOT_TIMEOUT_MS = 10_000;
+
+export interface SnapshotFetcherOptions {
+  readonly fetch: (input: string, init: Record<string, Json>) => Promise<{
+    ok: boolean;
+    status: number;
+    json(): Promise<Json>;
+  }>;
+  readonly timers: TimerLike;
+  /** Read afresh per request: role and credential change without a remount. */
+  readonly request: () => { code: string; role: string; playerKey: string };
+  readonly onOutcome: (outcome: SnapshotOutcome) => void;
+  readonly timeoutMs?: number;
+}
+
+export interface SnapshotFetcher {
+  /** Ask for the room state. Overlapping asks collapse into one follow-up. */
+  refresh(): void;
+  /** Stop. In-flight answers are discarded, not dispatched. */
+  dispose(): void;
+  /** Requests this fetcher has in flight. Tests assert it is never above 1. */
+  readonly activeRequests: number;
+}
+
+/**
+ * Fetches room snapshots, one at a time.
+ *
+ * Three things ask for a snapshot — the recovery poll every five seconds of
+ * silence, every settled command, and a tab becoming visible — and none of
+ * them knew about the others. Nothing waited for a reply and nothing timed
+ * out, so a request that was never answered did not stop the next one being
+ * sent: a tab with a black-holed connection stacked one more every five
+ * seconds for as long as the room stayed open. Measured in a real browser,
+ * eight in sixty seconds, all still open at the end, and when the network
+ * returns they all land at once, each serialising a whole room.
+ *
+ * So one request at a time, with at most one follow-up queued behind it. The
+ * follow-up matters: a trigger means "the room changed, look again", and
+ * dropping it outright could leave the last change unseen. One is enough,
+ * because a snapshot is the whole room state and a later one supersedes it.
+ *
+ * Cadence on a healthy connection is unchanged — replies arrive in
+ * milliseconds, so nothing overlaps and nothing is collapsed. P08 owns the
+ * cadence itself.
+ */
+export function createSnapshotFetcher(options: SnapshotFetcherOptions): SnapshotFetcher {
+  const { fetch: doFetch, timers, request, onOutcome } = options;
+  const timeoutMs = options.timeoutMs ?? SNAPSHOT_TIMEOUT_MS;
+  let active = 0;
+  let queued = false;
+  let disposed = false;
+
+  // One place decides whether a request may start, so that the rule has a
+  // single reading. A caller that arrives mid-flight leaves a follow-up
+  // behind instead; the `finally` below starts it.
+  const run = async (): Promise<void> => {
+    if (disposed) return;
+    if (active > 0) {
+      queued = true;
+      return;
+    }
+    active += 1;
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeout = controller ? timers.setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const target = request();
+      const response = await doFetch("/api/state", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Gahookz-Room": target.code },
+        body: JSON.stringify({ code: target.code, role: target.role, playerKey: target.playerKey }),
+        cache: "no-store",
+        ...(controller ? { signal: controller.signal } : {})
+      });
+      const body = await response.json();
+      if (disposed) return;
+      onOutcome(describeSnapshotResponse(response.status, response.ok, body));
+    } catch {
+      // The thrown value is deliberately not forwarded. An aborted or failed
+      // fetch carries a browser-authored message ("Failed to fetch", "This
+      // operation was aborted") and this one is shown to a player in a room
+      // that will not open.
+      if (!disposed) onOutcome({ kind: "unreachable" });
+    } finally {
+      if (timeout !== null) timers.clearTimeout(timeout);
+      active -= 1;
+      if (queued && !disposed) {
+        queued = false;
+        void run();
+      }
+    }
+  };
+
+  return {
+    refresh() {
+      void run();
+    },
+    dispose() {
+      disposed = true;
+      queued = false;
+    },
+    get activeRequests() {
+      return active;
     }
   };
 }

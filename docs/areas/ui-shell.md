@@ -57,7 +57,7 @@ Use function names, not line numbers; `app.jsx` is about 5,500 lines.
 | `HostQuickMenu`, `PlayerQuickMenu`, `JoinQuickMenu`, `PlayerSettingsDialog`, `EffectsPreference*`, `MusicPreference*`, `RoomStatusBanner`, `HostTopBar`, `PauseButton`, `TimerBar`, `useCountdown`, `labelForPhase` | `standalone/public/app.jsx` |
 | `ToggleSwitch`, `InfoTip`, `placeTipBubble`, `QuickMenu`, `QUICK_MENU_SHEET_QUERY`, `useMediaQuery` | `client/controls.jsx` |
 | Mute, music and reduced-effects preferences | `client/preferences.jsx` |
-| Network boundary: `createApiClient`, `createLiveConnection`, `createSnapshotGate`, `describeSnapshotCompatibility`, `connectionMessage`, `nextClockOffset` | `client/net.ts` (shared with systems; `net.test.ts`) |
+| Network boundary: `createApiClient`, `createLiveConnection`, `createSnapshotFetcher`, `describeSnapshotResponse`, `createSnapshotGate`, `describeSnapshotCompatibility`, `connectionMessage`, `nextClockOffset` | `client/net.ts` (shared with systems; `net.test.ts`) |
 | Information hub, Legal hub, room QR code | `client/information.jsx`, `client/legal.jsx`, `client/qr.jsx` |
 | PWA shell and vendored runtime | `index.html`, `manifest.webmanifest`, `service-worker.js`, `vendor-bootstrap.js`, `vendor/`, `react-shim.js`, `react-dom-client-shim.js`, `use-sync-selector.js` (release stamping: platform) |
 | Design tokens, the `--z-*` scale, global rules | top of `styles.css` |
@@ -101,20 +101,33 @@ api() POST /api/*  ->  server  ->  SSE "state" + POST /api/state  ->  useEvents 
   `{ ok, ... }`. After a successful non-`/api/room` call it requests a fresh
   snapshot unless `refresh: false`.
 - **`useEvents(mode, code, playerKey)`** runs once per room: one stream from
-  `createLiveConnection` (single-use ticket, reconnect after 1.5 s) plus a first
-  `POST /api/state`, both through `createSnapshotGate`, which drops any snapshot
-  at or below the applied `stateVersion`. A recovery snapshot is fetched only
-  after 25 s of silence (heartbeat is 15 s) or when a hidden tab returns. A missing
-  room or a ban goes to `/?room=CODE`; a locked room first retries with the
-  password this tab holds. `describeSnapshotCompatibility` checks the schema
-  version (`SNAPSHOT_SCHEMA_VERSION`, 1), so a deploy in progress explains itself.
+  `createLiveConnection` (single-use ticket, reconnect after 1.5 s) plus
+  `POST /api/state` through `createSnapshotFetcher`, both feeding
+  `createSnapshotGate`, which drops any snapshot at or below the applied
+  `stateVersion`. A recovery snapshot is fetched only after 25 s of silence
+  (heartbeat is 15 s) or when a hidden tab returns. A missing room or a ban goes
+  to `/?room=CODE`; a locked room first retries with the password this tab
+  holds. `describeSnapshotCompatibility` checks the schema version
+  (`SNAPSHOT_SCHEMA_VERSION`, 1), so a deploy in progress explains itself.
+- **`createSnapshotFetcher`** keeps **one** snapshot request in flight, with at
+  most one follow-up queued behind it and a 10 s timeout that frees the slot.
+  Three callers ask independently — the recovery poll, every settled command and
+  a returning tab — and before the fetcher existed a tab on a black-holed
+  connection stacked a new request every five seconds, measured at eight open
+  at once after a minute
+  ([record](../verification/2026-10-23-snapshot-adapter/README.md)). The five
+  routing decisions (apply, room gone, banned, locked, refused) are the pure
+  `describeSnapshotResponse`; a 200 that is not an object is reported as
+  unreachable rather than quietly dropped.
 - **`reducer`** (one Redux store) holds `connected`, `connectionError`, `error`
   (the toast) and `lobby` (the last snapshot over `emptyLobby`). `SNAPSHOT` also
   updates the server clock offset used by countdowns and keeps fresh local pokes
   and optimistic answers that a slow snapshot would erase.
-- **`client/net.ts`** is the only network boundary. `fetch`, `EventSource` and
-  timers are injected, so `net.test.ts` covers ordering, reconnects and "exactly
-  one stream" in plain `node --test`.
+- **`client/net.ts`** is the only network boundary: no other client source may
+  `fetch("/api/state")`, and `smoke-security` fails if one does. `fetch`,
+  `EventSource` and timers are injected, so `net.test.ts` covers ordering,
+  reconnects, "exactly one stream" and "exactly one snapshot request" in plain
+  `node --test`; `browser-recovery-storm` proves the app actually uses it.
 
 Identity is local: `gahookz-client-key` (`localStorage`) is the `playerKey`,
 `gahookz-last-join` the last name and picture, and room passwords sit in

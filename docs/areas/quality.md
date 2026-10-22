@@ -67,7 +67,7 @@ it. Never start a server by hand, and never `pkill` by pattern.
 | `npm test` | `test:simulation`, then `standalone:smoke:room-expiry` (own server), then `test:disposable` around the 25 scripts in `standalone:smoke:shared` | about 3 min |
 | `npm run test:disposable -- npm run test:rooms` | `simulate-room-flows.mjs` | unmeasured |
 | `npm run test:disposable -- npm run test:browser` | `browser-flow.mjs` | unmeasured |
-| `npm run test:disposable -- npm run test:browser:<name>` | `desktop-ui`, `mobile`, `arena`, `navigation`, `audio`, `herd-writing` | unmeasured |
+| `npm run test:disposable -- npm run test:browser:<name>` | `desktop-ui`, `mobile`, `arena`, `navigation`, `audio`, `herd-writing`, `recovery` | unmeasured |
 | `npm run test:disposable -- npm run drill:resilience` | `drill-resilience.mjs` | unmeasured |
 
 ### What each harness proves, and what it does not
@@ -89,6 +89,7 @@ it. Never start a server by hand, and never `pkill` by pattern.
 | `browser-flow` | The real client in Chromium: a room that fills in live, an answer that registers, a reload that reconnects | Pixel layout beyond what it measures |
 | `browser-mobile-ui`, `browser-desktop-ui`, `browser-navigation` | Geometry at real viewports: nothing overlaps, tooltips stay on screen, menus sit above the chat button, phone menus open as an overlay; screenshots are saved | Real devices, assistive technology |
 | `browser-arena-1v1` | Two browser contexts play a duel; the Gahook button, escalating presses and mini Gahooks render | Feel on a phone |
+| `browser-recovery-storm` | What one real tab does to a room it cannot reach: every `/api/state`, ticket and stream request held open and never answered, and the client still keeps **one** snapshot request in flight, abandons the ones nobody answers and explains itself on screen. The only check that can see a second caller added back into `app.jsx` ([record](../verification/2026-10-23-snapshot-adapter/README.md)) | Real-network latency, or how long a snapshot should be given — that is P08's measurement |
 | `browser-audio-cues` | Behaviour of sound cues and the music switch against the built audio runtime: first snapshot silent, one cheer at game end, mute silences everything | How anything sounds (`audio:samples` renders files for a human) |
 | `drill-resilience` | A reader that never drains is cut off; reconnection after a dropped stream; the career journal survives a restart (tested on the outbox module directly); the server reports its drain state | An actual drain or a real database. Drill 4 only reads the drain flag. It needs a disposable server, so wrap it. |
 | `load-gahook-storm` / `load-harness` | Fan-out latency and health-probe latency for one room of N players Gahooking at once, as a client over HTTP and SSE (`--players 15`) | Production capacity |
