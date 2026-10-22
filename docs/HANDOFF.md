@@ -1,6 +1,98 @@
 # Handoff — state of the project
 
-## Current checkpoint — executor session, 2026-10-22 (Herd anonymity)
+## Current checkpoint — executor session, 2026-10-23 (snapshot adapter)
+
+**Current.** Roadmap section 2, item 1 continued on branch
+`agent/snapshot-adapter` (worktree `Projects/gahookz/worktrees/snapshot-adapter`):
+**P01 step 6**, the typed browser adapter
+([record](verification/2026-10-23-snapshot-adapter/README.md)).
+
+Most of step 6 landed in September. What had never moved was the request the
+whole room depends on: `POST /api/state` was still fetched inline in
+`useEvents`, with its own `fetch`, its own headers, its own routing and no
+timeout — the only request in the client outside the boundary, and the one
+place where no test could reach the decisions.
+
+Three callers ask for a snapshot — the recovery poll after 25 seconds of
+silence, every settled command, and a tab becoming visible — and none of them
+knew about the others. Nothing waited and nothing timed out, so **a request
+that was never answered did not stop the next one being sent.** Measured in a
+real browser, in a real room, with the connection black-holed: eight snapshot
+requests started in sixty seconds, all eight still open at the end, one more
+every five seconds for as long as the room stayed open. Ten minutes of lost
+signal is about 115 from one phone, a 20-player room some 2,300, and they all
+land at once when the network returns, each serialising a whole room. The
+screen was not broken while this happened, which is why nobody saw it.
+
+Now: one request in flight, at most one follow-up queued behind it (a trigger
+means "look again", so dropping every overlapping ask could leave the last
+change unseen), a 10-second timeout that frees the slot, nothing dispatched
+after a view is left, and the five routing decisions — apply, room gone,
+banned, locked, refused — as a pure tested function. Same browser, same
+black hole: **one**. A 200 that is not an object is now reported instead of
+being quietly dropped by the gate, and a failed fetch no longer puts the
+browser's own "Failed to fetch" on a player's screen.
+
+Two dead declarations went with it: `StorageLike`, which nothing ever
+implemented, and `ApiCallOptions.signal`, which nothing ever passed and which
+did nothing when it was.
+
+Eleven mutations, each applied to real source and restored by checksum; all
+eleven caught. One is worth reading: the first version checked the concurrency
+rule in **two** places, so removing either left the invariant held by the other
+and the mutation passed everything. A redundant rule is not a defended one, so
+`run()` now owns the decision alone. The new browser suite was proved the same
+way, against `main`'s client, where it fails with *"requests stacked up: 4 were
+open at once"*.
+
+Verified on **Node 24.22.0**: `npm run check` (289/289 unit, up from 279;
+strict TypeScript; build `release-551bb2eef6cd0b69`), the full `npm test` chain
+exit 0, `npm run test:browser` green including its existing *0 recovery polls
+over 32 seconds of a quiet host lobby* — the healthy-path cadence step 6 asks
+to leave alone — the new `npm run test:browser:recovery`, and `docs:check` 113
+files.
+
+**Next.** Roadmap section 2 continues, and nothing below needs an owner
+decision:
+
+1. **The rest of P01 step 6** — session storage. `gahookz-client-key` (the
+   `playerKey`), `gahookz-last-join`, the per-room `sessionStorage` password and
+   the `?pwd=` scrub are still untyped and untested in `app.jsx`, and that is
+   where a credential leak would happen: `getSavedJoin` already strips a
+   `password` key that an older version wrote durably, which is a migration
+   nobody can see fail.
+2. **Section 2, item 2's remaining half** — player media across every
+   moderation surface. The identity work is done; media is not.
+3. Then section 3's characterized Gahook extraction.
+
+**Limits — and what needs Tyson.**
+
+- **Nothing was deployed.** Production is still `74a489949e02`. A deploy is a
+  separate current-chat approval. This slice changes client behaviour on a dead
+  connection, so it is worth a deploy eventually, not urgently.
+- **Step 6 is not finished and is not claimed.** Session storage is still in
+  `app.jsx`, and what the browser enforces is "a usable object", not a
+  described payload. Validating against `PublicSnapshotSchema` in the browser
+  means either shipping zod to phones or generating a dependency-free guard
+  from it — a real choice, now written into the backlog rather than assumed.
+- **The browser suite is not in `npm test`.** No browser suite is; they need
+  Chromium and 40 seconds. A `smoke-security` tripwire covers the same seam in
+  the gating chain.
+- **One copy string is now reachable where it was not.** A room that cannot be
+  reached shows "Could not reach this room. Check the server, then retry." —
+  pre-existing wording, aimed more at an operator than a player. Queued as a
+  copy task rather than rewritten inside an engineering slice.
+- **`CLAUDE.md` is still unmerged.** `84a8032` on `coordinator/audit-20261021`
+  adds the coordination links; the file is protected, so it stays for Tyson. No
+  work depends on it.
+- **The Node 24.22 image pin is still waiting on you.** `1282bce` is unblocked,
+  but it changes the digest production builds from, so it wants a rebuild plus a
+  full smoke run as its own slice.
+- Still open from before: whether the shared screen should show the *text* of
+  unvoted Herd answers, the welcome-screen guides link, and whether a host may
+  censor a live prompt mid-round.
+
+## Earlier checkpoint — executor session, 2026-10-22 (Herd anonymity)
 
 **Current.** Roadmap section 2, item 1 continued on branch
 `agent/herd-anonymity` (worktree `Projects/gahookz/worktrees/herd-anonymity`):

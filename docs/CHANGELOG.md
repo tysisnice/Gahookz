@@ -10,6 +10,12 @@ repeating them here.
 Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Players
+- A room that cannot be reached now says so and stops piling up work in the
+  background. A phone that loses its connection used to start another request
+  for the whole room state every five seconds and never finish any of them —
+  eight of them open after a minute, all landing at once when the signal came
+  back. One at a time now, given up on after ten seconds
+  ([record](verification/2026-10-23-snapshot-adapter/README.md)).
 - The shared screen no longer names who wrote each Herd answer while the room is
   still writing. It used to print "Answer by <name>" under every answer, two
   lines below its own promise that answers stay anonymous until the points; now
@@ -58,6 +64,20 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Developer
 
+- **2026-10-23 — the last request outside the typed boundary (P01 step 6).**
+  `POST /api/state` was still fetched inline in `useEvents` with its own
+  `fetch`, its own routing and no timeout, so none of it was reachable by a
+  test and none of its three callers knew about the others.
+  `createSnapshotFetcher` now keeps one request in flight with at most one
+  follow-up queued, abandons one nobody answers after ten seconds, dispatches
+  nothing after a view is left, and reads the response through the pure
+  `describeSnapshotResponse`; a 200 that is not an object is reported instead of
+  quietly dropped. Measured in a real browser, a black-holed tab went from eight
+  stacked requests in sixty seconds to one. Ten new unit tests (279 → 289), a
+  new `test:browser:recovery` suite that is the only check able to see a second
+  caller added back into `app.jsx`, and a `smoke-security` tripwire for the same
+  seam. `StorageLike` and `ApiCallOptions.signal` are gone: neither was ever
+  implemented or passed ([record](verification/2026-10-23-snapshot-adapter/README.md)).
 - **2026-10-22 — Herd anonymity is proven at the server, not just the engine.**
   The step that turns an assignment plan into a room's answers is now a named
   module that takes identity from the displayed slot, sorts into display order

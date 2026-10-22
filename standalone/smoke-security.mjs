@@ -191,7 +191,13 @@ for (const secret of ["playerKey", "password", "hostKey"]) {
   assert(!new RegExp("/events\\?[^\"']*" + secret).test(app), "The event stream URL must not carry " + secret);
 }
 assert(!app.includes("/api/state?"), "The client must not put state credentials in a URL");
-assert(app.includes('"X-Gahookz-Room": code'), "Snapshot recovery requests must retain room affinity across multiple workers");
+assert(app.includes('"X-Gahookz-Room": target.code'), "Snapshot recovery requests must retain room affinity across multiple workers");
+// Every room snapshot goes through the one network boundary. A second caller
+// with its own fetch is exactly how the recovery poll came to stack requests
+// that nobody ever answered: client/net.test.ts covers the boundary and cannot
+// see a bypass, so this is the tripwire for one.
+const outsideNet = [appEntry, ...clientSources.filter((_source, index) => clientSourceNames[index] !== "net.ts")].join("\n");
+assert(!/fetch\(\s*["']\/api\/state["']/.test(outsideNet), "Room snapshots must be fetched through client/net.ts, never a second caller");
 assert(app.includes("ROOM_CONNECTION_ERROR") && app.includes("newer than the game server"), "A protocol mismatch must become a visible room error instead of an endless loading screen");
 assert(server.includes("crypto.scrypt") && server.includes("crypto.timingSafeEqual"), "Room passwords must use a memory-hard derivation and constant-time verification");
 assert(server.includes("accountService.authenticate(req)"), "Room commands must derive account identity from the server session");

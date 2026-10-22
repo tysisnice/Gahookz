@@ -33,6 +33,17 @@ These checkboxes describe integrated work and the cited baseline, **not full P01
 Work these as bounded vertical slices; keep one active implementation goal plus one independent coder task.
 
 - [ ] Finish the role/phase snapshot privacy contract and executable negative HTTP/SSE cases (P01/P02). Majority/Herd choices stay hidden until reveal; Classic's live picks are an intentional owner decision, not a new privacy defect.
+  - **2026-10-23 (P01 step 6, snapshot dispatch):** `/api/state` was the one
+    request still outside the typed boundary, fetched inline in `useEvents`
+    with no timeout and no knowledge of the other two callers. A real browser
+    on a black-holed connection stacked **eight** unanswered snapshot requests
+    in sixty seconds, one more every five, for as long as the room stayed open;
+    it is now one, with a timeout, a single queued follow-up and the five
+    routing decisions as a tested pure function
+    ([record](verification/2026-10-23-snapshot-adapter/README.md)). Healthy-path
+    cadence is unchanged. Still open in step 6: session storage is still in
+    `app.jsx`, and the browser enforces "a usable object", not a described
+    payload.
   - **2026-10-22:** the payload those rules produce is now described per phase. `PublicSnapshotSchema` discriminates on `phase` and pins the three gates `publicQuestion` implements (answers listed from `reading`, text filled from `answering`, key and authors only at `reveal`), plus locked game rules, the question key/prediction distinction and truthful tie reasons; `smoke-contract-drift` validates real responses live. The fixture corpus had stopped being evidence — fifteen server fields no fixture contained, `building.*` captured in the lobby, `lobby.spectator` captured as the host, no authored question anywhere — and all of that is repaired and now guarded ([record](verification/2026-10-22-contract-phase-payloads/README.md)). Still open: 58 of 76 snapshot fields are listed as tolerated rather than described, and nothing validates at runtime (P01 step 6).
 - [ ] Finish the moderation path for player media and verify exact question/answer identity end to end. Preserve the current honest `stillInPlay`/Skip behaviour for live prompts; do not silently change it.
   - **2026-10-22 (Herd anonymity, P02 steps 1, 2 and 4):** the engine already drew an independent displayed-slot permutation per prompt; what was missing was any proof the **server** spent it, and a measurement of what the attacks are worth. The slot-building step is now a named, tested module that takes identity from `displayIndex` and refuses an impossible slot, the two attack fixtures are bounded against measured chance instead of a round number, and `smoke-herd-anonymity` plays a real five-player game and attacks it over HTTP. Found and fixed on the way: the **shared screen named every writer before the vote**, two lines below its own promise that answers stay anonymous — a step 3 list that the October 21 audit had checked only for non-host access ([record](verification/2026-10-22-herd-anonymity/README.md)). Still open: whether the shared screen should show unvoted answer text at all is Tyson's call, not a defect.
