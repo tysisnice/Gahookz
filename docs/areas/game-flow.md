@@ -81,6 +81,7 @@ reliable handle, so grep for them.
 | --- | --- |
 | `game-engine/src/phases.ts` | `PHASE_DURATIONS_MS`, `nextPhase`, `remainingMs`, `resumeDeadline`, `plannedRounds`, `estimatedDurationMs`. Pure phase maths. |
 | `game-engine/src/herd.ts` | Herd answer limits, `buildHerdAssignmentPlan` (who writes which answers) and `buildHerdRoundResults` (grouping, points, tie-breaks). |
+| `standalone/server/herd-answers.mjs` | Turns a plan's assignments into a question's answers. Identity comes from `displayIndex`, never the writing rotation; an impossible slot is refused rather than becoming an answer with no id. `assertHerdDisplaySlots` checks the cap against the display table at startup. |
 | `contracts/src/settings.ts` | `GameSettings` (`gameFamily`, `quizScoring`), validation and the legacy `GameMode` mapping (`toLegacyGameMode`, `fromLegacyGameMode`, `normaliseGameSettings`, `scoringLabel`). |
 | `contracts/src/host-settings.ts` | The host-settings request and response schemas, prompt styles, Gahook effect policies, `LockedGameRules` (declared but not yet used by any code), and the question readiness checks (`isClassicReady`, `questionReadinessProblem`). |
 | `contracts/src/game.ts` | `GAME_MODES`, `GAME_PHASES`, `ROUND_PRESETS` and the schema versions. |
@@ -283,9 +284,22 @@ few get one more. A question's own author is excluded whenever enough other
 players exist. Overshoot is repaired by moving an answer to an under-loaded
 writer. Each answer also gets a `displayIndex` from a fresh shuffle per question,
 so the colour an answer appears in (Red, Blue, Yellow, Green) never reveals its
-author. The plan is built in `beginHerdAnswerWriting`, which writes the
-assignments onto each question's `answers`; an answer a writer never submits is
-filled from `GENERATED_HERD_ANSWERS` by force-start.
+author. The plan is built in `beginHerdAnswerWriting`, which hands each
+question's assignments to `buildHerdAnswerSlots` in
+`server/herd-answers.mjs`; an answer a writer never submits is filled from
+`GENERATED_HERD_ANSWERS` by force-start.
+
+Two numbers describe the same answer and must not be confused.  `answerIndex`
+is a writer's place in the rotation the allocator produced; `displayIndex` is
+the slot the room renders them in.  Because the allocator gives each prompt to
+its *least-loaded* writers in order, the rotation carries a writer's remaining
+workload — readable at a party by counting whose answers have been revealed —
+so the displayed identity must come from `displayIndex` alone.  The permutation
+is spent into the answer objects rather than kept as a private map, so there is
+no seed and no assignment table for a later payload to leak.  During writing,
+the host's review list deliberately does **not** name writers: that list is
+rendered on the shared screen, and moderation addresses an answer by its prompt
+and its slot.  See the [anonymity record](../verification/2026-10-22-herd-anonymity/README.md).
 
 ### Scoring
 

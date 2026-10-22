@@ -1,6 +1,97 @@
 # Handoff — state of the project
 
-## Current checkpoint — executor session, 2026-10-22
+## Current checkpoint — executor session, 2026-10-22 (Herd anonymity)
+
+**Current.** Roadmap section 2, item 1 continued on branch
+`agent/herd-anonymity` (worktree `Projects/gahookz/worktrees/herd-anonymity`):
+P02 **steps 1, 2 and 4**
+([record](verification/2026-10-22-herd-anonymity/README.md)).
+
+The engine was already right, and had been for a while: `buildHerdAssignmentPlan`
+drew an independent displayed-slot permutation per prompt and the seeded
+4/5/8/20-player tests were already there. What was missing was anything proving
+the **server spent it**. `standalone/server.js` read
+`ANSWER_META[assignment.displayIndex]` inline, and every engine test would still
+have passed had it read `answerIndex` — the author leak back in production, no
+failing test anywhere.
+
+Found on the way, and this is the part worth reading: **the shared screen named
+every Herd writer before the vote.** During `herd-writing` the host screen — the
+screen the whole room watches — printed "Answer by <name>" under every answer as
+it arrived, two lines below its own promise that "Answers stay anonymous during
+voting." The 2026-10-21 privacy work had checked that non-hosts cannot obtain
+that payload, which is a different question from whether the host should show it
+to the room. `answerAuthor` is no longer sent in the host's review list, the
+contract now forbids it there and requires it in a writer's own list, and the
+card says the writer is hidden until the reveal. Moderation loses nothing: an
+answer is removed by prompt and slot, and the player wall still shows who owes
+one.
+
+What else landed:
+
+- `standalone/server/herd-answers.mjs` — the slot-building step as a named
+  module, identity from `displayIndex`, sorted into display order rather than
+  trusting the plan, refusing a slot that does not exist, two writers in one slot
+  or one writer twice. Nine unit tests, built on a plan where rotation and slots
+  disagree on every writer. A startup check keeps the writer cap within the
+  display table, so raising `HERD_MAX_AUTHORED_ANSWERS` fails at boot instead of
+  producing an answer with **no id** — unvotable, unscorable, invisible to
+  moderation.
+- The attack fixtures bounded against *measured* chance. Replaying the old
+  circular formula must now score below `1/n + 0.08`, not a round `0.6` that
+  half a leak would pass. Two new attacks: whether the first displayed slot says
+  who has written least (the rotation scores 0.75–1.00 against a 0.48 baseline;
+  the displayed slot 0.46–0.52), and whether writers who share two prompts keep
+  their order. Each asserts what the rejected design scores, so the test cannot
+  go quietly vacuous.
+- `standalone/smoke-herd-anonymity.mjs` in the shared chain: a real five-player
+  game, writers unnamed in every payload until the reveal, the four slots
+  complete and in order with stable text, a refresh returning the same prompt and
+  the same order to host and player alike, and both attacks replayed over HTTP.
+- `ownHerdAssignments` and `herdAnswerReview` described in the contract rather
+  than tolerated (58 → 56), with the rule also pinned on hand-built payloads.
+
+Verified on **Node 24.22.0**: `npm run check` (279/279 unit, up from 266; strict
+TypeScript; build `release-70d7efeeafd8d804`), the full `npm test` chain exit 0,
+`docs:check` 113 files. Nine mutations applied one at a time; eight were caught.
+The ninth — the whole display path following the writing rotation, sort included
+— passes the server suite and is caught only by the unit tests, because that
+leak is statistical over many games. The record states that plainly rather than
+tidying it, and it is why both layers exist.
+
+**Next.** Roadmap section 2 continues, and nothing below needs an owner
+decision:
+
+1. **P01 step 6** — the typed browser adapter, where these schemas would start
+   enforcing instead of describing. It is the last open piece of P01.
+2. **Section 2, item 2's remaining half** — player media across every
+   moderation surface. The identity work is done; media is not.
+3. Then section 3's characterized Gahook extraction.
+
+**Limits — and what needs Tyson.**
+
+- **Nothing was deployed.** Production is still `74a489949e02`. A deploy is a
+  separate current-chat approval.
+- **One product judgement, not a defect.** The shared screen still shows the
+  *text* of every Herd answer while the room writes, which is how the host
+  moderates. Whether a room should read the answers before voting on them is
+  your call; the anonymity problem is fixed either way.
+- **Social anonymity is still not claimed.** A writer recognises their own
+  wording and a table can collude. What is proven is that the payload and the
+  displayed colour carry nothing about who wrote an answer.
+- **The server's randomness stays `Math.random`.** Injecting a seed into a live
+  server would be a way to predict a real game, so determinism lives in the
+  engine fixtures and the server suite asserts only what holds for every game.
+- **`CLAUDE.md` is still unmerged.** `84a8032` on `coordinator/audit-20261021`
+  adds the coordination links; the file is protected, so it stays for Tyson. No
+  work depends on it.
+- **The Node 24.22 image pin is still waiting on you.** `1282bce` is unblocked
+  now that the laptop runs 24.22.0, but it changes the digest production builds
+  from, so it wants a rebuild plus a full smoke run as its own slice.
+- Still open from before: the welcome-screen guides link, and whether a host may
+  censor a live prompt mid-round.
+
+## Earlier checkpoint — executor session, 2026-10-22 (contract payloads)
 
 **Current.** Roadmap section 2, item 1 continued on branch
 `agent/contract-phase-payloads` (worktree

@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   ApiErrorSchema,
   HealthResponseSchema,
+  HerdAnswerReviewSchema,
   HerdResultsSchema,
+  OwnHerdAssignmentSchema,
   PublicSnapshotBaseSchema,
   RoomCommandEnvelopeSchema
 } from "../src/index.ts";
@@ -140,5 +142,53 @@ test("a reveal payload may not explain its tie untruthfully", () => {
   assert.equal(
     HerdResultsSchema.safeParse({ ...results, tieBreakReason: "sorted-by-vibes" }).success, false,
     "only the four declared reasons are legal"
+  );
+});
+
+test("a Herd writing assignment names its writer to them and to nobody else", () => {
+  // Pinned at the payload boundary as well as in a capture, because whether a
+  // capture contains the field depends on the server that produced it, and
+  // this is the rule the server is meant to be held to.
+  const writer = { id: "p2", name: "Bo", avatarId: "fox", avatarImageDataUrl: "" };
+  const assignment = {
+    questionId: "q1",
+    answerId: "red",
+    text: "A goose",
+    imageDataUrl: "",
+    submitted: true,
+    question: {
+      id: "q1",
+      text: "What happens next?",
+      namedPlayerNames: [],
+      imageDataUrl: "",
+      author: { id: "p1", name: "Ada", avatarId: "panda", avatarImageDataUrl: "" }
+    }
+  };
+
+  assert.equal(
+    OwnHerdAssignmentSchema.safeParse({ ...assignment, answerAuthor: writer }).success, true,
+    "a writer's own assignment names them"
+  );
+  assert.equal(
+    OwnHerdAssignmentSchema.safeParse(assignment).success, false,
+    "a writer's own assignment must say whose it is"
+  );
+
+  assert.equal(
+    HerdAnswerReviewSchema.safeParse(assignment).success, true,
+    "the host's review carries the prompt, the text and the slot"
+  );
+  assert.equal(
+    HerdAnswerReviewSchema.safeParse({ ...assignment, answerAuthor: writer }).success, false,
+    "the host's review, shown on the shared screen, must not name the writer"
+  );
+  assert.equal(
+    HerdAnswerReviewSchema.safeParse({ ...assignment, answerAuthor: null }).success, false,
+    "an explicit null is still the field, and the field does not belong here"
+  );
+  // The prompt's own author stays public: Herd credits the prompt, not the answer.
+  assert.equal(
+    HerdAnswerReviewSchema.safeParse({ ...assignment, question: { ...assignment.question, author: undefined } }).success, false,
+    "a prompt is still credited to whoever set it"
   );
 });

@@ -101,9 +101,17 @@ test("a displayed slot no longer names its author across a whole room", () => {
     }
     // A permutation coincides with the old formula sometimes; that is expected
     // and is why this asserts a rate rather than "never". Under the old plan
-    // the rate was exactly 1. Chance alone gives roughly 1/perQuestion.
+    // the rate was exactly 1. The formula names one of the n players for each
+    // slot, so an unbiased seating scores 1/n. Measured 2026-10-22: 0.257,
+    // 0.237, 0.129 and 0.050 for 4, 5, 8 and 20 players, against chances of
+    // 0.250, 0.200, 0.125 and 0.050 -- so the margin below is roughly twice
+    // the largest excess seen, not a number chosen to pass.
     const rate = matches / total;
-    assert.ok(rate < 0.6, `${playerCount} players: displayed slot still predicts the author (rate ${rate.toFixed(2)})`);
+    const chance = 1 / playerCount;
+    assert.ok(
+      rate < chance + 0.08,
+      `${playerCount} players: displayed slot still predicts the author (rate ${rate.toFixed(3)}, chance ${chance.toFixed(3)})`
+    );
   }
 });
 
@@ -143,6 +151,139 @@ test("every displayed slot is reachable by every rotation position", () => {
     for (let slot = 0; slot < 4; slot += 1) {
       assert.ok(seen.has(`${position}->${slot}`), `rotation position ${position} never appeared in slot ${slot}`);
     }
+  }
+});
+
+/**
+ * The attack that needs no notes beyond counting. Each prompt is revealed in
+ * display order, and after each reveal the room knows how many answers every
+ * player has had shown. If the displayed order followed the writing rotation,
+ * the player who had written fewest so far would be seated first every time.
+ *
+ * Only prompts where some writer has strictly written less than another can
+ * say anything, so the rest are not counted, and the baseline is the chance of
+ * guessing a least-loaded writer at random from that prompt's writers.
+ */
+function workloadLeak(
+  playerIds: string[],
+  questions: { id: string; authorId: string }[],
+  slotOf: (assignment: { answerIndex: number; displayIndex: number }) => number,
+  seeds = 120
+) {
+  let hits = 0;
+  let prompts = 0;
+  let chance = 0;
+  for (let seed = 1; seed <= seeds; seed += 1) {
+    const plan = buildHerdAssignmentPlan(playerIds, questions, 4, seededRandom(seed));
+    const written = new Map(playerIds.map((playerId) => [playerId, 0]));
+    for (const question of questions) {
+      const seated = [...(plan.byQuestionId[question.id] ?? [])].sort((a, b) => slotOf(a) - slotOf(b));
+      const loads = seated.map((a) => written.get(a.answerAuthorId) ?? 0);
+      const fewest = Math.min(...loads);
+      const sharingFewest = loads.filter((load) => load === fewest).length;
+      if (sharingFewest < seated.length) {
+        prompts += 1;
+        chance += sharingFewest / seated.length;
+        if ((written.get(seated[0]?.answerAuthorId as string) ?? 0) === fewest) hits += 1;
+      }
+      for (const a of seated) written.set(a.answerAuthorId, (written.get(a.answerAuthorId) ?? 0) + 1);
+    }
+  }
+  return { rate: prompts ? hits / prompts : 0, chance: prompts ? chance / prompts : 0, prompts };
+}
+
+test("the first displayed slot does not say who has written least", () => {
+  for (const playerCount of [5, 8, 12, 20]) {
+    const playerIds = Array.from({ length: playerCount }, (_u, i) => `player-${i}`);
+    const questions = playerIds.map((authorId, i) => ({ id: `question-${i}`, authorId }));
+
+    const seated = workloadLeak(playerIds, questions, (a) => a.displayIndex);
+    assert.ok(seated.prompts > 100, `${playerCount} players: too few prompts to measure (${seated.prompts})`);
+    // Measured 2026-10-22: 0.519, 0.483, 0.456, 0.477 against chances of
+    // 0.500, 0.481, 0.482, 0.485 -- indistinguishable from guessing.
+    assert.ok(
+      seated.rate <= seated.chance + 0.15,
+      `${playerCount} players: the first displayed slot leaks workload (rate ${seated.rate.toFixed(3)}, chance ${seated.chance.toFixed(3)})`
+    );
+
+    // Why the assertion above is not vacuous: the writing rotation really does
+    // carry this information, because the allocator hands each prompt to its
+    // least-loaded writers in order. Measured the same day: 1.000, 0.820,
+    // 0.755, 0.750. If this stops holding, the rotation has stopped leaking
+    // workload and this demonstration needs replacing -- it is not a licence
+    // to display the rotation.
+    const rotation = workloadLeak(playerIds, questions, (a) => a.answerIndex);
+    assert.ok(
+      rotation.rate > rotation.chance + 0.2,
+      `${playerCount} players: the writing rotation no longer leaks workload (rate ${rotation.rate.toFixed(3)}), so this test can no longer prove itself non-vacuous`
+    );
+  }
+});
+
+test("with four players there is no workload to leak, and that is why it is not asserted", () => {
+  // Everybody writes on every prompt, so no writer is ever behind another and
+  // the attack above has nothing to measure. Recorded rather than skipped
+  // quietly, so a reader does not think four players were forgotten.
+  const playerIds = Array.from({ length: 4 }, (_u, i) => `player-${i}`);
+  const questions = playerIds.map((authorId, i) => ({ id: `question-${i}`, authorId }));
+  assert.equal(workloadLeak(playerIds, questions, (a) => a.displayIndex).prompts, 0);
+});
+
+/** Writer pairs seated in one order on one prompt and the other order on another. */
+function reseatedPairs(plan: ReturnType<typeof buildHerdAssignmentPlan>, questionIds: string[]) {
+  const seating = questionIds.map((id) =>
+    [...(plan.byQuestionId[id] ?? [])].sort((a, b) => a.displayIndex - b.displayIndex).map((a) => a.answerAuthorId)
+  );
+  let reversed = 0;
+  let comparable = 0;
+  for (let first = 0; first < seating.length; first += 1) {
+    for (let second = first + 1; second < seating.length; second += 1) {
+      const earlier = seating[first] as string[];
+      const later = seating[second] as string[];
+      for (let x = 0; x < earlier.length; x += 1) {
+        for (let y = x + 1; y < earlier.length; y += 1) {
+          const atX = later.indexOf(earlier[x] as string);
+          const atY = later.indexOf(earlier[y] as string);
+          if (atX === -1 || atY === -1) continue;
+          comparable += 1;
+          if (atX > atY) reversed += 1;
+        }
+      }
+    }
+  }
+  return { reversed, comparable };
+}
+
+test("writers who share two prompts are not seated in the same order twice", () => {
+  // The defect this closes is one shuffle for the whole game. That would move
+  // the slots away from the rotation and still leave the room solvable: the
+  // same relative order would repeat on every prompt, so watching one reveal
+  // would order everybody for the rest of the game.
+  for (const playerCount of [4, 5, 8, 20]) {
+    const playerIds = Array.from({ length: playerCount }, (_u, i) => `player-${i}`);
+    const questions = playerIds.map((authorId, i) => ({ id: `question-${i}`, authorId }));
+    const questionIds = questions.map((question) => question.id);
+
+    let reversed = 0;
+    let comparable = 0;
+    let gamesWithNoReversal = 0;
+    for (let seed = 1; seed <= 120; seed += 1) {
+      const plan = buildHerdAssignmentPlan(playerIds, questions, 4, seededRandom(seed));
+      const pairs = reseatedPairs(plan, questionIds);
+      reversed += pairs.reversed;
+      comparable += pairs.comparable;
+      if (pairs.reversed === 0) gamesWithNoReversal += 1;
+    }
+    const rate = reversed / comparable;
+    // One shuffle per game scores 0. An independent shuffle per prompt scores
+    // a half. Measured 2026-10-22: 0.49 to 0.53 across these room sizes.
+    assert.ok(
+      rate > 0.35 && rate < 0.65,
+      `${playerCount} players: shared writers keep their order too often (reversal rate ${rate.toFixed(3)})`
+    );
+    // A single game is enough to see it, which is what the server-level check
+    // relies on: the fewest reversed pairs seen in 2000 games was two.
+    assert.equal(gamesWithNoReversal, 0, `${playerCount} players: a whole game seated every shared pair the same way`);
   }
 });
 

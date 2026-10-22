@@ -2758,7 +2758,7 @@ function HostHerdPreparation({ lobby, playerKey, connected, hostMenu, onStart, o
           <section className="herd-host-review">
             <div className="section-heading"><h1>Answer review</h1><span>{(lobby.herdAnswerReview || []).filter((item) => item.submitted).length}</span><div className="lobby-paint-slot"></div></div>
             <div className="herd-review-grid">{(lobby.herdAnswerReview || []).map((item) => <article className={item.submitted ? "is-submitted" : ""} key={item.questionId + "-" + item.answerId}>
-              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || (item.imageDataUrl ? "Picture answer" : "Waiting for an answer…")}</strong>{item.imageDataUrl ? <img className="herd-review-image" src={item.imageDataUrl} alt="Answer image" loading="lazy" /> : null}<small>Answer by {item.answerAuthor.name}</small>
+              <span><PromptText text={item.question.text} names={item.question.namedPlayerNames} /></span><strong>{item.text || (item.imageDataUrl ? "Picture answer" : "Waiting for an answer…")}</strong>{item.imageDataUrl ? <img className="herd-review-image" src={item.imageDataUrl} alt="Answer image" loading="lazy" /> : null}<small>Writer hidden until the reveal</small>
             </article>)}</div>
           </section>
         </div>
