@@ -35,12 +35,14 @@ import { allActivePlayersAnswered as roomAllActivePlayersAnswered, allActivePlay
 import { LOCAL_CUSTOM_GAHOOK_SLOTS, customGahookOptions, normaliseCustomGahook, publicCustomGahook } from "./server/custom-gahook.mjs";
 import { MAJORITY_AUTHOR_BONUS, buildMajorityResults } from "./server/majority.mjs";
 import {
+  HERD_MAX_AUTHORED_ANSWERS,
   PHASE_DURATIONS_MS,
   buildHerdAssignmentPlan,
   buildHerdRoundResults,
   plannedRounds,
   remainingMs
 } from "../packages/game-engine/src/index.ts";
+import { assertHerdDisplaySlots, buildHerdAnswerSlots } from "./server/herd-answers.mjs";
 import { HostSettingsRequestSchema, DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
 import {
   TemplateBag,
@@ -213,6 +215,10 @@ const ANSWER_META = [
 { id: "blue", label: "Blue", color: "#246bfe", shape: "diamond" },
 { id: "yellow", label: "Yellow", color: "#f2c230", shape: "circle" },
 { id: "green", label: "Green", color: "#20b26b", shape: "square" }];
+
+// A Herd question may take as many writers as there are display slots, and no
+// more: checked here so a raised cap fails at startup, not mid-party.
+assertHerdDisplaySlots(ANSWER_META, HERD_MAX_AUTHORED_ANSWERS);
 
 const AVATAR_PRESETS = [
 "zap", "pop", "star", "bolt", "disco", "rocket", "crown", "pizza", "gamepad", "gem",
@@ -4054,9 +4060,17 @@ function publicOwnQuestions(room, playerId) {
   sort((a, b) => a.createdAt - b.createdAt);
 }
 
+// Writing assignments, for one writer's own list or for the host's review of
+// all of them. A writer is named only in their own list: the host's copy is
+// rendered on the shared screen while the room writes, so naming writers there
+// would hand everybody the mapping the live vote depends on staying hidden,
+// next to the screen's own promise that answers stay anonymous. Moderation
+// does not need the name -- removal addresses an answer by prompt and colour --
+// and the player wall already shows who still owes an answer.
 function publicHerdAssignments(room, playerId = "") {
+  const ownList = Boolean(playerId);
   return room.quizQuestions.flatMap((question) =>
-    (question.answers || []).filter((answer) => !playerId || answer.authorId === playerId).map((answer) => ({
+    (question.answers || []).filter((answer) => !ownList || answer.authorId === playerId).map((answer) => ({
       questionId: question.id,
       answerId: answer.id,
       text: answer.text || "",
@@ -4069,7 +4083,7 @@ function publicHerdAssignments(room, playerId = "") {
         imageDataUrl: question.imageDataUrl || "",
         author: publicQuestionAuthor(room, question)
       },
-      answerAuthor: publicHerdAnswerAuthor(room, answer)
+      ...(ownList ? { answerAuthor: publicHerdAnswerAuthor(room, answer) } : {})
     }))
   );
 }
@@ -4395,16 +4409,12 @@ function beginHerdAnswerWriting(room) {
   room.quizQuestions = selectQuestionsForGame(room, eligiblePlayerIds, questionSelectionRules);
   const plan = buildHerdAssignmentPlan(eligiblePlayerIds, room.quizQuestions);
   room.quizQuestions.forEach((question) => {
-    question.answers = (plan.byQuestionId[question.id] || []).map((assignment) => ({
-      // Display slot, not the writing rotation: see HerdAnswerAssignment.
-      ...ANSWER_META[assignment.displayIndex],
-      text: "",
-      correct: false,
-      authorId: assignment.answerAuthorId,
-      authorName: room.players[assignment.answerAuthorId]?.name || "Player",
-      authorAvatarId: room.players[assignment.answerAuthorId]?.avatarId || AVATAR_PRESETS[0],
-      authorAvatarImageDataUrl: room.players[assignment.answerAuthorId]?.avatarImageDataUrl || ""
-    }));
+    // Displayed slot, never the writing rotation: see ./server/herd-answers.mjs.
+    question.answers = buildHerdAnswerSlots(plan.byQuestionId[question.id], {
+      answerMeta: ANSWER_META,
+      writerProfile: (playerId) => room.players[playerId],
+      fallbackAvatarId: AVATAR_PRESETS[0]
+    });
   });
   room.game.herdAssignmentCount = plan.assignments.length;
   room.phase = "herd-writing";

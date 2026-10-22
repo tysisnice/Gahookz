@@ -10,6 +10,12 @@ repeating them here.
 Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Players
+- The shared screen no longer names who wrote each Herd answer while the room is
+  still writing. It used to print "Answer by <name>" under every answer, two
+  lines below its own promise that answers stay anonymous until the points; now
+  it says the writer is hidden until the reveal, and means it. The host can
+  still read and remove any answer, and the player wall still shows who owes one
+  ([record](verification/2026-10-22-herd-anonymity/README.md)).
 - The **Reduce Gahook effects** switch no longer mutes sound anywhere: in the
   join menu and the host's Lobby rules it now sets only reduced motion, as it
   already did in the player Settings dialog. Sound is controlled by the **Mute**
@@ -52,6 +58,19 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Developer
 
+- **2026-10-22 — Herd anonymity is proven at the server, not just the engine.**
+  The step that turns an assignment plan into a room's answers is now a named
+  module that takes identity from the displayed slot, sorts into display order
+  rather than trusting the plan, and refuses a slot that does not exist, two
+  writers in one slot or one writer twice; a startup check keeps the writer cap
+  within the display table. `smoke-herd-anonymity` plays a real five-player game
+  and attacks it over HTTP ([record](verification/2026-10-22-herd-anonymity/README.md)).
+- **2026-10-22 — the Herd attack fixtures are bounded against measured chance.**
+  Replaying the old circular formula now has to score below `1/n + 0.08` rather
+  than a round `0.6`, and two further attacks were added: whether the first
+  displayed slot says who has written least, and whether writers who share two
+  prompts keep their order. Each records what the rejected design scores, so a
+  future reader can see the assertion is not vacuous.
 - **2026-10-22 — the public snapshot is described per phase.** `PublicSnapshotSchema`
   discriminates on `phase`, pinning when answers are listed, when their text is
   filled in and when the key, the Herd authors and the author points appear, plus

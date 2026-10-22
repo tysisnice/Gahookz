@@ -363,6 +363,44 @@ export const OwnQuestionSchema = z.looseObject({
   }))
 });
 
+/**
+ * A Herd writing assignment: a prompt, the displayed slot its answer will
+ * appear in, and whatever has been written for it so far.
+ *
+ * Two lists are built from this one shape and they are deliberately not the
+ * same. A writer's own list names them, because the client has to show them
+ * which answers are theirs to write. The host's review list names nobody: it
+ * is rendered on the shared screen while the room writes, so a writer's name
+ * there would hand everybody the mapping the live vote depends on staying
+ * hidden. Moderation does not need it -- an answer is addressed by its prompt
+ * and its displayed slot, which is what the removal route takes.
+ */
+function herdAssignmentSchema(list: "own" | "review") {
+  return z.object({
+    questionId: QuestionIdSchema,
+    answerId: AnswerIdSchema,
+    text: z.string(),
+    imageDataUrl: z.string(),
+    submitted: z.boolean(),
+    question: z.object({
+      id: QuestionIdSchema,
+      text: z.string(),
+      namedPlayerNames: z.array(z.string()),
+      imageDataUrl: z.string(),
+      author: PublicAuthorSchema
+    }).strict(),
+    // Absent rather than null on the host's copy: there is no "not yet" to
+    // report here, because the writer is never named before the reveal.
+    answerAuthor: list === "own" ? PublicAuthorSchema : z.undefined().optional()
+  }).strict();
+}
+
+/** A writer's own assignments, which name them. */
+export const OwnHerdAssignmentSchema = herdAssignmentSchema("own");
+
+/** The host's review of every assignment, which names nobody. */
+export const HerdAnswerReviewSchema = herdAssignmentSchema("review");
+
 const snapshotShape = PublicSnapshotBaseSchema.shape;
 
 function snapshotForPhase<P extends (typeof GAME_PHASES)[number]>(
@@ -375,7 +413,9 @@ function snapshotForPhase<P extends (typeof GAME_PHASES)[number]>(
     phase: z.literal(phase),
     currentQuestion,
     lockedRules,
-    ownQuestions: z.array(OwnQuestionSchema)
+    ownQuestions: z.array(OwnQuestionSchema),
+    ownHerdAssignments: z.array(OwnHerdAssignmentSchema),
+    herdAnswerReview: z.array(HerdAnswerReviewSchema)
   }).loose();
 }
 
@@ -410,7 +450,10 @@ export const PublicSnapshotSchema = z.discriminatedUnion("phase", [
  * than a claim that those fields are validated.
  */
 export const DESCRIBED_SNAPSHOT_KEYS: readonly string[] = Object.freeze(
-  [...new Set([...Object.keys(snapshotShape), "lockedRules", "ownQuestions"])].sort()
+  [...new Set([
+    ...Object.keys(snapshotShape),
+    "lockedRules", "ownQuestions", "ownHerdAssignments", "herdAnswerReview"
+  ])].sort()
 );
 
 /**
@@ -424,10 +467,10 @@ export const TOLERATED_SNAPSHOT_KEYS: readonly string[] = Object.freeze([
   "answerSelections", "approveQuestions", "availableQuestionCount", "bannedPlayers",
   "canStart", "chatMessages", "currentQuestionIndex", "customGahookOptions",
   "estimatedDurationMs", "gahookDuel", "gahookEffects", "gahookStealPoints",
-  "getGotPenaltyPoints", "hasPassword", "herdAnswerReview", "herdPreparation",
+  "getGotPenaltyPoints", "hasPassword", "herdPreparation",
   "herdRoundTarget", "lastGameSummary", "leaderboard", "lobbyArenaEnabled",
   "loser", "losers", "maxQuestionsPerPlayer", "ownAnswer", "ownCounterOffer",
-  "ownCustomGahook", "ownGahookUses", "ownHerdAssignments", "ownPoke", "ownVote",
+  "ownCustomGahook", "ownGahookUses", "ownPoke", "ownVote",
   "paused", "pausedRemainingMs", "pendingQuestionCount", "pendingQuestions",
   "phaseDurations", "phaseEndsAt", "phaseWaitingForProgress", "plannedTotalQuestions",
   "promptStyle", "questionCount", "questionResults", "questionsPerPlayer", "reports",
