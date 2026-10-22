@@ -1,6 +1,88 @@
 # Handoff — state of the project
 
-## Current checkpoint — executor session, 2026-10-23 (snapshot adapter)
+## Current checkpoint — executor session, 2026-10-23 (session storage)
+
+**Current.** The other half of **P01 step 6** on branch
+`agent/session-storage` (worktree `Projects/gahookz/worktrees/session-storage`):
+device storage
+([record](verification/2026-10-23-session-storage/README.md)). The snapshot
+half landed earlier today and is the checkpoint below.
+
+Storage was the last item in step 6's list still sitting untyped in `app.jsx`:
+the credential that *is* this player, the saved join, the per-room password and
+the `?pwd=` link an older release used to write. It is data this code did not
+write — another release wrote some of it, the person can edit all of it, and a
+browser may answer every read with an exception — and nothing checked any of
+it. Measured on the real client, two defects:
+
+- **A stored `name` of `12345` rendered a blank page.** `w.trim is not a
+  function` during render: no join form, no message, no way back but clearing
+  site data. One value in `localStorage`, and that device is out of the game.
+- **Guest play was impossible with site data blocked.** `getClientKey()` caught
+  the storage failure and returned a *fresh* random key — and it is called on
+  every render and every command, so each call was a different person. One tab
+  sent **1,001 distinct player keys** in a few seconds, the room accepted one
+  of them, and the screen sat on "Joining" for ever. A browser setting is not
+  an account, and CLAUDE.md's first rule says guest play must work.
+
+Both are fixed in `client/session.ts`, which is handed a store rather than
+reaching for one, so what lands where is decided in daylight and a test can
+supply a store that throws. A saved join is rebuilt field by field from the
+five fields the app can use, so an unknown key cannot survive a round trip, a
+value that is not a string is dropped, a picture that is not a `data:` image is
+dropped, and a `password` an older release stored durably is **wiped** rather
+than stepped over. The credential is kept in memory when the browser will not
+keep it. A legacy link's password now reaches only the room that link named,
+with the room code coming from the router rather than a second reading of the
+path.
+
+Same browser, same three scenarios: 1,001 keys → **1**, blank page → a join
+form and a lobby, and the `?pwd=` scrub unchanged and now guarded.
+
+Verified on **Node 24.22.0**: `npm run check` (308/308 unit, up from 289;
+strict TypeScript; build `release-eb981898735f10fb`), the full `npm test` chain
+exit 0, `npm run test:browser` 18 checks, `test:browser:navigation` green
+(it covers `/host` and `/play` versus `/HOST`, which this touches), the new
+`npm run test:browser:session` 7 checks, and `docs:check` 113 files. Ten
+mutations, all caught; the browser suite fails against `main` with exactly the
+measured blank page.
+
+**Next.** Roadmap section 2 continues, and nothing below needs an owner
+decision:
+
+1. **Section 2, item 2's remaining half** — player media across every
+   moderation surface. The identity work is done; media is not.
+2. Then section 3's characterized Gahook extraction.
+3. P01 steps 4 and 7 remain open: staged schema migration, and the build/dev
+   wiring plus per-endpoint request validation. This slice exercised the
+   build-wiring part of step 7 for one new module (build list, versioned
+   import, dev watcher, generated-file exclusion, offline cache) without
+   claiming the step.
+
+**Limits — and what needs Tyson.**
+
+- **Nothing was deployed.** Production is still `74a489949e02`. Today's two
+  slices both change client behaviour for players whose connection or browser
+  is unusual, so they are worth a deploy when you want one — a deploy is a
+  separate current-chat approval.
+- **Private browsing on a real iPhone is still unproven.** The blocked-storage
+  case is simulated by making every write throw. Only a device can settle what
+  iOS Safari does now; it belongs with the other human evidence.
+- **The schemas still do not run in the browser.** Both boundaries now handle
+  unknown data as *shape*, not as `PublicSnapshotSchema`. Validating against
+  the contract means either shipping zod to phones or generating a
+  dependency-free guard from it; that choice is in the backlog, unmade.
+- **`CLAUDE.md` is still unmerged.** `84a8032` on `coordinator/audit-20261021`
+  adds the coordination links; the file is protected, so it stays for Tyson. No
+  work depends on it.
+- **The Node 24.22 image pin is still waiting on you.** `1282bce` is unblocked,
+  but it changes the digest production builds from, so it wants a rebuild plus
+  a full smoke run as its own slice.
+- Still open from before: whether the shared screen should show the *text* of
+  unvoted Herd answers, the welcome-screen guides link, and whether a host may
+  censor a live prompt mid-round.
+
+## Earlier checkpoint — executor session, 2026-10-23 (snapshot adapter)
 
 **Current.** Roadmap section 2, item 1 continued on branch
 `agent/snapshot-adapter` (worktree `Projects/gahookz/worktrees/snapshot-adapter`):

@@ -65,6 +65,7 @@
     "test:browser:herd-writing": "node standalone/browser-herd-writing.mjs",
     "test:browser:herd-report": "node standalone/browser-herd-report.mjs",
     "test:browser:recovery": "node standalone/browser-recovery-storm.mjs",
+    "test:browser:session": "node standalone/browser-session-storage.mjs",
     "clean:generated": "node standalone/clean-generated.mjs",
     "drill:resilience": "node standalone/drill-resilience.mjs",
     "drill:dev-restart": "node standalone/drill-dev-restart.mjs",

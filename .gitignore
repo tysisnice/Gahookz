@@ -18,6 +18,7 @@ standalone/public/client/audio.runtime.js
 standalone/public/client/music.js
 standalone/public/client/music-composer.js
 standalone/public/client/net.js
+standalone/public/client/session.js
 standalone/public/client/reveal.js
 standalone/public/client/host-presence.js
 standalone/public/client/history.js

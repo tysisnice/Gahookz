@@ -6,6 +6,7 @@ import { effectsMuted, setEffectsReducedPreference, systemPrefersReducedEffects,
 import { OfflineExperience, ServerUpdateExperience, usePwaInstall, useServerConnection } from "./client/offline.jsx";
 import { GAHOOK_FORMS, getGahookForm, getStoredGahookForm, storeGahookForm } from "./client/gahook-forms.js";
 import { createApiClient, createLiveConnection, createSnapshotFetcher, createSnapshotGate, connectionMessage, describeSnapshotCompatibility, nextClockOffset } from "./client/net.ts";
+import { normaliseRoomCode, readClientKey, readRoomPassword, readSavedJoin, readUrlPassword, urlPasswordFor, writeRoomPassword, writeSavedJoin } from "./client/session.ts";
 import { FactCheckPanel, HerdRevealBreakdown, MajorityRevealBreakdown, PromptText, tieBreakLabel } from "./client/reveal.jsx";
 import { HostPresenceNotices } from "./client/host-presence.jsx";
 import {
@@ -44,9 +45,7 @@ import { LegalHub } from "./client/legal.jsx";
 import { HostReportsDialog, ReportButton, ReportContext, ReportDialog } from "./client/report.jsx";
 import { removalRequestFor } from "./client/report-subjects.js";
 
-const CLIENT_KEY = "gahookz-client-key";
 const createPortal = (...args) => window.ReactDOM.createPortal(...args);
-const JOIN_KEY = "gahookz-last-join";
 const ULTIMATE_GAHOOK_GRACE_MS = 1000;
 const GET_GOT_OVERLAY_MS = 3000;
 const GAHOOK_STEAL_POINTS = 50;
@@ -691,41 +690,27 @@ function reducer(state = { connected: false, connectionError: "", error: "", lob
 
 const store = createStore(reducer);
 
+// Device storage lives in ./client/session.ts, where the values this code did
+// not write — an older release's shape, a person's edit, a browser that
+// refuses to answer — are proved before the app sees them.
+const localStore = () => localStorage;
+const tabStore = () => sessionStorage;
+
+// Holds this device's credential when the browser will not: see session.ts.
+const deviceKeyMemory = {};
+
 function getClientKey() {
-  try {
-    const existing = localStorage.getItem(CLIENT_KEY);
-    if (existing) {
-      return existing;
-    }
-    const next = crypto.randomUUID ? crypto.randomUUID() : "player-" + Date.now() + "-" + Math.random();
-    localStorage.setItem(CLIENT_KEY, next);
-    return next;
-  } catch (_error) {
-    return "player-" + Date.now() + "-" + Math.random();
-  }
+  return readClientKey(localStore, () =>
+    crypto.randomUUID ? crypto.randomUUID() : "player-" + Date.now() + "-" + Math.random(),
+  deviceKeyMemory);
 }
 
 function getSavedJoin() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(JOIN_KEY) || "{}") || {};
-    if (Object.prototype.hasOwnProperty.call(saved, "password")) {
-      const { password: _password, ...safeJoin } = saved;
-      localStorage.setItem(JOIN_KEY, JSON.stringify(safeJoin));
-      return safeJoin;
-    }
-    return saved;
-  } catch (_error) {
-    return {};
-  }
+  return readSavedJoin(localStore);
 }
 
 function saveJoinSession(join) {
-  try {
-    const { password: _password, ...safeJoin } = join || {};
-    localStorage.setItem(JOIN_KEY, JSON.stringify(safeJoin));
-  } catch (_error) {
-    return;
-  }
+  writeSavedJoin(localStore, join);
 }
 
 // A signed-in player's saved look (client/account.jsx) becomes this device's
@@ -743,35 +728,38 @@ onAccountProfile((profile) => {
   if (profile.gahookForm) storeGahookForm(profile.gahookForm);
 });
 
-function roomPasswordKey(code) {
-  return "gahookz-room-password-" + normaliseRoomCode(code);
-}
-
 let migratedUrlPassword;
 
-function getUrlPassword() {
+// Read once, the first time anything asks, and taken out of the address bar
+// straight away: a password in a URL is in the history and the referrer.
+function urlPassword() {
   if (migratedUrlPassword !== undefined) return migratedUrlPassword;
   try {
-    const url = new URL(window.location.href);
-    migratedUrlPassword = url.searchParams.get("pwd") || url.searchParams.get("pw") || "";
-    if (migratedUrlPassword) {
-      url.searchParams.delete("pwd");
-      url.searchParams.delete("pw");
-      history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+    const captured = readUrlPassword(window.location.href);
+    // A link may name its room in the query or in the path; the router owns
+    // the second reading, so it answers for it.
+    migratedUrlPassword = captured.code ? captured : { ...captured, code: getRoute().code || "" };
+    if (captured.password) {
+      history.replaceState(history.state, "", captured.href);
     }
-    return migratedUrlPassword;
   } catch (_error) {
-    migratedUrlPassword = "";
-    return "";
+    migratedUrlPassword = { password: "", code: "", href: "" };
   }
+  return migratedUrlPassword;
+}
+
+/** The password a legacy link carried, offered only to the room it named. */
+function getUrlPassword(code) {
+  return urlPasswordFor(urlPassword(), code);
 }
 
 function getWelcomePrefill() {
   try {
     const params = new URLSearchParams(window.location.search);
+    const code = normaliseRoomCode(params.get("room"));
     return {
-      code: normaliseRoomCode(params.get("room")),
-      password: getUrlPassword(),
+      code,
+      password: getUrlPassword(code),
       locked: params.get("locked") === "1"
     };
   } catch (_error) {
@@ -780,31 +768,11 @@ function getWelcomePrefill() {
 }
 
 function saveRoomPassword(code, password) {
-  const cleanCode = normaliseRoomCode(code);
-  if (!cleanCode) {
-    return;
-  }
-  try {
-    if (password) {
-      sessionStorage.setItem(roomPasswordKey(cleanCode), password);
-    } else {
-      sessionStorage.removeItem(roomPasswordKey(cleanCode));
-    }
-  } catch (_error) {
-    return;
-  }
+  writeRoomPassword(tabStore, code, password);
 }
 
 function getSavedRoomPassword(code) {
-  const cleanCode = normaliseRoomCode(code);
-  if (!cleanCode) {
-    return "";
-  }
-  try {
-    return sessionStorage.getItem(roomPasswordKey(cleanCode)) || "";
-  } catch (_error) {
-    return "";
-  }
+  return readRoomPassword(tabStore, code);
 }
 
 function buildRoomPath(code) {
@@ -873,13 +841,6 @@ function triggerClientOnlySelfGahook(dispatch, player, ownPlayer, from) {
   }
   dispatch({ type: "OPTIMISTIC_POKE", value: optimisticPokePayload(player, from, "", "", ownPlayer.gahookForm || getStoredGahookForm()) });
   return true;
-}
-
-function normaliseRoomCode(value) {
-  return String(value || "").
-  replace(/[^a-z]/gi, "").
-  slice(0, 4).
-  toUpperCase();
 }
 
 function getRoute() {
@@ -1035,7 +996,7 @@ function useEvents(mode, code, playerKey) {
     const recoverLockedRoom = async () => {
       if (readmitting) return;
       readmitting = true;
-      const knownPassword = getSavedRoomPassword(code) || getUrlPassword();
+      const knownPassword = getSavedRoomPassword(code) || getUrlPassword(code);
       if (knownPassword) {
         const readmit = await api("/api/room", { code, playerKey, intent: "join", password: knownPassword }, { refresh: false });
         readmitting = false;
@@ -1477,8 +1438,7 @@ function HostMode({ playerKey, code }) {
       name: exitingPlayer.name,
       avatarId: exitingPlayer.avatarId,
       avatarImageDataUrl: exitingPlayer.avatarImageDataUrl || "",
-      gahookForm: exitingPlayer.gahookForm || getStoredGahookForm(),
-      password: getSavedRoomPassword(code) || getUrlPassword() || ""
+      gahookForm: exitingPlayer.gahookForm || getStoredGahookForm()
     });
     dispatch({ type: "HOST_EXITED_PLAYER", value: { playerId: exitingPlayer.id } });
     setJoiningAsPlayer(false);
@@ -1509,7 +1469,7 @@ function HostMode({ playerKey, code }) {
       avatarImageDataUrl: saved.avatarImageDataUrl || "",
       gahookForm: saved.gahookForm || getStoredGahookForm(),
       playerKey,
-      password: getSavedRoomPassword(code) || getUrlPassword() || ""
+      password: getSavedRoomPassword(code) || getUrlPassword(code) || ""
     }, { refresh: false });
     setRejoiningAsPlayer(false);
     if (!result.ok) {
@@ -3774,7 +3734,7 @@ function JoinScreen({ lobby, connected, playerKey, hostMenu, editingPlayer = nul
   const [avatarId, setAvatarId] = useState(initialAvatarId);
   const avatarIdRef = useRef(initialAvatarId);
   const [avatarImageDataUrl, setAvatarImageDataUrl] = useState(allowCustomProfiles ? editingPlayer?.avatarImageDataUrl || saved.avatarImageDataUrl || "" : "");
-  const [password, setPassword] = useState(() => getUrlPassword() || getSavedRoomPassword(routeCode || saved.code) || "");
+  const [password, setPassword] = useState(() => getUrlPassword(routeCode || saved.code) || getSavedRoomPassword(routeCode || saved.code) || "");
   const [wrongPasswordPoke, setWrongPasswordPoke] = useState(null);
   const [joining, setJoining] = useState(false);
   const [drawingAvatar, setDrawingAvatar] = useState(false);

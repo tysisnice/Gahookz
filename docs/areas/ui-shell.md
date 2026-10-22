@@ -129,9 +129,22 @@ api() POST /api/*  ->  server  ->  SSE "state" + POST /api/state  ->  useEvents 
   reconnects, "exactly one stream" and "exactly one snapshot request" in plain
   `node --test`; `browser-recovery-storm` proves the app actually uses it.
 
-Identity is local: `gahookz-client-key` (`localStorage`) is the `playerKey`,
-`gahookz-last-join` the last name and picture, and room passwords sit in
-`sessionStorage` per room. A `?pwd=` in the URL is read once and removed.
+Identity is local, and **`client/session.ts`** owns all of it: no other client
+source may name these keys, and `smoke-security` fails if one does.
+`gahookz-client-key` (`localStorage`) is the `playerKey`, `gahookz-last-join`
+the last name and picture, and room passwords sit in `sessionStorage` per room,
+because a password typed on a borrowed phone should not outlive the tab. A
+`?pwd=` in a link — old releases wrote them — is read once, taken out of the
+address bar, and offered only to the room that link named.
+
+Everything read back is proved before the app sees it: a saved join is rebuilt
+field by field, so an unknown key cannot survive a round trip and a `password`
+left by an older release is wiped rather than stepped over, and a value that is
+not the string it claims to be is dropped. A stored name of `12345` used to
+throw during render and leave a blank page. The credential is also held in
+memory for the life of the page, so a browser that refuses to store anything
+still plays as one person instead of minting a new identity per request
+([record](../verification/2026-10-23-session-storage/README.md)).
 
 ### The overlay system and z-index scale
 

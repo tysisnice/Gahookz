@@ -41,6 +41,7 @@ const buildSources = new Set([
   "client/controls.jsx",
   "client/history.jsx",
   "client/back-stack.ts",
+  "client/session.ts",
   "client/number-wheel.jsx"
 ]);
 const shellSources = new Set([

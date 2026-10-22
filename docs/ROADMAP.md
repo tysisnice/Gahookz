@@ -33,6 +33,21 @@ These checkboxes describe integrated work and the cited baseline, **not full P01
 Work these as bounded vertical slices; keep one active implementation goal plus one independent coder task.
 
 - [ ] Finish the role/phase snapshot privacy contract and executable negative HTTP/SSE cases (P01/P02). Majority/Herd choices stay hidden until reveal; Classic's live picks are an intentional owner decision, not a new privacy defect.
+  - **2026-10-23 (P01 step 6, session storage):** the last item in step 6's
+    list, and the one with the findings. A saved join whose `name` was the
+    number `12345` threw during render and left a **blank page** — no join
+    form, no way back but clearing site data — and a browser with site data
+    blocked minted a new credential on every call, so one tab sent **1,001
+    different player keys** and never got past "Joining": guest play was
+    impossible with a browser setting, which CLAUDE.md's first rule does not
+    allow. Device storage is now `client/session.ts`, which is handed a store
+    rather than choosing one, rebuilds a saved join field by field, wipes a
+    credential an older release stored durably, keeps the key in memory when
+    the browser will not, and offers a legacy `?pwd=` link's password only to
+    the room that link named
+    ([record](verification/2026-10-23-session-storage/README.md)). Step 6's
+    list is now all there; what the browser enforces is still shape, not
+    `PublicSnapshotSchema`.
   - **2026-10-23 (P01 step 6, snapshot dispatch):** `/api/state` was the one
     request still outside the typed boundary, fetched inline in `useEvents`
     with no timeout and no knowledge of the other two callers. A real browser

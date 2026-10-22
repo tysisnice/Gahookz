@@ -10,6 +10,17 @@ repeating them here.
 Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Players
+- Gahookz works on a browser that keeps nothing. With site data blocked — a
+  setting, not an account — the game used to invent a new player for every
+  single request, so the room could never recognise the same person twice and
+  the screen sat on "Joining" for ever. One player per device now, for as long
+  as the page is open
+  ([record](verification/2026-10-23-session-storage/README.md)).
+- A device that had something odd saved from an older version no longer opens
+  to a blank page. Whatever is stored is checked before it is used, and
+  anything that is not what it claims to be is cleared out rather than handed
+  to the screen. A room password saved by an old release is wiped from the
+  device while we are there.
 - A room that cannot be reached now says so and stops piling up work in the
   background. A phone that loses its connection used to start another request
   for the whole room state every five seconds and never finish any of them —
@@ -64,6 +75,20 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Developer
 
+- **2026-10-23 — device storage becomes a typed boundary (P01 step 6, the
+  storage half).** `client/session.ts` owns the credential, the saved join, the
+  per-room password and the legacy `?pwd=` link, and is handed a store rather
+  than reaching for one, so which store a value lands in is decided in the open
+  and a test can supply one that throws. A saved join is rebuilt field by field
+  — an unknown key cannot survive a round trip, a `password` left by an older
+  release is wiped rather than ignored, and a value that is not a string is
+  dropped. Two measured defects fixed: a stored `name` of `12345` threw during
+  render and left a blank page, and a browser with site data blocked minted a
+  credential per call (1,001 from one tab). A link's password now reaches only
+  the room that link named. Nineteen unit tests (289 → 308), a new
+  `test:browser:session` suite for all three scenarios, and `smoke-security`
+  now enforces that only this module may name the three storage keys
+  ([record](verification/2026-10-23-session-storage/README.md)).
 - **2026-10-23 — the last request outside the typed boundary (P01 step 6).**
   `POST /api/state` was still fetched inline in `useEvents` with its own
   `fetch`, its own routing and no timeout, so none of it was reachable by a
