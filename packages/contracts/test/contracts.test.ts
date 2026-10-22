@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   ApiErrorSchema,
   HealthResponseSchema,
+  HerdResultsSchema,
   PublicSnapshotBaseSchema,
   RoomCommandEnvelopeSchema
 } from "../src/index.ts";
@@ -90,4 +91,54 @@ test("host presence fields are optional, nullable and never carry a credential",
     assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, hostChange: { ...change, [secret]: "leak" } }).success, false, "hostChange must reject " + secret);
     assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, ownHostReplaced: { ...replaced, [secret]: "leak" } }).success, false, "ownHostReplaced must reject " + secret);
   }
+});
+
+// Both scoring engines derive `tieBrokenBySpeed` from the reason, and each has
+// its own tests for all four reasons (see standalone/server/majority.test.mjs
+// and packages/game-engine/test/herd.test.ts). What nothing checked was the
+// payload: a reveal is built by `publicHerdResults`/`publicMajorityResults`,
+// and a wrong flag there would reach players with the engines still correct.
+// These cases pin that boundary. The `order` branch matters most and no live
+// capture reaches it, because it needs two groups with identical vote counts,
+// identical fastest times and identical averages.
+test("a reveal payload may not explain its tie untruthfully", () => {
+  const results = {
+    answeredCount: 2,
+    eligiblePlayerCount: 2,
+    topCount: 1,
+    winningAnswerId: "red",
+    tiedByVotes: true,
+    tieBrokenBySpeed: false,
+    tieBreakReason: "order" as const,
+    factCheck: null,
+    groups: [{ answerId: "red", count: 1, winner: true, fastestElapsedMs: 3000, averageElapsedMs: 3000 }],
+    playerResults: [{ playerId: "p1", answerId: "red", correct: true, points: 400 }],
+    authorResults: [{ playerId: "p2", answerId: "red", voteCount: 1, points: 250, winner: true }]
+  };
+
+  assert.equal(HerdResultsSchema.safeParse(results).success, true, "an order tie-break is a legal reveal");
+  assert.equal(
+    HerdResultsSchema.safeParse({ ...results, tieBrokenBySpeed: true }).success, false,
+    "speed must not take credit for a tie the answer order settled"
+  );
+  assert.equal(
+    HerdResultsSchema.safeParse({ ...results, tieBreakReason: "average", tieBrokenBySpeed: true }).success, true,
+    "an average tie-break is a speed win"
+  );
+  assert.equal(
+    HerdResultsSchema.safeParse({ ...results, tiedByVotes: false, tieBreakReason: "fastest", tieBrokenBySpeed: true }).success, false,
+    "a round that was not tied must not be explained as a tie-break"
+  );
+  assert.equal(
+    HerdResultsSchema.safeParse({ ...results, winningAnswerId: "", tieBreakReason: "fastest", tieBrokenBySpeed: true }).success, false,
+    "a round nobody answered has no winner and no tie-break"
+  );
+  assert.equal(
+    HerdResultsSchema.safeParse({ ...results, winningAnswerId: "", tiedByVotes: false, tieBreakReason: "none" }).success, true,
+    "no votes means no winning answer and reason none"
+  );
+  assert.equal(
+    HerdResultsSchema.safeParse({ ...results, tieBreakReason: "sorted-by-vibes" }).success, false,
+    "only the four declared reasons are legal"
+  );
 });

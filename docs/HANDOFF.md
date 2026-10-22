@@ -1,6 +1,81 @@
 # Handoff — state of the project
 
-## Current checkpoint — executor session, 2026-10-21
+## Current checkpoint — executor session, 2026-10-22
+
+**Current.** Roadmap section 2, item 1 continued on branch
+`agent/contract-phase-payloads` (worktree
+`Projects/gahookz/worktrees/contract-phase-payloads`): P01 **step 2**, the
+discriminated phase payloads, and P01 **step 5**, validating real response
+shapes before enforcing anything
+([record](verification/2026-10-22-contract-phase-payloads/README.md)).
+
+The rules were already right. The *evidence* was not, and measuring it first is
+what this step asks for:
+
+- the public snapshot contract described **11 of 76** fields and passed 50
+  through silently; it now describes 18 and lists the other 58 as knowingly
+  tolerated, so a new server field fails a test by name;
+- the fixture corpus was **fifteen server fields stale** and nothing could tell.
+  `building.host` and `building.player` held `lobby` snapshots, so the building
+  phase was never covered; `lobby.spectator` was captured with the host's own
+  credential and recorded `isHost: true`; no captured player had ever submitted
+  a question, so the test named "a player's own questions still show them their
+  own answer key" was guarded by `if (own?.length)` and never ran. Three of
+  those four were asserted by tests that passed.
+
+What landed: captures that play real games through Quiz Classic, Majority and
+Herd with deliberately split votes so a real tie reason reaches a fixture;
+`PublicSnapshotSchema`, a `phase`-discriminated union pinning the three gates
+`publicQuestion` implements, plus locked game rules, the Quiz key versus the
+Majority prediction, and tie explanations that may not be false; and
+`standalone/smoke-contract-drift.mjs` in the shared chain, which validates real
+responses live and fails when the corpus drifts from the server in either
+direction.
+
+Verified on **Node 24.22.0**: `npm run check` (266/266 unit, up from 254;
+strict TypeScript; build `release-2e544d33f0fabce4`), the full `npm test` chain,
+`docs:check`. Six mutations were applied one at a time to prove the new rules
+bite; five were caught here and the sixth by an existing engine test, which the
+record states rather than tidies.
+
+**Next.** Roadmap section 2 continues, and nothing below needs an owner
+decision:
+
+1. **P02 steps 1, 2 and 4** — the private per-question displayed-slot
+   permutation is already implemented in `buildHerdAssignmentPlan` (an
+   independent `shuffledSlots` per question, `byQuestionId` sorted by
+   `displayIndex`); what is missing is proof that the **server** uses
+   `displayIndex` rather than `answerIndex` for every identity, and the seeded
+   4/5/8/20-player attack fixtures showing a prior reveal cannot predict the
+   next mapping from the old circular formula.
+2. **P01 step 6** — the typed browser adapter, which is where these schemas
+   would start enforcing instead of describing.
+3. Then section 3's characterized Gahook extraction.
+
+**Limits — and what needs Tyson.**
+
+- **Nothing was deployed.** `main` keeps moving; production is still
+  `74a489949e02`. A deploy is a separate current-chat approval.
+- **`CLAUDE.md` is still unmerged.** `84a8032` on `coordinator/audit-20261021`
+  adds the coordination links; the file is protected, so it stays for Tyson. No
+  work depends on it — the same two documents are linked from the README, this
+  handoff and the agent guide.
+- **The Node 24.22 image pin is now unblocked.** I held `1282bce` back because
+  its `.node-version`/`.nvmrc` pinned 24.22.0 against a 24.18.0 laptop. Node
+  24.22.0 became the default runtime here on 2026-10-21, so that objection is
+  gone. It still changes the digest production builds from, so it wants a
+  rebuild plus a full smoke run as its own slice — say the word.
+- **These schemas do not run in production.** The server imports only
+  `HostSettingsRequestSchema` and `normaliseGameSettings`; the snapshot schemas
+  run in tests. That is why tightening them could not affect a live player, and
+  equally why they prove shape rather than enforce it.
+- The `health` fixture now comes from the disposable development server. The
+  September capture from a built container is preserved as `health.built.json`
+  rather than overwritten, because the schema has to accept both.
+- Still open from before: the welcome-screen guides link, and whether a host may
+  censor a live prompt mid-round.
+
+## Earlier checkpoint — executor session, 2026-10-21
 
 **Current.** `main` is at the privacy-contract merge; the branch
 `agent/privacy-moderation-contract` (worktree

@@ -1,11 +1,31 @@
 {
   "schemaVersion": 1,
-  "code": "DOOF",
-  "stateVersion": 39,
+  "code": "BURP",
+  "stateVersion": 95,
   "serverTime": 1788000000000,
   "hasPassword": false,
   "isHost": true,
   "gameMode": "herd",
+  "gahookEffects": "chaos",
+  "lobbyArenaEnabled": true,
+  "gahookStealPoints": 50,
+  "getGotPenaltyPoints": 1000,
+  "pendingQuestionCount": 0,
+  "herdRoundTarget": 8,
+  "gameFamily": "herd",
+  "quizScoring": "majority",
+  "settingsRevision": 3,
+  "lockedRules": {
+    "gameFamily": "herd",
+    "quizScoring": "majority",
+    "gameMode": "herd",
+    "roundPreset": "quick",
+    "maxQuestionsPerPlayer": 1,
+    "promptStyle": "fun",
+    "lockedAt": 1788000000000
+  },
+  "savedQuestionCount": 0,
+  "savedQuestionCountOtherFamily": 0,
   "roundPreset": "quick",
   "approveQuestions": false,
   "allowCustomProfiles": true,
@@ -23,7 +43,7 @@
   "whiteboardRevision": 0,
   "players": [
     {
-      "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+      "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
       "name": "Player 1",
       "score": 0,
       "avatarId": "frog",
@@ -31,7 +51,7 @@
       "gahookForm": "monkey",
       "accountLinked": false,
       "customGahookSlot": 0,
-      "customGahookSlots": 1,
+      "customGahookSlots": 2,
       "dashTopScore": 0,
       "dashScore": 0,
       "dashPlayerY": 0,
@@ -58,10 +78,10 @@
       "questionSlotsUsed": 1,
       "kickVotes": 0,
       "isHost": false,
-      "joinedAt": 1789078261396
+      "joinedAt": 1792639933397
     },
     {
-      "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
+      "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
       "name": "Player 2",
       "score": 0,
       "avatarId": "frog",
@@ -69,7 +89,7 @@
       "gahookForm": "monkey",
       "accountLinked": false,
       "customGahookSlot": 0,
-      "customGahookSlots": 1,
+      "customGahookSlots": 2,
       "dashTopScore": 0,
       "dashScore": 0,
       "dashPlayerY": 0,
@@ -96,10 +116,10 @@
       "questionSlotsUsed": 1,
       "kickVotes": 0,
       "isHost": false,
-      "joinedAt": 1789078261404
+      "joinedAt": 1792639933400
     },
     {
-      "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+      "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
       "name": "Player 3",
       "score": 0,
       "avatarId": "frog",
@@ -107,7 +127,7 @@
       "gahookForm": "monkey",
       "accountLinked": false,
       "customGahookSlot": 0,
-      "customGahookSlots": 1,
+      "customGahookSlots": 2,
       "dashTopScore": 0,
       "dashScore": 0,
       "dashPlayerY": 0,
@@ -134,10 +154,10 @@
       "questionSlotsUsed": 1,
       "kickVotes": 0,
       "isHost": false,
-      "joinedAt": 1789078261418
+      "joinedAt": 1792639933401
     },
     {
-      "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
+      "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
       "name": "Player 4",
       "score": 0,
       "avatarId": "frog",
@@ -145,7 +165,7 @@
       "gahookForm": "monkey",
       "accountLinked": false,
       "customGahookSlot": 0,
-      "customGahookSlots": 1,
+      "customGahookSlots": 2,
       "dashTopScore": 0,
       "dashScore": 0,
       "dashPlayerY": 0,
@@ -172,7 +192,7 @@
       "questionSlotsUsed": 1,
       "kickVotes": 0,
       "isHost": false,
-      "joinedAt": 1789078261428
+      "joinedAt": 1792639933403
     }
   ],
   "bannedPlayers": [],
@@ -180,7 +200,7 @@
   "pendingQuestions": [],
   "leaderboard": [
     {
-      "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+      "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
       "name": "Player 1",
       "score": 0,
       "avatarId": "frog",
@@ -188,7 +208,7 @@
       "gahookForm": "monkey",
       "accountLinked": false,
       "customGahookSlot": 0,
-      "customGahookSlots": 1,
+      "customGahookSlots": 2,
       "dashTopScore": 0,
       "dashScore": 0,
       "dashPlayerY": 0,
@@ -215,11 +235,11 @@
       "questionSlotsUsed": 1,
       "kickVotes": 0,
       "isHost": false,
-      "joinedAt": 1789078261396,
+      "joinedAt": 1792639933397,
       "rank": 1
     },
     {
-      "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
+      "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
       "name": "Player 2",
       "score": 0,
       "avatarId": "frog",
@@ -227,7 +247,7 @@
       "gahookForm": "monkey",
       "accountLinked": false,
       "customGahookSlot": 0,
-      "customGahookSlots": 1,
+      "customGahookSlots": 2,
       "dashTopScore": 0,
       "dashScore": 0,
       "dashPlayerY": 0,
@@ -254,11 +274,11 @@
       "questionSlotsUsed": 1,
       "kickVotes": 0,
       "isHost": false,
-      "joinedAt": 1789078261404,
+      "joinedAt": 1792639933400,
       "rank": 1
     },
     {
-      "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+      "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
       "name": "Player 3",
       "score": 0,
       "avatarId": "frog",
@@ -266,7 +286,7 @@
       "gahookForm": "monkey",
       "accountLinked": false,
       "customGahookSlot": 0,
-      "customGahookSlots": 1,
+      "customGahookSlots": 2,
       "dashTopScore": 0,
       "dashScore": 0,
       "dashPlayerY": 0,
@@ -293,11 +313,11 @@
       "questionSlotsUsed": 1,
       "kickVotes": 0,
       "isHost": false,
-      "joinedAt": 1789078261418,
+      "joinedAt": 1792639933401,
       "rank": 1
     },
     {
-      "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
+      "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
       "name": "Player 4",
       "score": 0,
       "avatarId": "frog",
@@ -305,7 +325,7 @@
       "gahookForm": "monkey",
       "accountLinked": false,
       "customGahookSlot": 0,
-      "customGahookSlots": 1,
+      "customGahookSlots": 2,
       "dashTopScore": 0,
       "dashScore": 0,
       "dashPlayerY": 0,
@@ -332,168 +352,11 @@
       "questionSlotsUsed": 1,
       "kickVotes": 0,
       "isHost": false,
-      "joinedAt": 1789078261428,
+      "joinedAt": 1792639933403,
       "rank": 1
     }
   ],
-  "winners": [
-    {
-      "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
-      "name": "Player 1",
-      "score": 0,
-      "avatarId": "frog",
-      "avatarImageDataUrl": "",
-      "gahookForm": "monkey",
-      "accountLinked": false,
-      "customGahookSlot": 0,
-      "customGahookSlots": 1,
-      "dashTopScore": 0,
-      "dashScore": 0,
-      "dashPlayerY": 0,
-      "dashRunning": false,
-      "dashRunId": "",
-      "dashUpdatedAt": 0,
-      "connected": true,
-      "ready": false,
-      "pokeCount": 0,
-      "latestPokeId": "",
-      "latestPokeAt": 0,
-      "latestPokeKind": "normal",
-      "latestPokeUltimateStack": 0,
-      "latestPokeUltimateUntil": 0,
-      "ultimateGahookUntil": 0,
-      "ultimateGahookStack": 0,
-      "gahookDuelWins": 0,
-      "shamePokes": 0,
-      "congratulationsCount": 0,
-      "ultimateCongratulationsUntil": 0,
-      "ultimateCongratulationsStack": 0,
-      "questionsSubmitted": 1,
-      "questionsPending": 0,
-      "questionSlotsUsed": 1,
-      "kickVotes": 0,
-      "isHost": false,
-      "joinedAt": 1789078261396,
-      "rank": 1
-    },
-    {
-      "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-      "name": "Player 2",
-      "score": 0,
-      "avatarId": "frog",
-      "avatarImageDataUrl": "",
-      "gahookForm": "monkey",
-      "accountLinked": false,
-      "customGahookSlot": 0,
-      "customGahookSlots": 1,
-      "dashTopScore": 0,
-      "dashScore": 0,
-      "dashPlayerY": 0,
-      "dashRunning": false,
-      "dashRunId": "",
-      "dashUpdatedAt": 0,
-      "connected": true,
-      "ready": false,
-      "pokeCount": 0,
-      "latestPokeId": "",
-      "latestPokeAt": 0,
-      "latestPokeKind": "normal",
-      "latestPokeUltimateStack": 0,
-      "latestPokeUltimateUntil": 0,
-      "ultimateGahookUntil": 0,
-      "ultimateGahookStack": 0,
-      "gahookDuelWins": 0,
-      "shamePokes": 0,
-      "congratulationsCount": 0,
-      "ultimateCongratulationsUntil": 0,
-      "ultimateCongratulationsStack": 0,
-      "questionsSubmitted": 1,
-      "questionsPending": 0,
-      "questionSlotsUsed": 1,
-      "kickVotes": 0,
-      "isHost": false,
-      "joinedAt": 1789078261404,
-      "rank": 1
-    },
-    {
-      "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
-      "name": "Player 3",
-      "score": 0,
-      "avatarId": "frog",
-      "avatarImageDataUrl": "",
-      "gahookForm": "monkey",
-      "accountLinked": false,
-      "customGahookSlot": 0,
-      "customGahookSlots": 1,
-      "dashTopScore": 0,
-      "dashScore": 0,
-      "dashPlayerY": 0,
-      "dashRunning": false,
-      "dashRunId": "",
-      "dashUpdatedAt": 0,
-      "connected": true,
-      "ready": false,
-      "pokeCount": 0,
-      "latestPokeId": "",
-      "latestPokeAt": 0,
-      "latestPokeKind": "normal",
-      "latestPokeUltimateStack": 0,
-      "latestPokeUltimateUntil": 0,
-      "ultimateGahookUntil": 0,
-      "ultimateGahookStack": 0,
-      "gahookDuelWins": 0,
-      "shamePokes": 0,
-      "congratulationsCount": 0,
-      "ultimateCongratulationsUntil": 0,
-      "ultimateCongratulationsStack": 0,
-      "questionsSubmitted": 1,
-      "questionsPending": 0,
-      "questionSlotsUsed": 1,
-      "kickVotes": 0,
-      "isHost": false,
-      "joinedAt": 1789078261418,
-      "rank": 1
-    },
-    {
-      "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
-      "name": "Player 4",
-      "score": 0,
-      "avatarId": "frog",
-      "avatarImageDataUrl": "",
-      "gahookForm": "monkey",
-      "accountLinked": false,
-      "customGahookSlot": 0,
-      "customGahookSlots": 1,
-      "dashTopScore": 0,
-      "dashScore": 0,
-      "dashPlayerY": 0,
-      "dashRunning": false,
-      "dashRunId": "",
-      "dashUpdatedAt": 0,
-      "connected": true,
-      "ready": false,
-      "pokeCount": 0,
-      "latestPokeId": "",
-      "latestPokeAt": 0,
-      "latestPokeKind": "normal",
-      "latestPokeUltimateStack": 0,
-      "latestPokeUltimateUntil": 0,
-      "ultimateGahookUntil": 0,
-      "ultimateGahookStack": 0,
-      "gahookDuelWins": 0,
-      "shamePokes": 0,
-      "congratulationsCount": 0,
-      "ultimateCongratulationsUntil": 0,
-      "ultimateCongratulationsStack": 0,
-      "questionsSubmitted": 1,
-      "questionsPending": 0,
-      "questionSlotsUsed": 1,
-      "kickVotes": 0,
-      "isHost": false,
-      "joinedAt": 1789078261428,
-      "rank": 1
-    }
-  ],
+  "winners": [],
   "losers": [],
   "winner": null,
   "loser": null,
@@ -502,7 +365,7 @@
   "maxQuestionsPerPlayer": 1,
   "questionsPerPlayer": 1,
   "plannedTotalQuestions": 4,
-  "selectedQuestionLimit": null,
+  "selectedQuestionLimit": 8,
   "unusedQuestionCount": 0,
   "estimatedDurationMs": 124000,
   "currentQuestionIndex": -1,
@@ -515,6 +378,7 @@
   "ownPlayer": null,
   "ownCustomGahook": null,
   "customGahookOptions": {
+    "localSlots": 2,
     "backgroundIds": [
       "monkey"
     ],
@@ -547,377 +411,423 @@
       "maxFrameChars": 180000,
       "maxAudioChars": 280000
     },
-    "slotCount": 1,
+    "slotCount": 2,
     "selectedSlot": 0,
+    "slots": [
+      {
+        "slot": 0,
+        "name": "",
+        "drawn": false,
+        "previewFrame": ""
+      },
+      {
+        "slot": 1,
+        "name": "",
+        "drawn": false,
+        "previewFrame": ""
+      }
+    ],
     "accountLinked": false
   },
   "ownQuestions": [],
   "ownHerdAssignments": [],
   "herdAnswerReview": [
     {
-      "questionId": "e51d2f7a-3ac2-434f-b357-fdefe65ec018",
+      "questionId": "8979ac5a-1c12-4a0f-ab50-6587399c6a22",
       "answerId": "red",
       "text": "",
+      "imageDataUrl": "",
       "submitted": false,
       "question": {
-        "id": "e51d2f7a-3ac2-434f-b357-fdefe65ec018",
-        "text": "What should be illegal to put on pizza?",
+        "id": "8979ac5a-1c12-4a0f-ab50-6587399c6a22",
+        "text": "Placeholder Herd prompt 1?",
+        "namedPlayerNames": [],
         "imageDataUrl": "",
         "author": {
-          "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-          "name": "Player 2",
-          "avatarId": "frog",
-          "avatarImageDataUrl": ""
-        }
-      },
-      "answerAuthor": {
-        "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-        "name": "Player 2",
-        "avatarId": "frog",
-        "avatarImageDataUrl": ""
-      }
-    },
-    {
-      "questionId": "e51d2f7a-3ac2-434f-b357-fdefe65ec018",
-      "answerId": "blue",
-      "text": "",
-      "submitted": false,
-      "question": {
-        "id": "e51d2f7a-3ac2-434f-b357-fdefe65ec018",
-        "text": "What should be illegal to put on pizza?",
-        "imageDataUrl": "",
-        "author": {
-          "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-          "name": "Player 2",
-          "avatarId": "frog",
-          "avatarImageDataUrl": ""
-        }
-      },
-      "answerAuthor": {
-        "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
-        "name": "Player 3",
-        "avatarId": "frog",
-        "avatarImageDataUrl": ""
-      }
-    },
-    {
-      "questionId": "e51d2f7a-3ac2-434f-b357-fdefe65ec018",
-      "answerId": "yellow",
-      "text": "",
-      "submitted": false,
-      "question": {
-        "id": "e51d2f7a-3ac2-434f-b357-fdefe65ec018",
-        "text": "What should be illegal to put on pizza?",
-        "imageDataUrl": "",
-        "author": {
-          "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-          "name": "Player 2",
-          "avatarId": "frog",
-          "avatarImageDataUrl": ""
-        }
-      },
-      "answerAuthor": {
-        "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
-        "name": "Player 1",
-        "avatarId": "frog",
-        "avatarImageDataUrl": ""
-      }
-    },
-    {
-      "questionId": "e51d2f7a-3ac2-434f-b357-fdefe65ec018",
-      "answerId": "green",
-      "text": "",
-      "submitted": false,
-      "question": {
-        "id": "e51d2f7a-3ac2-434f-b357-fdefe65ec018",
-        "text": "What should be illegal to put on pizza?",
-        "imageDataUrl": "",
-        "author": {
-          "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-          "name": "Player 2",
-          "avatarId": "frog",
-          "avatarImageDataUrl": ""
-        }
-      },
-      "answerAuthor": {
-        "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
-        "name": "Player 4",
-        "avatarId": "frog",
-        "avatarImageDataUrl": ""
-      }
-    },
-    {
-      "questionId": "5fc464d2-69c7-43e0-a2ab-e1d368df56ff",
-      "answerId": "red",
-      "text": "",
-      "submitted": false,
-      "question": {
-        "id": "5fc464d2-69c7-43e0-a2ab-e1d368df56ff",
-        "text": "What is the worst thing to hear from a pilot?",
-        "imageDataUrl": "",
-        "author": {
-          "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+          "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
           "name": "Player 1",
           "avatarId": "frog",
           "avatarImageDataUrl": ""
         }
       },
       "answerAuthor": {
-        "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+        "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
         "name": "Player 1",
         "avatarId": "frog",
         "avatarImageDataUrl": ""
       }
     },
     {
-      "questionId": "5fc464d2-69c7-43e0-a2ab-e1d368df56ff",
+      "questionId": "8979ac5a-1c12-4a0f-ab50-6587399c6a22",
       "answerId": "blue",
       "text": "",
+      "imageDataUrl": "",
       "submitted": false,
       "question": {
-        "id": "5fc464d2-69c7-43e0-a2ab-e1d368df56ff",
-        "text": "What is the worst thing to hear from a pilot?",
+        "id": "8979ac5a-1c12-4a0f-ab50-6587399c6a22",
+        "text": "Placeholder Herd prompt 1?",
+        "namedPlayerNames": [],
         "imageDataUrl": "",
         "author": {
-          "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+          "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
           "name": "Player 1",
           "avatarId": "frog",
           "avatarImageDataUrl": ""
         }
       },
       "answerAuthor": {
-        "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
-        "name": "Player 4",
-        "avatarId": "frog",
-        "avatarImageDataUrl": ""
-      }
-    },
-    {
-      "questionId": "5fc464d2-69c7-43e0-a2ab-e1d368df56ff",
-      "answerId": "yellow",
-      "text": "",
-      "submitted": false,
-      "question": {
-        "id": "5fc464d2-69c7-43e0-a2ab-e1d368df56ff",
-        "text": "What is the worst thing to hear from a pilot?",
-        "imageDataUrl": "",
-        "author": {
-          "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
-          "name": "Player 1",
-          "avatarId": "frog",
-          "avatarImageDataUrl": ""
-        }
-      },
-      "answerAuthor": {
-        "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-        "name": "Player 2",
-        "avatarId": "frog",
-        "avatarImageDataUrl": ""
-      }
-    },
-    {
-      "questionId": "5fc464d2-69c7-43e0-a2ab-e1d368df56ff",
-      "answerId": "green",
-      "text": "",
-      "submitted": false,
-      "question": {
-        "id": "5fc464d2-69c7-43e0-a2ab-e1d368df56ff",
-        "text": "What is the worst thing to hear from a pilot?",
-        "imageDataUrl": "",
-        "author": {
-          "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
-          "name": "Player 1",
-          "avatarId": "frog",
-          "avatarImageDataUrl": ""
-        }
-      },
-      "answerAuthor": {
-        "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+        "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
         "name": "Player 3",
         "avatarId": "frog",
         "avatarImageDataUrl": ""
       }
     },
     {
-      "questionId": "706b67f0-52ba-4cc4-a213-23e90da5b175",
+      "questionId": "8979ac5a-1c12-4a0f-ab50-6587399c6a22",
+      "answerId": "yellow",
+      "text": "",
+      "imageDataUrl": "",
+      "submitted": false,
+      "question": {
+        "id": "8979ac5a-1c12-4a0f-ab50-6587399c6a22",
+        "text": "Placeholder Herd prompt 1?",
+        "namedPlayerNames": [],
+        "imageDataUrl": "",
+        "author": {
+          "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
+          "name": "Player 1",
+          "avatarId": "frog",
+          "avatarImageDataUrl": ""
+        }
+      },
+      "answerAuthor": {
+        "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
+        "name": "Player 2",
+        "avatarId": "frog",
+        "avatarImageDataUrl": ""
+      }
+    },
+    {
+      "questionId": "8979ac5a-1c12-4a0f-ab50-6587399c6a22",
+      "answerId": "green",
+      "text": "",
+      "imageDataUrl": "",
+      "submitted": false,
+      "question": {
+        "id": "8979ac5a-1c12-4a0f-ab50-6587399c6a22",
+        "text": "Placeholder Herd prompt 1?",
+        "namedPlayerNames": [],
+        "imageDataUrl": "",
+        "author": {
+          "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
+          "name": "Player 1",
+          "avatarId": "frog",
+          "avatarImageDataUrl": ""
+        }
+      },
+      "answerAuthor": {
+        "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
+        "name": "Player 4",
+        "avatarId": "frog",
+        "avatarImageDataUrl": ""
+      }
+    },
+    {
+      "questionId": "f853078a-2829-4144-9c05-ab6612a3f44a",
       "answerId": "red",
       "text": "",
+      "imageDataUrl": "",
       "submitted": false,
       "question": {
-        "id": "706b67f0-52ba-4cc4-a213-23e90da5b175",
-        "text": "What is the weirdest thing to bring to a job interview?",
+        "id": "f853078a-2829-4144-9c05-ab6612a3f44a",
+        "text": "Placeholder Herd prompt 2?",
+        "namedPlayerNames": [],
         "imageDataUrl": "",
         "author": {
-          "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
-          "name": "Player 4",
+          "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
+          "name": "Player 2",
           "avatarId": "frog",
           "avatarImageDataUrl": ""
         }
       },
       "answerAuthor": {
-        "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
-        "name": "Player 4",
-        "avatarId": "frog",
-        "avatarImageDataUrl": ""
-      }
-    },
-    {
-      "questionId": "706b67f0-52ba-4cc4-a213-23e90da5b175",
-      "answerId": "blue",
-      "text": "",
-      "submitted": false,
-      "question": {
-        "id": "706b67f0-52ba-4cc4-a213-23e90da5b175",
-        "text": "What is the weirdest thing to bring to a job interview?",
-        "imageDataUrl": "",
-        "author": {
-          "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
-          "name": "Player 4",
-          "avatarId": "frog",
-          "avatarImageDataUrl": ""
-        }
-      },
-      "answerAuthor": {
-        "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-        "name": "Player 2",
-        "avatarId": "frog",
-        "avatarImageDataUrl": ""
-      }
-    },
-    {
-      "questionId": "706b67f0-52ba-4cc4-a213-23e90da5b175",
-      "answerId": "yellow",
-      "text": "",
-      "submitted": false,
-      "question": {
-        "id": "706b67f0-52ba-4cc4-a213-23e90da5b175",
-        "text": "What is the weirdest thing to bring to a job interview?",
-        "imageDataUrl": "",
-        "author": {
-          "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
-          "name": "Player 4",
-          "avatarId": "frog",
-          "avatarImageDataUrl": ""
-        }
-      },
-      "answerAuthor": {
-        "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+        "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
         "name": "Player 3",
         "avatarId": "frog",
         "avatarImageDataUrl": ""
       }
     },
     {
-      "questionId": "706b67f0-52ba-4cc4-a213-23e90da5b175",
-      "answerId": "green",
+      "questionId": "f853078a-2829-4144-9c05-ab6612a3f44a",
+      "answerId": "blue",
       "text": "",
+      "imageDataUrl": "",
       "submitted": false,
       "question": {
-        "id": "706b67f0-52ba-4cc4-a213-23e90da5b175",
-        "text": "What is the weirdest thing to bring to a job interview?",
+        "id": "f853078a-2829-4144-9c05-ab6612a3f44a",
+        "text": "Placeholder Herd prompt 2?",
+        "namedPlayerNames": [],
         "imageDataUrl": "",
         "author": {
-          "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
-          "name": "Player 4",
+          "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
+          "name": "Player 2",
           "avatarId": "frog",
           "avatarImageDataUrl": ""
         }
       },
       "answerAuthor": {
-        "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+        "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
+        "name": "Player 4",
+        "avatarId": "frog",
+        "avatarImageDataUrl": ""
+      }
+    },
+    {
+      "questionId": "f853078a-2829-4144-9c05-ab6612a3f44a",
+      "answerId": "yellow",
+      "text": "",
+      "imageDataUrl": "",
+      "submitted": false,
+      "question": {
+        "id": "f853078a-2829-4144-9c05-ab6612a3f44a",
+        "text": "Placeholder Herd prompt 2?",
+        "namedPlayerNames": [],
+        "imageDataUrl": "",
+        "author": {
+          "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
+          "name": "Player 2",
+          "avatarId": "frog",
+          "avatarImageDataUrl": ""
+        }
+      },
+      "answerAuthor": {
+        "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
+        "name": "Player 2",
+        "avatarId": "frog",
+        "avatarImageDataUrl": ""
+      }
+    },
+    {
+      "questionId": "f853078a-2829-4144-9c05-ab6612a3f44a",
+      "answerId": "green",
+      "text": "",
+      "imageDataUrl": "",
+      "submitted": false,
+      "question": {
+        "id": "f853078a-2829-4144-9c05-ab6612a3f44a",
+        "text": "Placeholder Herd prompt 2?",
+        "namedPlayerNames": [],
+        "imageDataUrl": "",
+        "author": {
+          "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
+          "name": "Player 2",
+          "avatarId": "frog",
+          "avatarImageDataUrl": ""
+        }
+      },
+      "answerAuthor": {
+        "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
         "name": "Player 1",
         "avatarId": "frog",
         "avatarImageDataUrl": ""
       }
     },
     {
-      "questionId": "9a2fa3b8-d0df-456a-9af2-c92156eaa219",
+      "questionId": "049586bb-8400-47ce-9e29-54ce50499810",
       "answerId": "red",
       "text": "",
+      "imageDataUrl": "",
       "submitted": false,
       "question": {
-        "id": "9a2fa3b8-d0df-456a-9af2-c92156eaa219",
-        "text": "What would make a terrible name for a superhero?",
+        "id": "049586bb-8400-47ce-9e29-54ce50499810",
+        "text": "Placeholder Herd prompt 3?",
+        "namedPlayerNames": [],
         "imageDataUrl": "",
         "author": {
-          "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+          "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
           "name": "Player 3",
           "avatarId": "frog",
           "avatarImageDataUrl": ""
         }
       },
       "answerAuthor": {
-        "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
-        "name": "Player 3",
+        "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
+        "name": "Player 2",
         "avatarId": "frog",
         "avatarImageDataUrl": ""
       }
     },
     {
-      "questionId": "9a2fa3b8-d0df-456a-9af2-c92156eaa219",
+      "questionId": "049586bb-8400-47ce-9e29-54ce50499810",
       "answerId": "blue",
       "text": "",
+      "imageDataUrl": "",
       "submitted": false,
       "question": {
-        "id": "9a2fa3b8-d0df-456a-9af2-c92156eaa219",
-        "text": "What would make a terrible name for a superhero?",
+        "id": "049586bb-8400-47ce-9e29-54ce50499810",
+        "text": "Placeholder Herd prompt 3?",
+        "namedPlayerNames": [],
         "imageDataUrl": "",
         "author": {
-          "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+          "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
           "name": "Player 3",
           "avatarId": "frog",
           "avatarImageDataUrl": ""
         }
       },
       "answerAuthor": {
-        "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+        "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
         "name": "Player 1",
         "avatarId": "frog",
         "avatarImageDataUrl": ""
       }
     },
     {
-      "questionId": "9a2fa3b8-d0df-456a-9af2-c92156eaa219",
+      "questionId": "049586bb-8400-47ce-9e29-54ce50499810",
       "answerId": "yellow",
       "text": "",
+      "imageDataUrl": "",
       "submitted": false,
       "question": {
-        "id": "9a2fa3b8-d0df-456a-9af2-c92156eaa219",
-        "text": "What would make a terrible name for a superhero?",
+        "id": "049586bb-8400-47ce-9e29-54ce50499810",
+        "text": "Placeholder Herd prompt 3?",
+        "namedPlayerNames": [],
         "imageDataUrl": "",
         "author": {
-          "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+          "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
           "name": "Player 3",
           "avatarId": "frog",
           "avatarImageDataUrl": ""
         }
       },
       "answerAuthor": {
-        "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
+        "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
+        "name": "Player 3",
+        "avatarId": "frog",
+        "avatarImageDataUrl": ""
+      }
+    },
+    {
+      "questionId": "049586bb-8400-47ce-9e29-54ce50499810",
+      "answerId": "green",
+      "text": "",
+      "imageDataUrl": "",
+      "submitted": false,
+      "question": {
+        "id": "049586bb-8400-47ce-9e29-54ce50499810",
+        "text": "Placeholder Herd prompt 3?",
+        "namedPlayerNames": [],
+        "imageDataUrl": "",
+        "author": {
+          "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
+          "name": "Player 3",
+          "avatarId": "frog",
+          "avatarImageDataUrl": ""
+        }
+      },
+      "answerAuthor": {
+        "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
         "name": "Player 4",
         "avatarId": "frog",
         "avatarImageDataUrl": ""
       }
     },
     {
-      "questionId": "9a2fa3b8-d0df-456a-9af2-c92156eaa219",
-      "answerId": "green",
+      "questionId": "9f7fa3c9-3629-4b86-9809-1563af79b7cd",
+      "answerId": "red",
       "text": "",
+      "imageDataUrl": "",
       "submitted": false,
       "question": {
-        "id": "9a2fa3b8-d0df-456a-9af2-c92156eaa219",
-        "text": "What would make a terrible name for a superhero?",
+        "id": "9f7fa3c9-3629-4b86-9809-1563af79b7cd",
+        "text": "Placeholder Herd prompt 4?",
+        "namedPlayerNames": [],
         "imageDataUrl": "",
         "author": {
-          "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
-          "name": "Player 3",
+          "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
+          "name": "Player 4",
           "avatarId": "frog",
           "avatarImageDataUrl": ""
         }
       },
       "answerAuthor": {
-        "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
+        "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
+        "name": "Player 1",
+        "avatarId": "frog",
+        "avatarImageDataUrl": ""
+      }
+    },
+    {
+      "questionId": "9f7fa3c9-3629-4b86-9809-1563af79b7cd",
+      "answerId": "blue",
+      "text": "",
+      "imageDataUrl": "",
+      "submitted": false,
+      "question": {
+        "id": "9f7fa3c9-3629-4b86-9809-1563af79b7cd",
+        "text": "Placeholder Herd prompt 4?",
+        "namedPlayerNames": [],
+        "imageDataUrl": "",
+        "author": {
+          "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
+          "name": "Player 4",
+          "avatarId": "frog",
+          "avatarImageDataUrl": ""
+        }
+      },
+      "answerAuthor": {
+        "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
+        "name": "Player 4",
+        "avatarId": "frog",
+        "avatarImageDataUrl": ""
+      }
+    },
+    {
+      "questionId": "9f7fa3c9-3629-4b86-9809-1563af79b7cd",
+      "answerId": "yellow",
+      "text": "",
+      "imageDataUrl": "",
+      "submitted": false,
+      "question": {
+        "id": "9f7fa3c9-3629-4b86-9809-1563af79b7cd",
+        "text": "Placeholder Herd prompt 4?",
+        "namedPlayerNames": [],
+        "imageDataUrl": "",
+        "author": {
+          "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
+          "name": "Player 4",
+          "avatarId": "frog",
+          "avatarImageDataUrl": ""
+        }
+      },
+      "answerAuthor": {
+        "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
         "name": "Player 2",
+        "avatarId": "frog",
+        "avatarImageDataUrl": ""
+      }
+    },
+    {
+      "questionId": "9f7fa3c9-3629-4b86-9809-1563af79b7cd",
+      "answerId": "green",
+      "text": "",
+      "imageDataUrl": "",
+      "submitted": false,
+      "question": {
+        "id": "9f7fa3c9-3629-4b86-9809-1563af79b7cd",
+        "text": "Placeholder Herd prompt 4?",
+        "namedPlayerNames": [],
+        "imageDataUrl": "",
+        "author": {
+          "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
+          "name": "Player 4",
+          "avatarId": "frog",
+          "avatarImageDataUrl": ""
+        }
+      },
+      "answerAuthor": {
+        "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
+        "name": "Player 3",
         "avatarId": "frog",
         "avatarImageDataUrl": ""
       }
@@ -929,7 +839,7 @@
     "players": [
       {
         "player": {
-          "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+          "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
           "name": "Player 1",
           "score": 0,
           "avatarId": "frog",
@@ -937,7 +847,7 @@
           "gahookForm": "monkey",
           "accountLinked": false,
           "customGahookSlot": 0,
-          "customGahookSlots": 1,
+          "customGahookSlots": 2,
           "dashTopScore": 0,
           "dashScore": 0,
           "dashPlayerY": 0,
@@ -964,7 +874,7 @@
           "questionSlotsUsed": 1,
           "kickVotes": 0,
           "isHost": false,
-          "joinedAt": 1789078261396
+          "joinedAt": 1792639933397
         },
         "completed": 0,
         "total": 4,
@@ -972,7 +882,7 @@
       },
       {
         "player": {
-          "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
+          "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
           "name": "Player 2",
           "score": 0,
           "avatarId": "frog",
@@ -980,7 +890,7 @@
           "gahookForm": "monkey",
           "accountLinked": false,
           "customGahookSlot": 0,
-          "customGahookSlots": 1,
+          "customGahookSlots": 2,
           "dashTopScore": 0,
           "dashScore": 0,
           "dashPlayerY": 0,
@@ -1007,7 +917,7 @@
           "questionSlotsUsed": 1,
           "kickVotes": 0,
           "isHost": false,
-          "joinedAt": 1789078261404
+          "joinedAt": 1792639933400
         },
         "completed": 0,
         "total": 4,
@@ -1015,7 +925,7 @@
       },
       {
         "player": {
-          "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+          "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
           "name": "Player 3",
           "score": 0,
           "avatarId": "frog",
@@ -1023,7 +933,7 @@
           "gahookForm": "monkey",
           "accountLinked": false,
           "customGahookSlot": 0,
-          "customGahookSlots": 1,
+          "customGahookSlots": 2,
           "dashTopScore": 0,
           "dashScore": 0,
           "dashPlayerY": 0,
@@ -1050,7 +960,7 @@
           "questionSlotsUsed": 1,
           "kickVotes": 0,
           "isHost": false,
-          "joinedAt": 1789078261418
+          "joinedAt": 1792639933401
         },
         "completed": 0,
         "total": 4,
@@ -1058,7 +968,7 @@
       },
       {
         "player": {
-          "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
+          "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
           "name": "Player 4",
           "score": 0,
           "avatarId": "frog",
@@ -1066,7 +976,7 @@
           "gahookForm": "monkey",
           "accountLinked": false,
           "customGahookSlot": 0,
-          "customGahookSlots": 1,
+          "customGahookSlots": 2,
           "dashTopScore": 0,
           "dashScore": 0,
           "dashPlayerY": 0,
@@ -1093,7 +1003,7 @@
           "questionSlotsUsed": 1,
           "kickVotes": 0,
           "isHost": false,
-          "joinedAt": 1789078261428
+          "joinedAt": 1792639933403
         },
         "completed": 0,
         "total": 4,
@@ -1116,44 +1026,47 @@
     "worst": null
   },
   "lastGameSummary": {
-    "matchId": "2c5a68fd-5c9d-44b8-be44-977f49de2f38",
-    "gameMode": "quiz",
-    "finishedAt": 1789078261858,
+    "matchId": "2c97fdcd-935e-4ac1-b615-91b3164148b2",
+    "gameMode": "majority",
+    "finishedAt": 1792639933571,
     "leaderboard": [
       {
-        "id": "4e458010-e8fd-4c42-8110-a93415ecc5cc",
+        "id": "09d556aa-d547-4fbf-8833-d22f45c8d71e",
         "name": "Player 1",
         "avatarId": "frog",
         "avatarImageDataUrl": "",
-        "score": 999,
+        "score": 4000,
         "rank": 1
       },
       {
-        "id": "c6a27971-f82e-40d1-9b4b-c822d72ce404",
-        "name": "Player 2",
-        "avatarId": "frog",
-        "avatarImageDataUrl": "",
-        "score": 999,
-        "rank": 1
-      },
-      {
-        "id": "8ee57fe0-ee10-4bb5-ac51-36ab6f83f88b",
+        "id": "9c4f62fb-9e98-4b5e-a916-24e82ae8513d",
         "name": "Player 3",
         "avatarId": "frog",
         "avatarImageDataUrl": "",
-        "score": 999,
+        "score": 4000,
         "rank": 1
       },
       {
-        "id": "cde4e188-7f08-452d-81b8-66dc95cb4e11",
+        "id": "266c0319-7dec-4c8a-8cd3-c81ed4a3c763",
+        "name": "Player 2",
+        "avatarId": "frog",
+        "avatarImageDataUrl": "",
+        "score": 0,
+        "rank": 3
+      },
+      {
+        "id": "3208c8d5-86b7-42d2-b184-018ecaab2279",
         "name": "Player 4",
         "avatarId": "frog",
         "avatarImageDataUrl": "",
-        "score": 999,
-        "rank": 1
+        "score": 0,
+        "rank": 3
       }
     ]
   },
+  "hostPresence": null,
+  "hostChange": null,
+  "ownHostReplaced": null,
   "phaseDurations": {
     "reading": 5000,
     "answering": 14000,

@@ -93,3 +93,17 @@ the declared floor but does not do so by default. The gap this record described
 is therefore closed by a PATH shim rather than by a swap, and
 [the working agreement](../../agents/README.md) carries the recipe plus the
 measured reason `npm-24 run` does not achieve it.
+
+## Default runtime 2026-10-22
+
+`node` now resolves to `~/.local/bin/node` -> `~/.local/share/node-v24.22.0-linux-x64/bin/node`,
+version **24.22.0**, with npm 11.19.1; `npm run <script>` hands scripts 24.22.0
+as well. Tyson installed it into `~/.local` on 2026-10-21 at 14:12. The PATH
+shim recorded above is therefore no longer required, and the `npm-24 run` trap
+no longer applies to ordinary work because `npm-24` is no longer needed.
+
+This also clears the reason the Node 24.22 image pin was held back: the
+unmerged commit `1282bce` adds `.node-version` and `.nvmrc` at 24.22.0, which
+was ahead of the laptop's 24.18.0 at the time and now matches it exactly. The
+commit still needs an image rebuild and a full smoke run as its own slice,
+because it changes the digest production builds from.
