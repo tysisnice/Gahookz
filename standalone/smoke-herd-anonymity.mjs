@@ -181,27 +181,55 @@ assert(reveals.length >= 4, "The attacks below need at least four revealed promp
 // the writers in that order, so one reveal gave the whole roster and every
 // later prompt followed from it. Replaying that attack against a real game
 // should now do little better than guessing.
-let predicted = { solved: 0, attempts: 0 };
-{
-  const [first, ...rest] = reveals;
-  const roster = [first.promptAuthorId, ...first.writers];
+/**
+ * Watch one prompt's reveal, read the roster off it the way the old circular
+ * allocator laid it out, then predict every other prompt's writers from it.
+ * Every prompt is tried as the watched one, so the claim is that *no* reveal
+ * predicts the others and one lucky coincidence cannot decide the result.
+ */
+function namedByOldFormula(prompts) {
   let solved = 0;
   let attempts = 0;
-  for (const prompt of rest) {
-    const anchor = roster.indexOf(prompt.promptAuthorId);
-    assert(anchor >= 0, "The implied roster should contain every prompt author");
-    prompt.writers.forEach((writerId, slot) => {
-      attempts += 1;
-      if (roster[(anchor + 1 + slot) % roster.length] === writerId) solved += 1;
-    });
+  for (const watched of prompts) {
+    const roster = [watched.promptAuthorId, ...watched.writers];
+    for (const prompt of prompts) {
+      if (prompt === watched) continue;
+      const anchor = roster.indexOf(prompt.promptAuthorId);
+      assert(anchor >= 0, "The implied roster should contain every prompt author");
+      prompt.writers.forEach((writerId, slot) => {
+        attempts += 1;
+        if (roster[(anchor + 1 + slot) % roster.length] === writerId) solved += 1;
+      });
+    }
   }
-  // The old server solved every attempt. Guessing solves about a fifth of
-  // them, so three quarters is far below a leak and far above chance.
-  assert(
-    solved < attempts * 0.75,
-    "One reveal still predicts later prompts (" + solved + " of " + attempts + " displayed slots named correctly)");
-  predicted = { solved, attempts };
+  return { solved, attempts };
 }
+
+{
+  // An attack that detects nothing would pass quietly, so first hand it a game
+  // the old allocator would have produced: a roster walked circularly from
+  // each prompt's author, displayed in walk order. It must solve every slot.
+  const roster = Array.from({ length: 5 }, (_unused, index) => "legacy-" + index);
+  const asTheOldServerSeatedThem = roster.map((promptAuthorId, index) => ({
+    promptAuthorId,
+    writers: [1, 2, 3, 4].map((step) => roster[(index + step) % roster.length])
+  }));
+  const proof = namedByOldFormula(asTheOldServerSeatedThem);
+  assert.equal(
+    proof.solved,
+    proof.attempts,
+    "This attack no longer recognises the circular allocator it exists to detect");
+}
+
+// In a five-player room the formula names exactly the four writers of the
+// prompt it is attacking, so it is matching one permutation against another
+// and an unbiased seating scores about a quarter. Measured 2026-10-22 over
+// four runs: 17 to 23 of 80. Three quarters sits far above that and far below
+// a leak, which was all 80.
+const predicted = namedByOldFormula(reveals);
+assert(
+  predicted.solved < predicted.attempts * 0.75,
+  "One reveal still predicts the other prompts (" + predicted.solved + " of " + predicted.attempts + " displayed slots named correctly)");
 
 // --- 7. The seating is drawn again for every prompt, not once per game. -----
 // One shuffle for the whole game would move the slots away from the writing

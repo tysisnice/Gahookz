@@ -48,6 +48,10 @@ What else landed:
   game, writers unnamed in every payload until the reveal, the four slots
   complete and in order with stable text, a refresh returning the same prompt and
   the same order to host and player alike, and both attacks replayed over HTTP.
+  The old-formula attack tries every prompt as the watched one (80 predictions,
+  measured 17–25, bound 60, a leak being 80) and first proves itself against a
+  synthetic game the old allocator would have produced, so an attack that had
+  stopped detecting anything fails instead of passing quietly.
 - `ownHerdAssignments` and `herdAnswerReview` described in the contract rather
   than tolerated (58 → 56), with the rule also pinned on hand-built payloads.
 

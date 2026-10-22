@@ -157,7 +157,7 @@ order on every prompt.
 | Command | Result |
 | --- | --- |
 | `npm run check` | 279 unit tests pass (up from 266), strict typecheck, build `release-70d7efeeafd8d804` |
-| `npm test` (full chain) | exit 0, with `Herd anonymity smoke passed: 5 prompts played, writers unnamed until the reveal, 3 of 16 slots named by replaying the old formula, 18 of 30 shared writer pairs reseated` |
+| `npm test` (full chain) | exit 0, with `Herd anonymity smoke passed: 5 prompts played, writers unnamed until the reveal, 25 of 80 slots named by replaying the old formula, 12 of 30 shared writer pairs reseated` |
 | `npm run standalone:smoke:contract-drift` | passed; 76 snapshot fields still all accounted for, corpus matches the server |
 | `npm run docs:check` | passed |
 
@@ -180,6 +180,13 @@ containers were not touched.
   three quarters of slots named; at least one reseated pair, against a floor of
   two measured over 2000 seeded games), but they are not a statistical study —
   that is what the engine fixtures are for.
+- The old-formula attack tries **every** prompt as the one the attacker
+  watched, not just the first, which is both a stronger claim and a far steadier
+  measurement: 80 predictions per game instead of 16, measured at 17 to 25
+  across runs against a bound of 60 and a leak of 80. The attack also hands
+  itself a synthetic game laid out by the old circular allocator and asserts it
+  solves all 80, so an attack that had stopped detecting anything would fail
+  rather than pass quietly.
 - `smoke-herd-anonymity` proves a refresh returns the same prompt, the same
   round number and the same answers in the same order, and that a player's
   fetch matches the host's. It does not enumerate the whole remaining question
