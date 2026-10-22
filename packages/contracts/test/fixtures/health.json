@@ -2,13 +2,22 @@
   "schemaVersion": 1,
   "ok": true,
   "serverTime": 1788000000000,
-  "release": "release-0f4d9ee3c045904a",
-  "builtAt": "2026-09-09T13:03:52.815Z",
-  "revision": "7ce65d0d4867",
+  "release": "development",
+  "builtAt": "",
+  "revision": "unknown",
   "serverBuiltAt": "",
-  "instance": "3f1cd0a8208b",
+  "instance": "disposable-review",
   "draining": false,
   "activeRooms": 0,
+  "careerResults": {
+    "queued": 0,
+    "delivered": 0,
+    "exhausted": 0,
+    "corruptLines": 0,
+    "pendingBytes": 0,
+    "journalBytes": 0,
+    "journalErrors": 0
+  },
   "accountPersistence": "memory",
   "googleLoginAvailable": false
 }

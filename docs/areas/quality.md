@@ -26,17 +26,17 @@ bubble covered a player banner) were invisible to unit tests.
 | --- | --- |
 | `package.json` scripts | Every entry point below |
 | `standalone/test-disposable.mjs` | The wrapper that owns the one disposable server |
-| `standalone/smoke-*.mjs` (26 files) | Stateful HTTP smoke scripts and source-text checks |
+| `standalone/smoke-*.mjs` (31 files) | Stateful HTTP smoke scripts and source-text checks |
 | `standalone/smoke-policy.mjs` | Pure rules about the smoke suite itself (no production-port defaults, skip conflict copies) |
 | `standalone/simulate-games.mjs`, `simulate-room-flows.mjs` | Engine replay; whole games over HTTP |
-| `standalone/browser-*.mjs` (6 files) | Real Chromium via Puppeteer |
+| `standalone/browser-*.mjs` (9 files) | Real Chromium via Puppeteer |
 | `standalone/load-harness.mjs`, `load-gahook-storm.mjs` | Load measurement as a client |
 | `standalone/drill-resilience.mjs` | Local failure drills |
 | `standalone/drill-dev-restart.mjs` | Proves the development watcher replaces a killed server |
 | `standalone/capture-fixtures.mjs`, `packages/contracts/test/fixtures/` | Synthetic snapshot fixtures |
 | `standalone/verify-postgres-outbox.mjs`, `verify-journal-volume.mjs` | Docker-based checks owned with accounts; never part of `npm test` |
 | `standalone/render-audio-samples.mjs` | Renders sounds for listening (`npm run audio:samples`) |
-| `packages/*/test`, `standalone/server/*.test.mjs`, `standalone/*.test.mjs`, `standalone/public/client/*.test.ts` | 27 unit-test files |
+| `packages/*/test`, `standalone/server/*.test.mjs`, `standalone/*.test.mjs`, `standalone/public/client/*.test.ts` | 34 unit-test files |
 | `docs/verification/` | Evidence records |
 
 ## How it works
@@ -74,10 +74,11 @@ it. Never start a server by hand, and never `pkill` by pattern.
 
 | Harness | Proves | Does not prove |
 | --- | --- | --- |
-| `test:unit` (27 files) | Pure logic: scoring, game engine phases and replay, Herd engine, contracts and fixtures, admission buckets, route-policy coverage, host-presence decisions, backpressure, transport, career outbox, accounts helpers, content catalogue, music, back-stack, `net.ts` | Anything involving a live server or browser |
+| `test:unit` (34 files) | Pure logic: scoring, game engine phases and replay, Herd engine, contracts and fixtures, admission buckets, route-policy coverage, host-presence decisions, backpressure, transport, career outbox, accounts helpers, content catalogue, music, back-stack, `net.ts` | Anything involving a live server or browser |
 | `typecheck` | Strict TypeScript for contracts, server and web `.ts` | `.jsx` is outside strict TypeScript |
 | `build` | Every `.jsx` parses and bundles | That the screen renders or behaves |
 | Server smoke (`smoke-security`, `roles`, `regressions`, `host-controls`, `room-rules`, `round-presets`, `mode-settings`, `majority-flow`, `herd-flow`, `arena-lifecycle`, `social-media`, `gahooks`, `finals`, `dash`, ...) | Real HTTP behaviour against a real server: access control, headers, snapshots, host controls through every phase, scoring, room rules, chat and media limits | Layout, animation, or anything a browser does |
+| `smoke-contract-drift` | Real responses against the contracts: every snapshot the server produces, in every phase of all three modes, satisfies the schema for *that* phase; no field arrives that the contract neither describes nor tolerates; the committed fixture corpus has not drifted from the live shape in either direction ([record](../verification/2026-10-22-contract-phase-payloads/README.md)) | Runtime enforcement — nothing validates in the browser yet (P01 step 6) |
 | `smoke-privacy-contract` | The authority and privacy contract as negative cases: every host route refused for a player, a stranger, no credential and a player claiming `role: "host"`; the `role` string granting nothing; a writer's answer absent from every other viewer's payload before the reveal and present at it; one real SSE frame filtered like the snapshot ([record](../verification/2026-10-21-privacy-moderation-contract/README.md)) | Runtime schema validation; anonymity against recognising someone's writing |
 | `smoke-room-expiry` | Room expiry, the abandon grace, host-away promotion after (not before) the grace, host return cancelling it; spawns its own server on 3199 | Behaviour across a real restart |
 | Source-text smoke (`smoke-layout`, `onboarding`, `party-view`, `information`, `pwa`, `deployment`, parts of `desktop-ui`, `finals`, `gahooks`, `dash`, `social-creation`, `herd-flow`) | Structural rules written down: breakpoints exist, copy and controls are declared, shell references share one release, no production-port default, container hardening | That the thing works. See below. |

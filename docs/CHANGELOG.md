@@ -51,6 +51,20 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
   them; a connected writer who has not finished still holds the room.
 
 ### Developer
+
+- **2026-10-22 — the public snapshot is described per phase.** `PublicSnapshotSchema`
+  discriminates on `phase`, pinning when answers are listed, when their text is
+  filled in and when the key, the Herd authors and the author points appear, plus
+  the rules a game was locked into, the Quiz key versus the Majority prediction,
+  and tie reasons that may not explain themselves untruthfully.
+- **2026-10-22 — the fixture corpus is evidence again.** It had drifted fifteen
+  server fields behind, claimed a building phase it never captured, recorded the
+  host's own view as a spectator's, and contained no authored question at all.
+  Captures now play real games through all three modes, every fixture is checked
+  against the phase and role its name claims, and the new `smoke-contract-drift`
+  suite notices drift from the live server in either direction.
+- **2026-10-22 — Node 24.22.0 is the default runtime** on the laptop; the PATH
+  shim the agent guide described is no longer needed.
 - The role and phase privacy contract is executable instead of described:
   `standalone/smoke-privacy-contract.mjs` (in the shared smoke chain) refuses
   every one of the twenty `/api/host/*` routes for an ordinary player, a
