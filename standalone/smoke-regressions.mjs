@@ -123,8 +123,12 @@ async function runExactRoomLookupSmoke() {
 
   const originalState = await state(roomCode, "host", hostKey);
   assert(originalState.data.maxQuestionsPerPlayer === 3, "A wrong-room action must not mutate the active room");
-  assert(app.includes('sessionStorage.setItem(roomPasswordKey(cleanCode), password)'), "Room passwords should only persist for the current browser tab");
-  assert(!app.includes('localStorage.setItem(roomPasswordKey(cleanCode), password)'), "Room passwords must not be durably stored in localStorage");
+  // Storage itself lives in client/session.ts, which is handed a store rather
+  // than choosing one; smoke-security owns the rule that nothing else may name
+  // these keys. What stays here is the regression: a room password belongs to
+  // the tab it was typed in.
+  assert(app.includes("writeRoomPassword(tabStore, code, password)"), "Room passwords should only persist for the current browser tab");
+  assert(!/writeRoomPassword\(\s*localStore/.test(app), "Room passwords must not be durably stored in localStorage");
   assert(app.includes("navigateTo(buildWelcomePath(code))"), "Missing rooms should navigate to a code-only prefilled welcome URL");
   // A code from the URL always wins, so a player sent back from a room that no
   // longer exists keeps the code they followed. /host, which asks to make a

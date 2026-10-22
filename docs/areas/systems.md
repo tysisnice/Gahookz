@@ -46,6 +46,7 @@ rule below follows from that.
 | SSE slow-reader eviction | `standalone/server/sse-backpressure.mjs` |
 | Reports (`addReport`, `resolveReport`) | `standalone/server/social.mjs` (social owns the file) |
 | Browser network boundary | `standalone/public/client/net.ts` (shared with ui-shell) |
+| Browser device storage: credential, saved join, room password, legacy `?pwd=` links | `standalone/public/client/session.ts` (shared with ui-shell) |
 | Browser host-presence notices | `standalone/public/client/host-presence.jsx` |
 | Snapshot fields `hostPresence`, `hostChange`, `ownHostReplaced` | `packages/contracts/src/schemas.ts` |
 

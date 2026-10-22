@@ -183,8 +183,24 @@ const [appEntry, server, ...clientSources] = await Promise.all([
 ]);
 const app = [appEntry, ...clientSources].join("\n");
 
-assert(app.includes("sessionStorage.setItem(roomPasswordKey(cleanCode), password)"), "Room passwords must be tab-scoped");
-assert(!app.includes("localStorage.setItem(roomPasswordKey(cleanCode), password)"), "Room passwords must not be durably stored");
+// Device storage lives in client/session.ts, which never reaches for a store
+// itself: it is handed one, so which store a value lands in is decided here,
+// in daylight, rather than inside a helper.
+const sessionSource = clientSources[clientSourceNames.indexOf("session.ts")] || "";
+assert(sessionSource, "client/session.ts must exist: it owns this device's credentials");
+const sessionCode = sessionSource.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+assert(!/\b(localStorage|sessionStorage)\b/.test(sessionCode), "client/session.ts must take a store, not pick one");
+assert(app.includes("const tabStore = () => sessionStorage;") && app.includes("writeRoomPassword(tabStore, code, password)"),
+  "Room passwords must be tab-scoped");
+assert(!/writeRoomPassword\(\s*localStore/.test(app) && !/localStorage\.setItem\(\s*roomPasswordKey/.test(app),
+  "Room passwords must not be durably stored");
+// One module owns these keys; a second writer is how a credential ends up
+// somewhere nobody is checking.
+for (const key of ["gahookz-client-key", "gahookz-last-join", "gahookz-room-password-"]) {
+  const owners = clientSourceNames.filter((name, index) => name !== "session.ts" && clientSources[index].includes(key));
+  assert(!appEntry.includes(key) && owners.length === 0,
+    "Only client/session.ts may name " + key + " (also in: " + [...owners, ...(appEntry.includes(key) ? ["app.jsx"] : [])].join(", ") + ")");
+}
 assert(app.includes("/api/events/ticket"), "The client must exchange credentials for an opaque event ticket");
 assert(app.includes("\"/events?ticket=\""), "The event stream URL must begin with the opaque ticket");
 for (const secret of ["playerKey", "password", "hostKey"]) {
