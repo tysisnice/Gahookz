@@ -1,6 +1,98 @@
 # Handoff — state of the project
 
-## Current checkpoint — executor session, 2026-10-23 (session storage)
+## Current checkpoint — executor session, 2026-10-23 (player media)
+
+**Current.** Roadmap section 2, **item 2's remaining half** on branch
+`agent/player-media` (worktree `Projects/gahookz/worktrees/player-media`):
+player media across every moderation surface
+([record](verification/2026-10-23-player-media/README.md)). The identity half
+closed on 2026-10-21; this is the media.
+
+A room copies a player's uploaded picture into about a dozen places — their
+card, the hidden slot that holds it while custom profiles are off, both
+custom-Gahook slots, a Gahook still playing on someone else's card, the author
+badge on every question and Herd answer, a chat message, the ban record, the
+GET GOT banner and the results screen. Two walks need that list: the pruner
+decides what to **keep**, moderation decides what to **clear**. They were
+written out separately — the pruner in `server/media.mjs`, three clear lists
+inline in `server.js` — and had drifted in both directions. Measured over HTTP
+before anything was changed:
+
+- **Kicking somebody over their picture broadcast the picture.** The ban record
+  kept it, the pruner retained it *on purpose*, and `bannedPlayers` is in every
+  snapshot — host, other players and an unauthenticated guest all got the URL,
+  and the host screen, the one the whole room watches, printed it in a panel
+  that stays. The bytes went on being served. Their whiteboard marks stayed
+  too: the kick removed their chat and never their strokes.
+- **"Randomize name & pfp" left both.** It cleared the visible avatar and three
+  question collections, and missed the saved bank, every Herd answer, the chat
+  message still under the old name and picture, the results screen, and the
+  hidden copy — from which switching custom profiles off and on again
+  **restored** the picture the host had just removed.
+- **A replaced picture was never collected.** `updatePlayerProfile` had no
+  prune at all: one player changed their picture twelve times and all twelve
+  stayed stored and served.
+- **And the drift ran the other way.** The results screen and the GET GOT
+  banner were displayed but not retained, so the pruner was free to delete what
+  the room was showing.
+
+`server/player-media.mjs` now enumerates the surfaces once — each site declares
+its owner, its kind (`avatar`, `upload`, `drawing`) and how to read, clear and
+rename it — and the pruner, kick, randomize, remove-content and the profile
+update all walk that one list. `bannedPlayers` moves from tolerated to
+described in the contract (58 → 57) with its uploaded picture pinned empty.
+
+The contrast worth keeping: `remove-content kind=player-media`, the dedicated
+control, was already correct. That is what makes the other three defects rather
+than design choices, and the smoke suite's fifth block passes against `main`
+for exactly that reason.
+
+Verified on **Node 24.22.0**: `npm run check` (320/320 unit, up from 308;
+strict TypeScript; build `release-535ce45117f717de`), the full `npm test` chain
+exit 0 across 36 scripts including the new `standalone:smoke:player-media`, the
+new `npm run test:browser:player-media` (7 checks), `npm run test:browser` (18
+checks) and `docs:check` (113 files). Thirteen mutations, 13 caught — **M9
+missed on the first pass** because the ban record's emptiness had two owners,
+and was fixed by giving the rule one owner rather than by weakening the test.
+Both new suites fail against `main`.
+
+**Next.** Roadmap section 2 is now clear of item 2, and nothing below needs an
+owner decision:
+
+1. **Section 3's characterized Gahook extraction** — the largest remaining
+   maintainability move, and the one the roadmap names next.
+2. P01 steps 4 and 7 remain open: staged schema migration, and per-endpoint
+   request validation.
+3. Section 2's P08 (shared-NAT connections, tab-suspension storms, bounded
+   stream cleanup) and P07 (the non-root read-only journal-volume proof) are
+   both untouched and both bounded.
+
+**Limits — and what needs Tyson.**
+
+- **Nothing was deployed.** Production is still `74a489949e02`. This slice
+  changes what a host's moderation actually removes, which is the sort of thing
+  worth having live; a deploy is a separate current-chat approval.
+- **Moderation cannot reach a phone's cache.** `/media/` assets are served
+  immutable with a long lifetime, so a player who already loaded a picture
+  keeps their copy. What changed is that the room stops serving and stops
+  showing it.
+- **No rate limit on profile uploads.** Collecting replaced pictures bounds
+  what a room *stores*; it does not bound how often a guest may upload. Nothing
+  observed needed one, and limiting a guest action is your call.
+- **The banned list still reaches every client**, guests included. It no longer
+  carries media; whether a guest should learn who was removed is a privacy-
+  contract question, not a media one.
+- **`CLAUDE.md` is still unmerged.** `84a8032` on `coordinator/audit-20261021`
+  adds the coordination links; the file is protected, so it stays for you. No
+  work depends on it.
+- **The Node 24.22 image pin is still waiting on you.** `1282bce` is unblocked,
+  but it changes the digest production builds from, so it wants a rebuild plus
+  a full smoke run as its own slice.
+- Still open from before: whether the shared screen should show the *text* of
+  unvoted Herd answers, the welcome-screen guides link, whether a host may
+  censor a live prompt mid-round, and real-iPhone private-browsing evidence.
+
+## Earlier checkpoint — executor session, 2026-10-23 (session storage)
 
 **Current.** The other half of **P01 step 6** on branch
 `agent/session-storage` (worktree `Projects/gahookz/worktrees/session-storage`):

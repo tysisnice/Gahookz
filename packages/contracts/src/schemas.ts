@@ -114,6 +114,23 @@ export const OwnHostReplacedSchema = z.object({
   at: UnixMillisecondsSchema
 }).strict();
 
+/**
+ * A removed player, as the whole room sees them: this list goes to every
+ * client, and the host screen prints it in a panel beside the lobby.
+ *
+ * `avatarImageDataUrl` is pinned empty. A host who removes somebody over
+ * their profile picture must not have that picture promoted to a permanent
+ * panel on the shared screen, so the ban record keeps a name and one of the
+ * built-in avatars and never the upload.
+ */
+export const BannedPlayerSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  avatarId: z.string(),
+  avatarImageDataUrl: z.literal(""),
+  kickedAt: UnixMillisecondsSchema
+}).strict();
+
 export const PublicSnapshotBaseSchema = z.object({
   schemaVersion: z.literal(SNAPSHOT_SCHEMA_VERSION).optional(),
   code: RoomCodeSchema,
@@ -133,7 +150,8 @@ export const PublicSnapshotBaseSchema = z.object({
   // Optional so snapshots captured before host presence existed stay valid.
   hostPresence: HostPresenceSchema.nullable().optional(),
   hostChange: HostChangeSchema.nullable().optional(),
-  ownHostReplaced: OwnHostReplacedSchema.nullable().optional()
+  ownHostReplaced: OwnHostReplacedSchema.nullable().optional(),
+  bannedPlayers: z.array(BannedPlayerSchema)
 }).passthrough();
 
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
@@ -464,7 +482,7 @@ export const DESCRIBED_SNAPSHOT_KEYS: readonly string[] = Object.freeze(
  */
 export const TOLERATED_SNAPSHOT_KEYS: readonly string[] = Object.freeze([
   "activePlayerCount", "allowCustomGahooks", "allowCustomProfiles", "answerCount",
-  "answerSelections", "approveQuestions", "availableQuestionCount", "bannedPlayers",
+  "answerSelections", "approveQuestions", "availableQuestionCount",
   "canStart", "chatMessages", "currentQuestionIndex", "customGahookOptions",
   "estimatedDurationMs", "gahookDuel", "gahookEffects", "gahookStealPoints",
   "getGotPenaltyPoints", "hasPassword", "herdPreparation",

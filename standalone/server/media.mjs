@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { allRoomQuestions } from "./content-inventory.mjs";
+import { retainedPlayerMedia } from "./player-media.mjs";
 import { MAX_ROOM_ASSET_CHARS } from "./room.mjs";
 
 const DATA_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,([a-z0-9+/=]+)$/i;
@@ -47,33 +47,16 @@ export function roomAssetDataUrl(room, value, expectedType = "") {
 export function pruneRoomMedia(room) {
   initialiseRoomMedia(room);
   const retained = new Set();
-  const retain = (value) => {
+  // The list of places a room keeps a picture lives in player-media.mjs, so
+  // that what the pruner keeps and what moderation clears are two walks of one
+  // list. They used to be written out separately and had drifted apart in both
+  // directions: the end-of-game summary and a room-wide Gahook's target were
+  // displayed but not retained, while a kicked player's picture was retained
+  // and re-broadcast to everyone.
+  for (const value of retainedPlayerMedia(room)) {
     const match = String(value || "").match(/^\/media\/([a-z]{4})\/([a-f0-9]{32})$/i);
     if (match && match[1].toUpperCase() === room.code) retained.add(match[2].toLowerCase());
-  };
-  const retainCustomGahook = (value) => {
-    (Array.isArray(value?.frames) ? value.frames : []).forEach(retain);
-    retain(value?.customAudioDataUrl);
-  };
-  Object.values(room.players || {}).forEach((player) => {
-    retain(player.avatarImageDataUrl);
-    retain(player.hiddenAvatarImageDataUrl);
-    retainCustomGahook(player.customGahook);
-    // Both local slots hold media, not just the active one. Pruning only the
-    // active slot deleted the other slot's frames the moment a player switched.
-    (Array.isArray(player.customGahookBySlot) ? player.customGahookBySlot : []).forEach(retainCustomGahook);
-    retainCustomGahook(player.latestPoke?.customGahook);
-  });
-  Object.values(room.bannedPlayers || {}).forEach((player) => retain(player.avatarImageDataUrl));
-  allRoomQuestions(room).forEach((question) => {
-    retain(question.imageDataUrl);
-    retain(question.authorAvatarImageDataUrl);
-    // Herd answers can carry an image of their own.
-    (question.answers || []).forEach((answer) => retain(answer.imageDataUrl));
-  });
-  Object.values(room.game?.answers || {}).forEach((answer) => retain(answer.imageDataUrl));
-  (room.chatMessages || []).forEach((message) => retain(message.senderAvatarImageDataUrl));
-  retainCustomGahook(room.latestRoomPoke?.customGahook);
+  }
   for (const [id, asset] of room.media.entries()) {
     if (retained.has(id)) continue;
     room.media.delete(id);

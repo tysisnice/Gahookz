@@ -61,6 +61,28 @@ Work these as bounded vertical slices; keep one active implementation goal plus 
     payload.
   - **2026-10-22:** the payload those rules produce is now described per phase. `PublicSnapshotSchema` discriminates on `phase` and pins the three gates `publicQuestion` implements (answers listed from `reading`, text filled from `answering`, key and authors only at `reveal`), plus locked game rules, the question key/prediction distinction and truthful tie reasons; `smoke-contract-drift` validates real responses live. The fixture corpus had stopped being evidence — fifteen server fields no fixture contained, `building.*` captured in the lobby, `lobby.spectator` captured as the host, no authored question anywhere — and all of that is repaired and now guarded ([record](verification/2026-10-22-contract-phase-payloads/README.md)). Still open: 58 of 76 snapshot fields are listed as tolerated rather than described, and nothing validates at runtime (P01 step 6).
 - [ ] Finish the moderation path for player media and verify exact question/answer identity end to end. Preserve the current honest `stillInPlay`/Skip behaviour for live prompts; do not silently change it.
+  - **2026-10-23 (player media):** the half that was still open, and the
+    findings are in the host's own controls. A room copies an uploaded picture
+    into about a dozen places; the pruner walked one list to decide what to
+    **keep** and three handlers walked their own lists to decide what to
+    **clear**, and they had drifted both ways. Kicking somebody over their
+    picture *broadcast* it — the ban record kept it, the pruner retained it on
+    purpose, every client including an unauthenticated guest received it, and
+    the host screen printed it in a panel that stays; their whiteboard marks
+    stayed too. "Randomize name & pfp" left the picture in chat, on Herd
+    answers, in the saved question bank, on the results screen and in the
+    hidden slot — from which a later settings toggle **restored** it. A
+    replaced picture was never collected: twelve uploads from one player, all
+    twelve still served. Meanwhile the results screen and the GET GOT banner
+    were displayed but not retained, so the pruner was free to delete what the
+    room was showing. All of it now comes from one enumeration in
+    `server/player-media.mjs`, walked once by the pruner and once by
+    moderation, with thirteen mutations and both new suites proved against
+    `main` ([record](verification/2026-10-23-player-media/README.md)). The
+    contrast that makes these defects: `remove-content kind=player-media`, the
+    dedicated control, was already correct. Still open in this item: nothing
+    engineering-side; the owner's choice on whether a moderated live prompt
+    should disappear at once is unchanged.
   - **2026-10-22 (Herd anonymity, P02 steps 1, 2 and 4):** the engine already drew an independent displayed-slot permutation per prompt; what was missing was any proof the **server** spent it, and a measurement of what the attacks are worth. The slot-building step is now a named, tested module that takes identity from `displayIndex` and refuses an impossible slot, the two attack fixtures are bounded against measured chance instead of a round number, and `smoke-herd-anonymity` plays a real five-player game and attacks it over HTTP. Found and fixed on the way: the **shared screen named every writer before the vote**, two lines below its own promise that answers stay anonymous — a step 3 list that the October 21 audit had checked only for non-host access ([record](verification/2026-10-22-herd-anonymity/README.md)). Still open: whether the shared screen should show unvoted answer text at all is Tyson's call, not a defect.
   - **2026-10-21:** identity is covered end to end by `smoke-herd-flow` (an answer id alone is refused because a colour is shared by every prompt, the same colour on another prompt survives a removal, an in-play question answers `stillInPlay` with the Skip notice), and every `/api/host/*` moderation route is now proven to refuse non-hosts. The host's own review payload repeated a key; that is removed ([record](verification/2026-10-21-privacy-moderation-contract/README.md)). Still open: player media across every moderation surface, and the owner's choice on whether a moderated live prompt should disappear at once.
 - [ ] Measure realistic shared-NAT 20-player connections, tab suspension/reconnect storms and bounded stream cleanup/RSS (P08). Record p50/p95 and refusals; use disposable services, not production.

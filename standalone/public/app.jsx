@@ -598,7 +598,10 @@ function reducer(state = { connected: false, connectionError: "", error: "", lob
         players: state.lobby.players.filter((player) => player.id !== kickedPlayer.id),
         leaderboard: state.lobby.leaderboard.filter((player) => player.id !== kickedPlayer.id),
         answerSelections: state.lobby.answerSelections.filter((selection) => selection.playerId !== kickedPlayer.id),
-        bannedPlayers: [{ ...kickedPlayer, kickedAt: Date.now() }, ...state.lobby.bannedPlayers.filter((player) => player.id !== kickedPlayer.id)],
+        // Without dropping the upload here the host pressed Kick on a picture
+        // and watched it reappear in the banned panel until the next snapshot.
+        // The server never stores it, so the optimistic row must not either.
+        bannedPlayers: [{ ...kickedPlayer, avatarImageDataUrl: "", kickedAt: Date.now() }, ...state.lobby.bannedPlayers.filter((player) => player.id !== kickedPlayer.id)],
         activePlayerCount: Math.max(0, state.lobby.activePlayerCount - (kickedPlayer.connected ? 1 : 0))
       }
     };

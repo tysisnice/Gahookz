@@ -69,7 +69,7 @@
     "clean:generated": "node standalone/clean-generated.mjs",
     "drill:resilience": "node standalone/drill-resilience.mjs",
     "drill:dev-restart": "node standalone/drill-dev-restart.mjs",
-    "standalone:smoke:shared": "npm run standalone:smoke:security && npm run standalone:smoke:privacy-contract && npm run standalone:smoke:contract-drift && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:herd-anonymity && npm run standalone:smoke:host-controls && npm run standalone:smoke:host-poke-claim && npm run standalone:smoke:desktop-ui && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment && npm run standalone:smoke:review-repairs",
+    "standalone:smoke:shared": "npm run standalone:smoke:security && npm run standalone:smoke:privacy-contract && npm run standalone:smoke:contract-drift && npm run standalone:smoke:mode-settings && npm run standalone:smoke:room-rules && npm run standalone:smoke:majority-scoring && npm run standalone:smoke:majority-flow && npm run standalone:smoke:herd-flow && npm run standalone:smoke:herd-anonymity && npm run standalone:smoke:player-media && npm run standalone:smoke:host-controls && npm run standalone:smoke:host-poke-claim && npm run standalone:smoke:desktop-ui && npm run standalone:smoke:round-presets && npm run standalone:smoke:onboarding && npm run standalone:smoke:gahooks && npm run standalone:smoke:arena && npm run standalone:smoke:roles && npm run standalone:smoke:layout && npm run standalone:smoke:finals && npm run standalone:smoke:party-view && npm run standalone:smoke:regressions && npm run standalone:smoke:pwa && npm run standalone:smoke:information && npm run standalone:smoke:dash && npm run standalone:smoke:social-media && npm run standalone:smoke:social-creation && npm run standalone:smoke:prompts && npm run standalone:smoke:deployment && npm run standalone:smoke:review-repairs",
     "standalone:smoke:review-repairs": "node --import tsx standalone/smoke-review-repairs.mjs",
     "test:disposable": "node standalone/test-disposable.mjs",
     "standalone:smoke:host-controls": "node standalone/smoke-host-controls.mjs",
@@ -78,7 +78,9 @@
     "docs:check": "node scripts/check-docs.mjs",
     "icons:render": "node scripts/render-icons.mjs",
     "audio:samples": "node standalone/render-audio-samples.mjs",
-    "test:browser:audio": "node standalone/browser-audio-cues.mjs"
+    "test:browser:audio": "node standalone/browser-audio-cues.mjs",
+    "standalone:smoke:player-media": "node standalone/smoke-player-media.mjs",
+    "test:browser:player-media": "node standalone/browser-player-media.mjs"
   },
   "engines": {
     "node": ">=24.0.0"

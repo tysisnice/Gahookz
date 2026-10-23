@@ -49,6 +49,7 @@ import {
   instantiateTemplate
 } from "../packages/content/src/index.ts";
 import { initialiseRoomMedia, pruneRoomMedia, roomAssetDataUrl, serveRoomMedia, storeRoomImage } from "./server/media.mjs";
+import { AVATAR, clearPlayerMedia, renamePlayerEverywhere } from "./server/player-media.mjs";
 import { allRoomQuestions, removeStoredQuestions } from "./server/content-inventory.mjs";
 import { presentPlayer } from "./server/presentation.mjs";
 import { chooseHostSuccessor, hostAwayState, isPromotionDue, publicHostChange, publicHostPresence, publicOwnHostReplaced, resolveRoomAbandonGraceMs, sameCredential } from "./server/host-presence.mjs";
@@ -2342,6 +2343,11 @@ function updatePlayerProfile(room, payload, context = {}) {
     question.authorAvatarImageDataUrl = avatarImageDataUrl;
   });
 
+  // Without this the picture they just replaced stayed stored and served at
+  // its own URL, so a player asked to change an unacceptable one could do so
+  // while the old one remained fetchable, and a room filled its media budget
+  // with pictures nobody was looking at.
+  pruneRoomMedia(room);
   broadcastState(room, { immediate: true });
   accountRoom.rememberProfile(room, player, context.account);
   return { ok: true, player: publicPlayer(room, player) };
@@ -2824,6 +2830,14 @@ function kickPlayer(room, payload, options = {}) {
   0;
 
   const kickedCredential = getCredentialForPlayer(room, playerId);
+  // The banned list is shown back to the room -- the host screen prints it in
+  // a panel beside the lobby -- so keeping the upload here promoted the very
+  // picture somebody was removed for to a permanent fixture of the shared
+  // screen. The record is built from the player like every other copy of
+  // their media, and the clear below is the single place that decides what a
+  // removed player leaves behind. Blanking the field here as well would mean
+  // the rule had two owners and therefore none: either could be deleted while
+  // the other quietly held the line, which is how it stopped being tested.
   room.bannedPlayers[playerId] = {
     id: kickedPlayer.id,
     name: kickedPlayer.name,
@@ -2832,6 +2846,8 @@ function kickPlayer(room, payload, options = {}) {
     kickedAt: Date.now(),
     credential: kickedCredential
   };
+  // Everything they uploaded goes with them, wherever the room copied it.
+  clearPlayerMedia(room, playerId);
   clearUltimateGahookState(kickedPlayer);
   clearUltimateCongratulationsState(kickedPlayer, true);
   handleGahookDuelDisconnect(room, playerId);
@@ -2916,29 +2932,14 @@ function removeContent(room, payload) {
   if (kind === "player-media") {
     const player = resolvePlayer(room, targetId);
     if (!player) return { ok: false, error: "Choose a player." };
-    player.avatarImageDataUrl = "";
-    player.hiddenAvatarImageDataUrl = "";
     player.hiddenGahookForm = "";
     player.gahookForm = "monkey";
-    allRoomQuestions(room).forEach((question) => {
-      if (question.authorId === player.id) {
-        question.authorAvatarImageDataUrl = "";
-        question.imageDataUrl = "";
-      }
-      (question.answers || []).forEach((answer) => {
-        if (answer.authorId === player.id) {
-          answer.authorAvatarImageDataUrl = "";
-          answer.imageDataUrl = "";
-        }
-      });
-    });
-    player.customGahook = null;
-    // Moderation removes this player's media, so both slots go, not just the
-    // one they happen to have selected.
-    player.customGahookBySlot = [];
-    player.latestPoke = null;
+    // Every surface at once, from the one list in player-media.mjs: the
+    // picture and its hidden copy, both custom Gahook slots, any Gahook of
+    // theirs still playing on somebody else's card, question and answer
+    // images, the results screen and the whiteboard.
+    clearPlayerMedia(room, player.id);
     const chatRemoved = removeChatMessagesForPlayer(room, player.id);
-    clearWhiteboardForPlayer(room, player.id);
     pruneRoomMedia(room);
     broadcastState(room, { immediate: true });
     return { ok: true, player: publicPlayer(room, player), chatRemoved };
@@ -3028,18 +3029,14 @@ function randomizePlayerIdentity(room, payload) {
   const nameChoices = SAFE_PLAYER_NAMES.filter((name) => name !== player.name);
   const nextAvatar = avatarChoices[crypto.randomInt(0, avatarChoices.length)];
   const nextName = nameChoices[crypto.randomInt(0, nameChoices.length)];
-  player.name = nextName;
-  player.avatarId = nextAvatar;
-  player.avatarImageDataUrl = "";
-  [room.questions, room.pendingQuestions, room.quizQuestions].forEach((questions) => {
-    questions.forEach((question) => {
-      if (question.authorId === player.id) {
-        question.authorName = nextName;
-        question.authorAvatarId = nextAvatar;
-        question.authorAvatarImageDataUrl = "";
-      }
-    });
-  });
+  // The button says "Randomize name & pfp", so both are replaced everywhere the
+  // room copied them -- chat, prompts somebody is about to read aloud, Herd
+  // answers, the results screen -- and not just on the player's own card. What
+  // they wrote stays: this control changes who someone appears to be, and
+  // "Remove player media" is the one that takes their content away.
+  clearPlayerMedia(room, player.id, { kinds: [AVATAR] });
+  renamePlayerEverywhere(room, player.id, nextName, nextAvatar);
+  pruneRoomMedia(room);
   broadcastState(room, { immediate: true });
   return { ok: true, name: nextName, avatarId: nextAvatar };
 }

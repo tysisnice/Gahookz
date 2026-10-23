@@ -10,6 +10,21 @@ repeating them here.
 Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Players
+- When a host removes somebody over their profile picture, the picture
+  actually goes. It used to be kept in the Banned Players panel on the shared
+  screen — the one place everyone in the room is looking — and sent to every
+  phone in the room besides. What they drew on the whiteboard stayed too. Both
+  are cleared now, and the panel shows their name and an ordinary avatar so the
+  host can still unban them
+  ([record](verification/2026-10-23-player-media/README.md)).
+- "Randomize name & pfp" now reaches everywhere that name and picture had got
+  to: the chat, the questions they wrote, their Herd answers and the results
+  screen. It used to change their card and leave the rest. It also no longer
+  comes back: the picture was being kept in reserve so that switching custom
+  profile pictures off and on again would restore it, moderated or not. What
+  they wrote and drew still stays — that is what "Remove player media" is for.
+- A profile picture you replace is thrown away instead of being kept and served
+  for the rest of the room's life.
 - Gahookz works on a browser that keeps nothing. With site data blocked — a
   setting, not an account — the game used to invent a new player for every
   single request, so the room could never recognise the same person twice and
@@ -75,6 +90,27 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Developer
 
+- **2026-10-23 — player media across every moderation surface (roadmap 2.2).**
+  A room copies a player's uploaded picture into about a dozen places. The
+  pruner walked one list to decide what to keep and three handlers walked their
+  own lists to decide what to clear; the lists had drifted in both directions.
+  `server/player-media.mjs` now enumerates the surfaces once — each site
+  declaring its owner, its kind (`avatar`, `upload`, `drawing`), and how to
+  read, clear and rename it — and `pruneRoomMedia`, `kickPlayer`,
+  `randomizePlayerIdentity`, `removeContent` and `updatePlayerProfile` all walk
+  that one list. Measured defects closed: a kicked player's picture was
+  retained on purpose and broadcast to every client including a guest; their
+  whiteboard marks survived; randomize missed chat, Herd answers, the saved
+  question bank, the results screen and the hidden copy that a settings toggle
+  would restore; a replaced picture was never collected (twelve uploads, twelve
+  still served); and the results screen and GET GOT banner were displayed but
+  not retained. `bannedPlayers` moves from tolerated to described (58 → 57)
+  with its uploaded picture pinned empty. Twelve unit tests (308 → 320), a new
+  `standalone:smoke:player-media` in the shared chain, a new
+  `test:browser:player-media`, and a `smoke-security` tripwire against a second
+  copy of the list. Thirteen mutations, 13 caught — M9 missed first time
+  because the rule had two owners
+  ([record](verification/2026-10-23-player-media/README.md)).
 - **2026-10-23 — device storage becomes a typed boundary (P01 step 6, the
   storage half).** `client/session.ts` owns the credential, the saved join, the
   per-room password and the legacy `?pwd=` link, and is handed a store rather
