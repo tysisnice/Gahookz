@@ -2,7 +2,7 @@
 
 > The host can kick, ban and clean up content in their room, players can vote to kick, and the server enforces all of it.
 
-**Area:** [Systems](../areas/systems.md) · **Status:** live · **Last reviewed:** 2026-10-19
+**Area:** [Systems](../areas/systems.md) · **Status:** live · **Last reviewed:** 2026-10-23
 
 ## What it is
 
@@ -11,8 +11,20 @@ room, not by an administrator. There is no account to suspend.
 
 **Kick.** From the player list the host can kick a player. They are removed,
 banned from that room, and everything they added (questions, answers, chat,
-pictures) is deleted. A kicked player sees "You're banned" if they try to
-return. The host can unban from the banned players panel in the lobby.
+pictures, whiteboard marks) is deleted. A kicked player sees "You're banned" if
+they try to return. The host can unban from the banned players panel in the
+lobby; that panel shows their name and one of the built-in avatars, never the
+picture they uploaded, because the panel stays on the shared screen and the
+picture is often the reason they were removed.
+
+**Randomize name & pfp.** Beside Kick in the same menu, for when the person is
+welcome but what they are called or wearing is not. It gives them a safe name
+and a built-in avatar, removes their uploaded picture everywhere the room had
+copied it, and rewrites the old name wherever it was printed — their chat
+messages, the author badge on their questions and Herd answers, and the results
+screen. It leaves their content alone: the question they wrote, the answers
+they gave and anything they drew all stay. Use **Remove player media** for
+those.
 
 **Vote kick.** Any connected player can vote to kick another player (not
 themselves, not the host). When a majority of the other connected players have
@@ -55,6 +67,17 @@ told so and asked to Skip past it, and the report stays open as the reminder.
   other, a 200-character note, the last 40 kept. Subjects: chat, answer,
   question, drawing, player or room.
 - Removing a Herd answer blanks its text and its picture and keeps its slot. Kicking a player or removing their media also clears the pictures on their Herd answers.
+- Where a room keeps a picture is listed once, in `server/player-media.mjs`, and
+  walked twice: the pruner decides what to keep and moderation decides what to
+  clear. Before 2026-10-23 those were two separate lists and they had drifted
+  ([record](../verification/2026-10-23-player-media/README.md)).
+- Switching custom profile pictures off parks an upload rather than deleting
+  it, so that switching the setting back on restores it. Moderation clears the
+  parked copy too, or the host's action would be undone by a later toggle.
+- A picture a player replaces is collected. A Gahook still playing on somebody
+  else's card belongs to whoever sent it and goes when *they* are moderated.
+- Moderation stops the room serving a picture; it cannot reach a copy a phone
+  has already downloaded.
 - An answer is named by its prompt as well as its own id, because answer ids are colour names every prompt reuses; a request without the prompt is refused rather than blanking that colour everywhere.
 - Every `/api/host/...` route is checked on the server for the host key.
 
@@ -62,14 +85,15 @@ told so and asked to Skip past it, and the report stays open as the reminder.
 
 | Part | Code |
 | --- | --- |
-| Kick, unban, vote kick, remove content | `standalone/server.js` — `kickPlayer`, `voteKickFromPlayer`, `removeContent` |
+| Kick, unban, vote kick, remove content, randomize | `standalone/server.js` — `kickPlayer`, `voteKickFromPlayer`, `removeContent`, `randomizePlayerIdentity` |
+| Where a room keeps a player's media and identity | `standalone/server/player-media.mjs` — `playerMediaSites`, `retainedPlayerMedia`, `clearPlayerMedia`, `renamePlayerEverywhere` |
 | Reports | `standalone/server/social.mjs` — `addReport`, `resolveReport` |
 | Ban list and credentials | `standalone/server/auth.mjs` |
 | Pruning removed media | `standalone/server/media.mjs`, `content-inventory.mjs` |
 | Host-only routes | `standalone/server/route-policy.mjs` |
 | Browser buttons | `standalone/public/app.jsx` — `PlayerCard` (Kick), `ReadonlyPlayerCard` (Vote kick), `BannedPlayersPanel` (Unban), `ReportProvider` (report dialog, host list, menu items); `client/report.jsx` — `ReportButton`, `ReportDialog`, `HostReportsDialog` |
 | What the host may remove, and how a subject is named | `standalone/public/client/report-subjects.js` — `canRemoveSubject`, `removalRequestFor` (unit-tested beside it) |
-| Tests | `standalone/smoke-roles.mjs`, `smoke-room-rules.mjs`, `smoke-review-repairs.mjs`, `smoke-social-media.mjs` (reports), `browser-herd-report.mjs` (report flow, screenshots) |
+| Tests | `standalone/smoke-roles.mjs`, `smoke-room-rules.mjs`, `smoke-review-repairs.mjs`, `smoke-social-media.mjs` (reports), `smoke-player-media.mjs` (media on every moderation surface), `server/player-media.test.mjs`, `browser-herd-report.mjs` (report flow, screenshots), `browser-player-media.mjs` (the host screen while moderating) |
 
 ## Related
 

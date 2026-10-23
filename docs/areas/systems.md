@@ -41,6 +41,7 @@ rule below follows from that.
 | Which routes are host-only | `standalone/server/route-policy.mjs` |
 | `MAX_PLAYERS_PER_ROOM`, `MAX_ACTIVE_ROOMS`, asset constants | `standalone/server/room.mjs` |
 | Content-addressed media store, pruning, serving | `standalone/server/media.mjs` |
+| Where a room keeps a player's media and identity, for the pruner and for moderation | `standalone/server/player-media.mjs` |
 | Question inventory used by moderation and pruning | `standalone/server/content-inventory.mjs` |
 | Abandon grace, host-away clock, successor choice, public notices | `standalone/server/host-presence.mjs` |
 | SSE slow-reader eviction | `standalone/server/sse-backpressure.mjs` |

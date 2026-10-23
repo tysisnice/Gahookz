@@ -59,11 +59,22 @@ test("public snapshot base accepts role-filtered live snapshots and rejects inva
     players: [{ id: "player-1", name: "Quokka", score: 500, connected: true }],
     ownPlayer: { id: "player-1", name: "Quokka", score: 500, connected: true },
     currentQuestion: { id: "question-1" },
+    bannedPlayers: [],
     serverOnlyFieldIsIgnored: true
   } as const;
   assert.equal(PublicSnapshotBaseSchema.parse(snapshot).code, "GOOK");
   assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, gameMode: "oddball" }).success, false);
   assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, code: "TOO-LONG" }).success, false);
+
+  // The banned list reaches every client and the host screen prints it beside
+  // the lobby, so a host who removes somebody over their profile picture must
+  // not have that picture promoted to a permanent panel on the shared screen.
+  const banned = { id: "player-9", name: "Removed", avatarId: "fox", avatarImageDataUrl: "", kickedAt: 1_785_000_000_000 } as const;
+  assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, bannedPlayers: [banned] }).success, true);
+  assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, bannedPlayers: [{ ...banned, avatarImageDataUrl: "/media/GOOK/" + "a".repeat(32) }] }).success, false,
+    "a ban record must never carry the upload somebody was removed for");
+  assert.equal(PublicSnapshotBaseSchema.safeParse({ ...snapshot, bannedPlayers: [{ ...banned, credential: "leak" }] }).success, false,
+    "a ban record must not carry the credential it bans");
 });
 
 test("host presence fields are optional, nullable and never carry a credential", () => {
@@ -78,7 +89,8 @@ test("host presence fields are optional, nullable and never carry a credential",
     phase: "lobby",
     players: [],
     ownPlayer: null,
-    currentQuestion: null
+    currentQuestion: null,
+    bannedPlayers: []
   } as const;
   const away = { away: true, hostName: "Captain Waffles", since: 1_785_000_000_000, promoteAt: 1_785_000_060_000 } as const;
   const change = { id: "change-1", playerId: "player-2", name: "Disco Potato", at: 1_785_000_060_000, reason: "host-away" } as const;

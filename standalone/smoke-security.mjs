@@ -218,6 +218,18 @@ assert(app.includes("ROOM_CONNECTION_ERROR") && app.includes("newer than the gam
 assert(server.includes("crypto.scrypt") && server.includes("crypto.timingSafeEqual"), "Room passwords must use a memory-hard derivation and constant-time verification");
 assert(server.includes("accountService.authenticate(req)"), "Room commands must derive account identity from the server session");
 
+// Where a room keeps a player's picture is enumerated once, in
+// server/player-media.mjs, and walked twice: the pruner decides what to keep,
+// moderation decides what to clear. They used to be written out separately and
+// had drifted in both directions -- a kicked player's picture was retained and
+// re-broadcast to the whole room, while the results screen pointed at bytes
+// the pruner was free to collect. A second copy of the list is the regression.
+const mediaModule = await fs.readFile(new URL("./server/media.mjs", import.meta.url), "utf8");
+assert(mediaModule.includes("retainedPlayerMedia"), "The pruner must take its retain list from server/player-media.mjs");
+assert(!mediaModule.includes("avatarImageDataUrl"), "The pruner must not keep a second copy of where a room holds player media");
+assert(server.includes("clearPlayerMedia(room, playerId)"), "Kicking a player must clear their media through the one enumeration");
+assert(server.includes("clearPlayerMedia(room, player.id, { kinds: [AVATAR] })"), 'Randomizing a name and picture must clear every copy of that picture');
+
 // A kick that leaves the removed player watching the room in real time is not a
 // moderation control. The ban must apply to reads as well as to joining.
 const bannedKey = key("security-banned");
