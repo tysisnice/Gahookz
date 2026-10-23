@@ -2,7 +2,7 @@
 
 > A 45-second tap tug-of-war between two players while the room waits.
 
-**Area:** [social](../areas/social.md) · **Status:** live · **Last reviewed:** 2026-10-07
+**Area:** [social](../areas/social.md) · **Status:** live · **Last reviewed:** 2026-10-23
 
 ## What it is
 
@@ -18,6 +18,7 @@ When it ends, the rest of the room has **10 seconds** to Congratulate the winner
 - It awards **no points** ([Scoring](scoring.md)).
 - If a duellist leaves mid-match, the other wins. A pending challenge simply disappears. Starting the game, resetting the lobby or the host switching "lobby duels" off cancels a duel without a winner or forfeit.
 - Players the host has banned cannot be challenged. The two duellists cannot react to their own match.
+- **With the host's Gahook effects set to Off**, a challenge and the match still work -- the Arena has its own switch -- but the crowd's Congratulate and Boo are refused, because those are Gahooks at a player like any other. They used to land anyway, fixed 2026-10-23 ([record](../verification/2026-10-23-gahook-extraction/README.md)).
 
 ## Where it lives
 
@@ -25,6 +26,7 @@ When it ends, the rest of the room has **10 seconds** to Congratulate the winner
 | --- | --- |
 | Rules | `standalone/server/arena.mjs` — `tapArena`, `pressesRequiredAtLead`, `ARENA_LEAD_TO_WIN` |
 | Lifecycle | `standalone/server.js` — `challengeGahookDuel`, `acceptGahookDuel`, `tapGahookDuel`, `reactToGahookArena`, `finishGahookDuel` |
+| Which switch governs which route | `standalone/server/gahook-policy.mjs` — `GAHOOK_ROUTE_SWITCHES` |
 | Browser | `standalone/public/client/arena.jsx` — `ArenaOverlay`, `TapMatch`, `ArenaSpectator`; `app.jsx` — `GahookArenaCrowdControls` |
 | Tests | `standalone/server/arena.test.mjs`, `standalone/smoke-arena-lifecycle.mjs`, `standalone/browser-arena-1v1.mjs` |
 
@@ -38,3 +40,4 @@ When it ends, the rest of the room has **10 seconds** to Congratulate the winner
 - 2026-09-12 — Challenge from the player menu, so the Arena is findable (`d0a7f5b`).
 - 2026-09-19 — Tap-target arena merged to `main` (`78a1382`).
 - 2026-09-26 — Lead to win raised from 5 to 6, two-press closing pulls replace the three-press pull, thrown minis become tappable (`6c852a7`).
+- 2026-10-23 — The crowd's Congratulate and Boo start answering to the host's Gahook effects rule.

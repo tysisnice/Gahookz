@@ -206,13 +206,16 @@ function runClientGahookContractSmoke() {
 
 async function runGahookSmoke() {
   assert(!serverSource.includes("/api/player/banked-poke"), "Legacy banked-poke endpoint should stay removed");
-  assert(serverSource.includes("ULTIMATE_GAHOOK_BASE_THRESHOLD_MS = 5000"), "Ultimate Gahook should start as a 5 second spam threshold");
-  assert(serverSource.includes("ULTIMATE_GAHOOK_GRACE_MS = 1000"), "Ultimate overlay should stay for a full second after the last Gahook");
-  assert(serverSource.includes("ultimateGahookThresholdMs = spam.thresholdMs + ULTIMATE_GAHOOK_THRESHOLD_STEP_MS"), "Ultimate threshold should increase after each Ultimate trigger");
-  assert(serverSource.includes("function applyGetGot") && serverSource.includes("scorePenalty = applyGetGot(room, player)"), "Get Got should use one consistent hard trigger path");
-  assert(serverSource.includes("COUNTER_GAHOOK_TRIGGER_COUNT = 10"), "Counter Gahook should unlock on the tenth consecutive Gahook");
-  assert(serverSource.includes("COUNTER_GAHOOK_REPEAT_EVERY = 2"), "Counter Gahook should reappear every second Gahook after ten");
-  assert(serverSource.includes("COUNTER_GAHOOK_OVERLAY_MS = 2750"), "Counter Gahook should last half a second longer");
+  // The spam windows, the Ultimate threshold and its per-trigger ramp, the GET
+  // GOT trigger and the counter cadence used to be asserted here by searching
+  // server.js for the text of each constant. That proved where the numbers were
+  // written, not what they did, and it would have passed unchanged if the rules
+  // had stopped being applied. They now live in server/gahook-escalation.mjs
+  // with the clock passed in, so every one of them is exercised as behaviour in
+  // server/gahook-escalation.test.mjs -- including the cases no HTTP script can
+  // afford, like what the fourth Ultimate in one lobby costs and what one
+  // millisecond either side of a streak boundary does. What stays here is the
+  // same rules observed over HTTP, below.
   assert(arenaEngine.includes("ARENA_LEAD_TO_WIN = 6") && arenaEngine.includes("ARENA_DURATION_MS = 45_000"), "Arena should need a six-point lead and have a bounded duration");
   assert(arenaEngine.includes("ARENA_CLOSING_PRESSES = 2") && !/return 3;/.test(arenaEngine), "No arena point should cost three presses any more");
   assert(serverSource.includes("function finishGahookDuel") && serverSource.includes("function publicGahookDuel"), "Duel outcomes and spectator state should be server-authoritative");

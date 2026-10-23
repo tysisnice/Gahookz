@@ -139,7 +139,11 @@ function runFinalUiContractSmoke() {
   assert(css.includes(".poke-overlay.is-congrats .poke-scare-card"), "Congratulations overlay should have centered layout styling");
   assert(css.includes(".poke-overlay.is-ultimate-congrats") && css.includes(".ultimate-congrats-extra"), "Ultimate Congratulations needs a distinct celebration overlay");
   assert(presentation.includes('isUltimateCongrats ? "ULTIMATE CONGRATULATIONS"'), "Ultimate Congratulations overlay needs explicit headline text");
-  assert(server.includes("ULTIMATE_CONGRATS_TRIGGER_COUNT = 8") && server.includes("ULTIMATE_CONGRATS_MIN_SENDERS = 3"), "Ultimate Congratulations should require a real crowd pile-on");
+  // What a real crowd pile-on is -- eight celebrations from three different
+  // people, or one person sustaining it for five seconds -- is proved as
+  // behaviour: over HTTP by the three-person pile-on below, and exhaustively,
+  // negative cases included, in server/gahook-escalation.test.mjs. Searching
+  // server.js for the two numbers proved only where they were written.
 
   return {
     checked: [

@@ -11,7 +11,10 @@ the cost of fairness, consent or server load.
 ## Owns
 
 Gahook, duel, chat and whiteboard routes in `server.js`;
-`server/{arena,social,custom-gahook}.mjs`; `client/{arena.jsx,arena.css,
+`server/{gahook-policy,gahook-escalation,arena,social,custom-gahook}.mjs`
+(the effects policy, the route-to-switch table and the one-per-question claim
+are the first; every spam window and the whole Ultimate/GET GOT ladder are the
+second, with the clock passed in); `client/{arena.jsx,arena.css,
 social.jsx,custom-gahook.jsx,offline.jsx,gahook-forms.js}`; the Gahook
 plumbing components in `app.jsx` (overlays, roster, form picker, mini-Gahook
 layers, arena crowd controls).

@@ -177,6 +177,15 @@ const scoreOf = (snapshot, playerId) => Number(snapshot.players.find((player) =>
   assert(lobbyPoked.ok === false && /effects off/.test(lobbyPoked.error || ""), "A lobby Gahook must be refused while Gahooks are off: " + JSON.stringify(lobbyPoked));
   const hostLobbyPoked = await post("/api/host/poke", { playerId: targetId });
   assert(hostLobbyPoked.ok === false && /effects off/.test(hostLobbyPoked.error || ""), "The host's lobby Gahook must be refused while Gahooks are off");
+  // The two routes the browser reaches rarely are refused by the same gate, so
+  // every entry in GAHOOK_ROUTE_SWITCHES that answers to the effects policy is
+  // covered by behaviour and not only by the route table's own test. The
+  // Counter Gahook and the shame Gahook need an offer and a finished game
+  // respectively; Off refuses them before either is looked at.
+  for (const path of ["/api/player/counter-poke", "/api/player/shame-poke"]) {
+    const refused = await post(path, { playerKey: players[1], playerId: targetId, offerId: "whatever" });
+    assert(refused.ok === false && /effects off/.test(refused.error || ""), path + " must be refused while Gahooks are off: " + JSON.stringify(refused));
+  }
 }
 
 // Mini: Gahooks are allowed and, like Visual only, move no points.

@@ -74,7 +74,7 @@ it. Never start a server by hand, and never `pkill` by pattern.
 
 | Harness | Proves | Does not prove |
 | --- | --- | --- |
-| `test:unit` (36 files) | Pure logic: scoring, game engine phases and replay, Herd engine, contracts and fixtures, admission buckets, route-policy coverage, host-presence decisions, backpressure, transport, career outbox, accounts helpers, content catalogue, music, back-stack, `net.ts`, `session.ts` | Anything involving a live server or browser |
+| `test:unit` (38 files) | Pure logic: scoring, game engine phases and replay, Herd engine, contracts and fixtures, admission buckets, route-policy coverage, host-presence decisions, backpressure, transport, career outbox, accounts helpers, content catalogue, music, back-stack, `net.ts`, `session.ts`, the Gahook effects policy and claim ledger, the Gahook escalation ladder | Anything involving a live server or browser |
 | `typecheck` | Strict TypeScript for contracts, server and web `.ts` | `.jsx` is outside strict TypeScript |
 | `build` | Every `.jsx` parses and bundles | That the screen renders or behaves |
 | Server smoke (`smoke-security`, `roles`, `regressions`, `host-controls`, `room-rules`, `round-presets`, `mode-settings`, `majority-flow`, `herd-flow`, `arena-lifecycle`, `social-media`, `gahooks`, `finals`, `dash`, ...) | Real HTTP behaviour against a real server: access control, headers, snapshots, host controls through every phase, scoring, room rules, chat and media limits | Layout, animation, or anything a browser does |
@@ -108,6 +108,28 @@ nothing". When a refactor legitimately moves code (the reveal moved from
 the whole client, as `smoke-finals` and `smoke-herd-flow` now do. Never weaken
 an assertion just to turn the run green. Decide whether the code or the test is
 wrong, and say which in the handoff.
+
+**A positive tripwire on a constant is the weakest kind, and 2026-10-23 showed
+both of its failure modes at once.** Nine assertions in `smoke-gahooks` and
+`smoke-finals` searched `server.js` for text like
+`ULTIMATE_GAHOOK_BASE_THRESHOLD_MS = 5000`. Moving those rules into two modules
+without changing any behaviour broke six of them, while the real defect in the
+same subsystem — a route that could land a Gahook in a room where the host had
+turned Gahooks off — was invisible to all nine. They were replaced by behaviour
+(the rules became reachable with the clock passed in) plus four **negative**
+tripwires in `smoke-security`: there must be *no* second home for the
+constants, *no* old route set, and the dispatcher must pass through the one
+gate. Negative assertions are the shape worth keeping, because what they assert
+is "there is still only one owner", which is a fact about structure rather than
+about where text happens to sit. Where a *relation* must hold, compute it:
+`gahook-policy.test.mjs` walks `server.js`'s own call graph rather than
+restating a list of routes.
+
+**A test that measures a window with the constant that defines it proves a
+relationship, not a number.** The same day, a mutation that widened the Gahook
+idle window from 1.2 s to 60 s was *missed*, because the test derived its gap
+from the constant under test and moved with it. Numbers a player feels are now
+asserted as literals, and the behaviour tests use literal millisecond offsets.
 
 ### The host and the lock
 
@@ -188,5 +210,14 @@ iterating (for example `npm run test:disposable -- npm run standalone:smoke:secu
 - Run times for `test:rooms`, the browser suites and the drill are unmeasured here.
 - Several smoke scripts are mixed: HTTP assertions beside source-text ones. A
   failure message does not always say which kind it was.
+- **Nothing typechecks the server.** `npm run typecheck` runs three `tsc`
+  projects and none of them includes a line of it: `tsconfig.server.json`
+  includes `standalone/server/**/*.ts` and that directory holds no `.ts` files,
+  and no project sets `allowJs`. An undefined constant left by a 2026-10-23
+  extraction passed the typecheck and broke every join; the smoke chain caught
+  it. 18 of the 25 server modules are already clean under `checkJs` (measured
+  in the [record](../verification/2026-10-23-gahook-extraction/README.md)), so
+  the first step is a config change with no code changes. In the
+  [backlog](../backlog.md) under Engineering P1.
 
 Live backlog: [`../backlog.md`](../backlog.md).

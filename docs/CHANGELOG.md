@@ -10,6 +10,12 @@ repeating them here.
 Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Players
+- A host who turns Gahook effects **off** no longer has the Gahook Arena crowd
+  getting round it. When a duel ended, anybody watching could still throw a
+  full-screen "ARENA CHAMPION" or "GET GOT" at the two players, in a room where
+  the host had asked for no Gahooks at all. The Arena itself still works — it
+  has its own switch — but the Gahooks around it now follow the rule
+  ([record](verification/2026-10-23-gahook-extraction/README.md)).
 - When a host removes somebody over their profile picture, the picture
   actually goes. It used to be kept in the Banned Players panel on the shared
   screen — the one place everyone in the room is looking — and sent to every
@@ -90,6 +96,46 @@ Not on gahookz.com yet; production still runs `74a489949e02`.
 
 ### Developer
 
+- **2026-10-23 — the Gahook rules leave `server.js` (roadmap 3.1, first half).**
+  The host's effects policy, the one-Gahook-per-question claim and the whole
+  escalation ladder — spam streaks, Ultimate, GET GOT, Ultimate
+  Congratulations, Counter Gahook offers — were spread through a 5,671-line
+  file, with the ladder interleaved through a 157-line `pokePlayer` next to the
+  broadcast, the career counters and the payload. They are now
+  `server/gahook-policy.mjs` and `server/gahook-escalation.mjs`, with the clock
+  passed in; `pokePlayer` is 92 lines and reads validate → decide → record →
+  publish, and `escalateGahook` returns which reset timer the caller must start
+  rather than starting one. Unit tests 320 → 368, `server.js` 5,671 → 5,404
+  lines, 23 mutations and 23 caught. Behaviour is unchanged except for the
+  defect below. The Arena duel's own lifecycle is still in `server.js` and is
+  the other half of the roadmap item
+  ([record](verification/2026-10-23-gahook-extraction/README.md)).
+- **2026-10-23 — "Off means no gahooking" had a hand-written list of URLs.**
+  `EFFECT_GATED_GAHOOK_ROUTES` was a `Set` of seven paths that had to stay in
+  step with the set of handlers reaching `pokePlayer`, and nothing checked that
+  it did: `/api/player/duel-react` was missing, so with effects off a spectator
+  could land an Arena `congrats`/"ARENA CHAMPION" and `boo`/"GET GOT" on the
+  duellists — the two kinds `final-poke` refused in the same room. It is now
+  `GAHOOK_ROUTE_SWITCHES`, a table naming every Gahook-sending route and the
+  switch that owns it, and `gahook-policy.test.mjs` walks `server.js`'s own call
+  graph (51 routes inspected, 9 found) and fails if a route that reaches
+  `pokePlayer` is not in the table.
+- **2026-10-23 — six source-text assertions replaced by behaviour.** The spam
+  windows, the Ultimate threshold and its ramp, the GET GOT trigger, the counter
+  cadence and the Ultimate Congratulations crowd rule were asserted by searching
+  `server.js` for the text of each constant. Those pass unchanged if the rule
+  stops being applied and fail on a rename that changes nothing — both halves
+  showed up here. Each is now a behavioural test, with `smoke-security.mjs`
+  keeping four *negative* tripwires (no second home for the constants, no
+  `EFFECT_GATED_GAHOOK_ROUTES`, one gate in the dispatcher).
+- **2026-10-23 — nothing typechecks the server.** `npm run typecheck` includes
+  `standalone/server/**/*.ts`, and there are no `.ts` files in that directory;
+  no project sets `allowJs`. An undefined constant left by this slice's
+  extraction passed the typecheck and broke every join at runtime. Measured what
+  closing it would cost under `checkJs`: **18 of the 25 server modules are
+  already clean** (both new ones among them), 7 have 38 errors between them and
+  `server.js` has 59. Proposed as its own slice rather than folded into a
+  refactor; in the backlog.
 - **2026-10-23 — player media across every moderation surface (roadmap 2.2).**
   A room copies a player's uploaded picture into about a dozen places. The
   pruner walked one list to decide what to keep and three handlers walked their

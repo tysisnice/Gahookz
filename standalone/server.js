@@ -43,6 +43,28 @@ import {
   remainingMs
 } from "../packages/game-engine/src/index.ts";
 import { assertHerdDisplaySlots, buildHerdAnswerSlots } from "./server/herd-answers.mjs";
+import {
+  DEFAULT_GAHOOK_EFFECTS,
+  GAHOOK_EFFECT_POLICIES,
+  claimQuestionGahookUse,
+  gahookEffectsPolicy,
+  gahookRouteRefusal,
+  gahookScoringAllowed,
+  lobbyArenaEnabled,
+  publicOwnGahookUses,
+  releaseQuestionGahookUse } from
+"./server/gahook-policy.mjs";
+import {
+  GAHOOK_STEAL_POINTS,
+  GET_GOT_SCORE_PENALTY,
+  ULTIMATE_GAHOOK_BASE_THRESHOLD_MS,
+  clearUltimateCongratulationsState,
+  clearUltimateGahookState,
+  escalateGahook,
+  publicCounterGahookOffer,
+  resetCounterGahookSpam,
+  resetUltimateThreshold } from
+"./server/gahook-escalation.mjs";
 import { HostSettingsRequestSchema, DEFAULT_GAME_SETTINGS, normaliseGameSettings, toLegacyGameMode } from "../packages/contracts/src/index.ts";
 import {
   TemplateBag,
@@ -117,27 +139,14 @@ if (process.env.GAHOOKZ_REQUIRE_POSTGRES === "1" && accountService.persistence !
 const READING_MS = PHASE_DURATIONS_MS.reading;
 const ANSWERING_MS = PHASE_DURATIONS_MS.answering;
 const REVEAL_MS = PHASE_DURATIONS_MS.reveal;
-const ULTIMATE_GAHOOK_GRACE_MS = 1000;
-const ULTIMATE_GAHOOK_BASE_THRESHOLD_MS = 5000;
-const ULTIMATE_GAHOOK_THRESHOLD_STEP_MS = 1000;
-const ULTIMATE_GAHOOK_SPAM_IDLE_MS = 1200;
-const ULTIMATE_GAHOOK_MAX_STACK = 50;
-const COUNTER_GAHOOK_TRIGGER_COUNT = 10;
-const COUNTER_GAHOOK_REPEAT_EVERY = 2;
-const COUNTER_GAHOOK_SPAM_IDLE_MS = 2200;
-const COUNTER_GAHOOK_OFFER_MS = 6500;
+// The Gahook escalation ladder and the host's effects policy live in
+// server/gahook-escalation.mjs and server/gahook-policy.mjs; their constants
+// are imported above. What stays here is the Arena duel, whose timers close
+// over the room table.
 const COUNTER_GAHOOK_OVERLAY_MS = 2750;
 const GAHOOK_DUEL_CHALLENGE_MS = 6500;
 const GAHOOK_ARENA_INTRO_MS = 2400;
 const GAHOOK_DUEL_FINISH_MS = 10000;
-const ULTIMATE_CONGRATS_GRACE_MS = 1000;
-const ULTIMATE_CONGRATS_TRIGGER_COUNT = 8;
-const ULTIMATE_CONGRATS_MIN_SENDERS = 3;
-const ULTIMATE_CONGRATS_THRESHOLD_MS = 5000;
-const ULTIMATE_CONGRATS_SPAM_IDLE_MS = 1200;
-const ULTIMATE_CONGRATS_MAX_STACK = 50;
-const GET_GOT_SCORE_PENALTY = 1000;
-const GAHOOK_STEAL_POINTS = 50;
 // Gahook spam is timing-sensitive, so the investigation that closed the
 // null-host claim-gate bypass (2026-10-17) needed a trace of every poke and
 // every spam-window decision. Kept behind GAHOOKZ_DEBUG_SPAM, which
@@ -169,33 +178,6 @@ const ROOM_EXPIRE_MS = clamp(Number(process.env.GAHOOKZ_ROOM_EXPIRE_MS) || 5 * 6
 // the expiry regression test shortens it.
 const ROOM_ABANDON_GRACE_MS = resolveRoomAbandonGraceMs(process.env.GAHOOKZ_ROOM_ABANDON_GRACE_MS);
 const LIVE_GAME_PHASES = ["reading", "answering", "reveal"];
-const EFFECT_GATED_GAHOOK_ROUTES = new Set(["/api/player/poke", "/api/player/round-poke", "/api/player/counter-poke", "/api/player/shame-poke", "/api/player/final-poke", "/api/host/poke", "/api/host/final-poke"]);
-
-// How far Gahook interruptions may go during the main game.
-//
-// Enforced here rather than by hiding a button: a client that keeps sending the
-// request must not be able to steal points the host has switched off. "chaos"
-// is the existing behaviour and stays the default so no room changes silently.
-const GAHOOK_EFFECT_POLICIES = ["off", "mini", "visual", "chaos"];
-const DEFAULT_GAHOOK_EFFECTS = "chaos";
-
-function gahookEffectsPolicy(room) {
-  return GAHOOK_EFFECT_POLICIES.includes(room?.gahookEffects) ? room.gahookEffects : DEFAULT_GAHOOK_EFFECTS;
-}
-
-/** Only "chaos" may move anybody's score. */
-function gahookScoringAllowed(room) {
-  return gahookEffectsPolicy(room) === "chaos";
-}
-
-/** "off" suppresses the interruption itself during a live round. */
-function gahookEffectsAllowed(room) {
-  return gahookEffectsPolicy(room) !== "off";
-}
-
-function lobbyArenaEnabled(room) {
-  return room?.lobbyArenaEnabled !== false;
-}
 const DEFAULT_QUESTIONS_PER_PLAYER = 3;
 const MIN_QUESTIONS_PER_PLAYER = 1;
 const MAX_QUESTIONS_PER_PLAYER = 5;
@@ -855,13 +837,12 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
   }
   // "Off means no gahooking": every Gahook is refused in every phase (lobby,
   // building, writing, the round and the finale, congratulations and boos
-  // included), whoever sends it. The 1v1 Arena has its own switch.
-  if (EFFECT_GATED_GAHOOK_ROUTES.has(pathname) && !gahookEffectsAllowed(room)) {
-    return { ok: false, error: "The host has turned Gahook effects off for this game." };
-  }
-  if (pathname === "/api/player/duel-challenge" && !lobbyArenaEnabled(room)) {
-    return { ok: false, error: "The host has turned off lobby duels." };
-  }
+  // included), whoever sends it. The Arena's own challenge handshake follows
+  // the host's separate Arena switch. Which route answers to which switch is
+  // the table in server/gahook-policy.mjs, refused here before a handler can
+  // spend a counter offer or create a duel.
+  const gahookRefusal = gahookRouteRefusal(room, pathname);
+  if (gahookRefusal) return gahookRefusal;
   if (pathname === "/api/player/poke") {
     return pokeFromPlayer(room, payload);
   }
@@ -980,7 +961,7 @@ async function handleRoomAction(room, pathname, payload, context = {}) {
       debugGahook("HOSTPOKE", { t: Date.now(), phase: room.phase, qIndex: room.game.currentQuestionIndex, claimOk: "n/a (phase not live)" });
     }
     const result = pokePlayer(room, payload, hostPlayer?.name || "Host", { allowPhases: ["lobby", "building", "reading", "answering", "reveal", "finished"], gahookForm: hostPlayer?.gahookForm || "monkey", senderPlayer: hostPlayer });
-    if (!result.ok && claimKey) delete room.game.pokeUses[claimKey];
+    if (!result.ok && claimKey) releaseQuestionGahookUse(room, claimKey);
     return result;
   }
   if (pathname === "/api/host/final-poke") {
@@ -1367,7 +1348,7 @@ function pokeFromPlayer(room, payload) {
     claimKey = useClaim.key;
   }
   const result = pokePlayer(room, { playerId: target?.id || playerId }, sender.name, { allowPhases: ["lobby", "building", "reading", "answering", "reveal", "finished"], gahookForm: sender.gahookForm, senderPlayer: sender });
-  if (!result.ok && claimKey) delete room.game.pokeUses[claimKey];
+  if (!result.ok && claimKey) releaseQuestionGahookUse(room, claimKey);
   return result;
 }
 
@@ -1609,30 +1590,11 @@ function roundPokeFromPlayer(room, payload) {
   }
 
   const result = pokePlayer(room, { playerId: target.id }, sender.name, { allowPhases: ["reading", "answering"], skipBroadcast: true, gahookForm: sender.gahookForm, senderPlayer: sender });
-  if (!result.ok) delete room.game.pokeUses[useClaim.key];
+  if (!result.ok) releaseQuestionGahookUse(room, useClaim.key);
   if (result.ok) {
     broadcastState(room, { immediate: true });
   }
   return result;
-}
-
-function claimQuestionGahookUse(room, senderId, targetId) {
-  if (!senderId || !targetId) {
-    return { ok: false, error: "Choose someone to Gahook." };
-  }
-  room.game.pokeUses = room.game.pokeUses || {};
-  const index = room.game.currentQuestionIndex;
-  const key = "question:" + index + ":" + senderId;
-  const existingTargetId = room.game.pokeUses[key];
-  if (existingTargetId) {
-    return {
-      ok: false,
-      error: "You already used your Gahook for this question.",
-      usedTargetId: existingTargetId
-    };
-  }
-  room.game.pokeUses[key] = targetId;
-  return { ok: true, key, targetId };
 }
 
 function shamePokeFromPlayer(room, payload) {
@@ -1737,91 +1699,27 @@ function pokePlayer(room, payload, fromName, options = {}) {
   const specialKind = cleanText(options.kindOverride, 20);
   const messageOverride = cleanText(options.message, 40);
   const isFinalSpecial = specialKind === "congrats" || specialKind === "boo";
-  const isInteractiveSpecial = specialKind === "counter" || specialKind === "duel-challenge";
   const senderPlayer = options.senderPlayer;
   const gahookForm = normaliseGahookForm(options.gahookForm);
   const customGahook = !isFinalSpecial && gahookForm === "custom" ? publicCustomGahook(senderPlayer) : null;
-  let kind = isFinalSpecial || isInteractiveSpecial ? specialKind : "normal";
-  let ultimateStack = 0;
-  let ultimateUntil = 0;
-  let scorePenalty = 0;
-  let pointsStolen = 0;
 
-  if (!isFinalSpecial && !isInteractiveSpecial && LIVE_GAME_PHASES.includes(room.phase) && senderPlayer?.id && senderPlayer.id !== player.id && gahookScoringAllowed(room)) {
-    pointsStolen = GAHOOK_STEAL_POINTS;
-    player.score = Number(player.score || 0) - pointsStolen;
-    senderPlayer.score = Number(senderPlayer.score || 0) + pointsStolen;
-  }
-
-  if (specialKind === "congrats") {
-    player.congratulationsCount = (player.congratulationsCount || 0) + 1;
-    const celebration = registerCongratulationsSpam(player, now, options.senderId);
-    const activeUltimateCongrats = (player.ultimateCongratulationsUntil || 0) > now;
-    const crowdTriggered = celebration.count >= ULTIMATE_CONGRATS_TRIGGER_COUNT && celebration.senderCount >= ULTIMATE_CONGRATS_MIN_SENDERS;
-    const sustainedTriggered = celebration.elapsedMs >= ULTIMATE_CONGRATS_THRESHOLD_MS && celebration.count >= 4;
-    if (activeUltimateCongrats || crowdTriggered || sustainedTriggered) {
-      kind = "ultimate-congrats";
-      if (!activeUltimateCongrats) {
-        player.ultimateCongratulationsId = crypto.randomUUID();
-        player.ultimateCongratulationsStack = Math.min(ULTIMATE_CONGRATS_MAX_STACK, Math.max(1, celebration.count));
-      } else {
-        player.ultimateCongratulationsStack = Math.min(ULTIMATE_CONGRATS_MAX_STACK, (player.ultimateCongratulationsStack || 0) + 1);
-      }
-      player.ultimateCongratulationsUntil = now + ULTIMATE_CONGRATS_GRACE_MS;
-      ultimateStack = player.ultimateCongratulationsStack;
-      ultimateUntil = player.ultimateCongratulationsUntil;
-      scheduleUltimateCongratulationsReset(player, room);
-    }
-  } else if (!isFinalSpecial && !isInteractiveSpecial) {
-    clearExpiredUltimateGahook(player);
-    const spam = registerGahookSpam(player, now);
-    player.pokeCount = spam.count;
-    const counterSpam = registerCounterGahookSpam(player, senderPlayer?.id || "", now);
-    if (
-      senderPlayer?.id &&
-      senderPlayer.id !== player.id &&
-      counterSpam.count >= COUNTER_GAHOOK_TRIGGER_COUNT &&
-      (counterSpam.count - COUNTER_GAHOOK_TRIGGER_COUNT) % COUNTER_GAHOOK_REPEAT_EVERY === 0
-    ) {
-      player.counterOffer = {
-        id: crypto.randomUUID(),
-        senderPlayerId: senderPlayer.id,
-        spamCount: counterSpam.count,
-        createdAt: now,
-        expiresAt: now + COUNTER_GAHOOK_OFFER_MS
-      };
-    }
-    debugGahook("SPAMDBG", { t: now, count: spam.count, elapsed: spam.elapsedMs, threshold: spam.thresholdMs, startedAt: player.gahookSpamStartedAt, lastAt: player.lastGahookAt });
-    const activeUltimate = (player.ultimateGahookUntil || 0) > now;
-    if (activeUltimate) {
-      kind = "ultimate";
-      player.ultimateGahookStack = Math.min(ULTIMATE_GAHOOK_MAX_STACK, (player.ultimateGahookStack || 0) + 1);
-      ultimateStack = player.ultimateGahookStack;
-      if (ultimateStack >= ULTIMATE_GAHOOK_MAX_STACK) {
-        kind = "get-got";
-        scorePenalty = applyGetGot(room, player);
-      } else {
-        player.ultimateGahookUntil = now + ULTIMATE_GAHOOK_GRACE_MS;
-        ultimateUntil = player.ultimateGahookUntil;
-        scheduleUltimateGahookReset(player, room);
-      }
-    } else if (spam.elapsedMs >= spam.thresholdMs) {
-      kind = "ultimate";
-      player.ultimateGahookId = crypto.randomUUID();
-      player.ultimateGahookUntil = now + ULTIMATE_GAHOOK_GRACE_MS;
-      player.ultimateGahookStack = Math.min(ULTIMATE_GAHOOK_MAX_STACK, Math.max(1, spam.count));
-      player.ultimateGahookThresholdMs = spam.thresholdMs + ULTIMATE_GAHOOK_THRESHOLD_STEP_MS;
-      ultimateStack = player.ultimateGahookStack;
-      if (ultimateStack >= ULTIMATE_GAHOOK_MAX_STACK) {
-        kind = "get-got";
-        scorePenalty = applyGetGot(room, player);
-        ultimateUntil = 0;
-      } else {
-        ultimateUntil = player.ultimateGahookUntil;
-        scheduleUltimateGahookReset(player, room);
-      }
-    }
-  }
+  // What this Gahook becomes -- a jump scare, an Ultimate, a GET GOT, an
+  // Ultimate celebration -- and what it costs is decided in
+  // server/gahook-escalation.mjs, which owns the streak counters it is decided
+  // from. It reports the reset timer to start rather than starting one, because
+  // a timer has to close over the room table to broadcast when it fires.
+  const escalation = escalateGahook(player, {
+    now,
+    specialKind,
+    senderPlayer,
+    senderId: options.senderId,
+    liveRound: LIVE_GAME_PHASES.includes(room.phase),
+    scoringAllowed: gahookScoringAllowed(room),
+    debug: debugGahook
+  });
+  const { kind, ultimateStack, ultimateUntil, scorePenalty, pointsStolen } = escalation;
+  if (escalation.schedule === "ultimate") scheduleUltimateGahookReset(player, room);
+  if (escalation.schedule === "congrats") scheduleUltimateCongratulationsReset(player, room);
 
   player.shamePokes = room.phase === "finished" && specialKind !== "congrats" ? (player.shamePokes || 0) + 1 : player.shamePokes || 0;
   player.latestPoke = {
@@ -1872,32 +1770,6 @@ function pokePlayer(room, payload, fromName, options = {}) {
     counterAvailable: Boolean(player.counterOffer && player.counterOffer.expiresAt > now),
     counterOfferId: player.counterOffer?.id || ""
   };
-}
-
-function registerCounterGahookSpam(player, senderPlayerId, now) {
-  if (!senderPlayerId) {
-    player.counterSpamSenderId = "";
-    player.counterSpamCount = 0;
-    player.counterSpamLastAt = 0;
-    return { count: 0 };
-  }
-  const sameSender = player.counterSpamSenderId === senderPlayerId;
-  const withinStreak = now - (player.counterSpamLastAt || 0) <= COUNTER_GAHOOK_SPAM_IDLE_MS;
-  if (!sameSender || !withinStreak) {
-    player.counterSpamSenderId = senderPlayerId;
-    player.counterSpamCount = 1;
-  } else {
-    player.counterSpamCount = (player.counterSpamCount || 0) + 1;
-  }
-  player.counterSpamLastAt = now;
-  return { count: player.counterSpamCount };
-}
-
-function resetCounterGahookSpam(player) {
-  player.counterSpamSenderId = "";
-  player.counterSpamCount = 0;
-  player.counterSpamLastAt = 0;
-  player.counterOffer = null;
 }
 
 function clearGahookDuelTimer(room) {
@@ -1989,25 +1861,6 @@ function handleGahookDuelDisconnect(room, playerId) {
   }
 }
 
-function registerCongratulationsSpam(player, now, senderId = "") {
-  const lastAt = player.lastCongratulationsAt || 0;
-  if (!lastAt || now - lastAt > ULTIMATE_CONGRATS_SPAM_IDLE_MS) {
-    player.congratulationsSpamStartedAt = now;
-    player.congratulationsSpamCount = 1;
-    player.congratulationsSpamSenderIds = [];
-  } else {
-    player.congratulationsSpamStartedAt = player.congratulationsSpamStartedAt || lastAt || now;
-    player.congratulationsSpamCount = (player.congratulationsSpamCount || 0) + 1;
-  }
-  if (senderId && !player.congratulationsSpamSenderIds.includes(senderId)) player.congratulationsSpamSenderIds.push(senderId);
-  player.lastCongratulationsAt = now;
-  return {
-    count: player.congratulationsSpamCount,
-    senderCount: player.congratulationsSpamSenderIds.length,
-    elapsedMs: now - player.congratulationsSpamStartedAt
-  };
-}
-
 function scheduleUltimateCongratulationsReset(player, room) {
   if (player.ultimateCongratulationsTimer) clearTimeout(player.ultimateCongratulationsTimer);
   const celebrationId = player.ultimateCongratulationsId;
@@ -2019,70 +1872,6 @@ function scheduleUltimateCongratulationsReset(player, room) {
     clearUltimateCongratulationsState(livePlayer, true);
     broadcastState(room, { immediate: true });
   }, delay);
-}
-
-function clearUltimateCongratulationsState(player, clearLatest = false) {
-  if (player.ultimateCongratulationsTimer) clearTimeout(player.ultimateCongratulationsTimer);
-  player.ultimateCongratulationsTimer = null;
-  player.ultimateCongratulationsUntil = 0;
-  player.ultimateCongratulationsStack = 0;
-  player.ultimateCongratulationsId = "";
-  player.congratulationsSpamStartedAt = 0;
-  player.congratulationsSpamCount = 0;
-  player.congratulationsSpamSenderIds = [];
-  player.lastCongratulationsAt = 0;
-  if (clearLatest && player.latestPoke?.kind === "ultimate-congrats") player.latestPoke = null;
-}
-
-function applyGetGot(room, player) {
-  let scorePenalty = 0;
-  if (LIVE_GAME_PHASES.includes(room.phase) && gahookScoringAllowed(room)) {
-    player.score -= GET_GOT_SCORE_PENALTY;
-    scorePenalty = GET_GOT_SCORE_PENALTY;
-  }
-  if (player.ultimateGahookTimer) {
-    clearTimeout(player.ultimateGahookTimer);
-  }
-  player.ultimateGahookTimer = null;
-  player.ultimateGahookUntil = 0;
-  player.ultimateGahookStack = 0;
-  player.ultimateGahookId = "";
-  player.pokeCount = 0;
-  resetGahookSpam(player);
-  return scorePenalty;
-}
-
-function getUltimateGahookThreshold(player) {
-  const threshold = Number(player.ultimateGahookThresholdMs || 0);
-  return threshold >= ULTIMATE_GAHOOK_BASE_THRESHOLD_MS ? threshold : ULTIMATE_GAHOOK_BASE_THRESHOLD_MS;
-}
-
-function registerGahookSpam(player, now) {
-  const lastAt = player.lastGahookAt || 0;
-  if (!lastAt || now - lastAt > ULTIMATE_GAHOOK_SPAM_IDLE_MS) {
-    player.gahookSpamStartedAt = now;
-    player.gahookSpamCount = 1;
-  } else {
-    player.gahookSpamStartedAt = player.gahookSpamStartedAt || lastAt || now;
-    player.gahookSpamCount = (player.gahookSpamCount || 0) + 1;
-  }
-  player.lastGahookAt = now;
-  const thresholdMs = getUltimateGahookThreshold(player);
-  return {
-    count: player.gahookSpamCount || 1,
-    elapsedMs: now - (player.gahookSpamStartedAt || now),
-    thresholdMs
-  };
-}
-
-function resetGahookSpam(player) {
-  player.gahookSpamStartedAt = 0;
-  player.gahookSpamCount = 0;
-  player.lastGahookAt = 0;
-}
-
-function resetUltimateGahookThreshold(player) {
-  player.ultimateGahookThresholdMs = ULTIMATE_GAHOOK_BASE_THRESHOLD_MS;
 }
 
 function scheduleUltimateGahookReset(player, room) {
@@ -2104,27 +1893,6 @@ function finishUltimateGahook(room, playerId, ultimateId) {
   }
   clearUltimateGahookState(player, true);
   broadcastState(room, { immediate: true });
-}
-
-function clearExpiredUltimateGahook(player) {
-  if ((player.ultimateGahookUntil || 0) > 0 && player.ultimateGahookUntil <= Date.now()) {
-    clearUltimateGahookState(player, true);
-  }
-}
-
-function clearUltimateGahookState(player, resetCounter = false) {
-  if (player.ultimateGahookTimer) {
-    clearTimeout(player.ultimateGahookTimer);
-  }
-  player.ultimateGahookTimer = null;
-  player.ultimateGahookUntil = 0;
-  player.ultimateGahookStack = 0;
-  player.ultimateGahookId = "";
-  resetGahookSpam(player);
-  if (resetCounter) {
-    player.pokeCount = 0;
-    player.latestPoke = null;
-  }
 }
 
 function submitQuestion(room, payload) {
@@ -4112,26 +3880,6 @@ function publicPlayer(room, player) {
   });
 }
 
-function publicCounterGahookOffer(room, player) {
-  const offer = player.counterOffer;
-  if (!offer || offer.expiresAt <= Date.now()) {
-    player.counterOffer = null;
-    return null;
-  }
-  const sender = room.players[offer.senderPlayerId];
-  if (!sender?.connected) {
-    player.counterOffer = null;
-    return null;
-  }
-  return {
-    id: offer.id,
-    senderPlayerId: sender.id,
-    senderName: sender.name,
-    spamCount: offer.spamCount,
-    expiresAt: offer.expiresAt
-  };
-}
-
 function publicGahookDuel(room, viewerPlayerId = "") {
   const duel = room.gahookDuel;
   if (!duel || (duel.status !== "active" && duel.status !== "finished")) return null;
@@ -4160,21 +3908,6 @@ function publicGahookDuel(room, viewerPlayerId = "") {
     reactionEndsAt: duel.reactionEndsAt,
     reactionCounts: { ...duel.reactionCounts },
     lastReaction: duel.lastReaction ? { ...duel.lastReaction } : null
-  };
-}
-
-function publicOwnGahookUses(room, playerId) {
-  const index = room.game.currentQuestionIndex;
-  const targetId = room.game.pokeUses?.["question:" + index + ":" + playerId] || "";
-  const usedTargets = targetId && room.players[targetId] ? [targetId] : [];
-
-  return {
-    question: usedTargets,
-    questionTargetId: usedTargets[0] || "",
-    // Keep the old phase-specific arrays during the client migration. They now
-    // describe the same single use shared by the whole question.
-    round: usedTargets,
-    reveal: usedTargets
   };
 }
 
@@ -4445,7 +4178,7 @@ function startGame(room, { preparedQuestions = false } = {}) {
   Object.values(room.players).forEach((player) => {
     clearUltimateGahookState(player, true);
     clearUltimateCongratulationsState(player, true);
-    resetUltimateGahookThreshold(player);
+    resetUltimateThreshold(player);
     resetCounterGahookSpam(player);
     player.score = 0;
     player.shamePokes = 0;
@@ -4539,7 +4272,7 @@ function finishGameNow(room) {
   room.phase = "finished";
   room.phaseEndsAt = null;
   room.game.currentQuestionIndex = Math.max(0, room.game.currentQuestionIndex);
-  Object.values(room.players).forEach(resetUltimateGahookThreshold);
+  Object.values(room.players).forEach(resetUltimateThreshold);
   recordCareerResults(room);
   broadcastState(room, { immediate: true });
 }
@@ -4553,7 +4286,7 @@ function beginQuestion(room, index) {
     room.phaseEndsAt = null;
     room.game.currentQuestionIndex = room.quizQuestions.length - 1;
     room.game.answers = {};
-    Object.values(room.players).forEach(resetUltimateGahookThreshold);
+    Object.values(room.players).forEach(resetUltimateThreshold);
     recordCareerResults(room);
     broadcastState(room, { immediate: true });
     return;
@@ -4824,7 +4557,7 @@ function resetLobby(room, options = {}) {
   Object.values(room.players).forEach((player) => {
     clearUltimateGahookState(player);
     clearUltimateCongratulationsState(player, true);
-    resetUltimateGahookThreshold(player);
+    resetUltimateThreshold(player);
     player.score = 0;
     player.ready = false;
     player.herdAnswersSubmitted = 0;

@@ -1,6 +1,6 @@
 # Overhaul progress — audited 2026-09-19, Next work updated 2026-10-20
 
-**Current navigation (2026-10-21):** [docs/ROADMAP.md](docs/ROADMAP.md) is the ordered execution index; [docs/HANDOFF.md](docs/HANDOFF.md) records the current main and fresh verification. The branch/dirty-tree/177-test checkpoint below is the historical September audit, not current source state. Preserve its incomplete P01–P12 acceptance: later focused merges and 252 passing current unit tests do not make every stage complete.
+**Current navigation (2026-10-21):** [docs/ROADMAP.md](docs/ROADMAP.md) is the ordered execution index; [docs/HANDOFF.md](docs/HANDOFF.md) records the current main and fresh verification. The branch/dirty-tree/177-test checkpoint below is the historical September audit, not current source state. Preserve its incomplete P01–P12 acceptance: later focused merges and the current unit-test count (368 on 2026-10-23, 252 at the time of the audit) do not make every stage complete.
 
 `IMPLEMENTATION-PLAN.md` remains the approved scope. The latest handoff there supersedes older completion claims. **The overhaul is partial and not release-ready.** This correction does not remove requirements.
 

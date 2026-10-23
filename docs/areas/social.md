@@ -2,7 +2,7 @@
 
 **Owner decision, 2026-10-19:** forget about GET GOT during live rounds. The attempted live-phase GET GOT penalty is unreachable under the question claim/host gates; do not make it reachable, reintroduce that feature, or expand its live-round test scope. Lobby GET GOT and one ordinary live-round Gahook per question remain separate behaviours. Older conditional descriptions below of a live-phase score penalty are not an instruction to implement it. Current execution index: [roadmap](../ROADMAP.md).
 
-Last verified against the code: 2026-10-07, commit 30ba1ce. The narrow owner-decision note above was checked against the current backlog and smoke test on 2026-10-21; the entire social guide has not been re-certified line-by-line since that earlier date.
+Last verified against the code: 2026-10-07, commit 30ba1ce. The narrow owner-decision note above was checked against the current backlog and smoke test on 2026-10-21. The Gahook rule sections -- `pokePlayer`, the effects policy, the one-use-per-question claim, the Ultimate/GET GOT ladder, the Counter Gahook and Ultimate Congratulations, their constants and their tests -- were re-verified line-by-line on 2026-10-23 when those rules moved into `server/gahook-policy.mjs` and `server/gahook-escalation.mjs` ([record](../verification/2026-10-23-gahook-extraction/README.md)). The rest of the guide has not been re-certified since the earlier date.
 
 ## Purpose
 
@@ -60,7 +60,9 @@ Wiki pages: [Gahooks](../wiki/gahooks.md),
 
 | Concern | Where |
 | --- | --- |
-| Gahook sending, spam, Ultimate, Counter, GET GOT, steal, effects policy, finale pokes, Arena routes and lifecycle, chat and whiteboard routes, Dash route, custom Gahook routes | `standalone/server.js`: `pokePlayer`, `pokeFromPlayer`, `roundPokeFromPlayer`, `claimQuestionGahookUse`, `counterPokeFromPlayer`, `registerGahookSpam`, `registerCounterGahookSpam`, `registerCongratulationsSpam`, `applyGetGot`, `gahookEffectsPolicy`, `finalPokeTarget`, `shamePokeFromPlayer`, `challengeGahookDuel`, `acceptGahookDuel`, `tapGahookDuel`, `reactToGahookArena`, `finishGahookDuel`, `scheduleGahookDuelDeadline`, `handleGahookDuelDisconnect`, `publicGahookDuel`, `updatePlayerGahookForm`, `updatePlayerCustomGahook`, `selectPlayerCustomGahookSlot`, `updatePlayerDash`, `postRoomChat` |
+| Gahook routes, the payload every client animates, finale pokes, Arena routes and lifecycle, chat and whiteboard routes, Dash route, custom Gahook routes | `standalone/server.js`: `pokePlayer`, `pokeFromPlayer`, `roundPokeFromPlayer`, `counterPokeFromPlayer`, `finalPokeTarget`, `shamePokeFromPlayer`, `challengeGahookDuel`, `acceptGahookDuel`, `tapGahookDuel`, `reactToGahookArena`, `finishGahookDuel`, `scheduleGahookDuelDeadline`, `scheduleUltimateGahookReset`, `handleGahookDuelDisconnect`, `publicGahookDuel`, `updatePlayerGahookForm`, `updatePlayerCustomGahook`, `selectPlayerCustomGahookSlot`, `updatePlayerDash`, `postRoomChat` |
+| The effects policy, which route answers to which switch, and the one-use-per-question claim (pure) | `standalone/server/gahook-policy.mjs`: `gahookEffectsPolicy`, `gahookScoringAllowed`, `gahookEffectsAllowed`, `lobbyArenaEnabled`, `GAHOOK_ROUTE_SWITCHES`, `gahookRouteRefusal`, `claimQuestionGahookUse`, `releaseQuestionGahookUse`, `publicOwnGahookUses` |
+| Spam streaks, the Ultimate ladder, GET GOT, Counter offers, Ultimate Congratulations (pure, clock passed in) | `standalone/server/gahook-escalation.mjs`: `escalateGahook`, `registerGahookSpam`, `ultimateThresholdFor`, `applyGetGot`, `registerCounterGahookSpam`, `counterOfferEarned`, `registerCongratulationsSpam`, `clearUltimateGahookState`, `clearUltimateCongratulationsState`, `publicCounterGahookOffer` |
 | Arena rules (pure) | `standalone/server/arena.mjs`: `initialiseArena`, `tapArena`, `pressesRequiredAtLead`, `arenaPressTable`, `arenaProgress`, `nextArenaTarget` |
 | Custom Gahook validation | `standalone/server/custom-gahook.mjs`: `normaliseCustomGahook`, `publicCustomGahook`, `customGahookOptions` |
 | Chat, whiteboard, reports | `standalone/server/social.mjs`: `addChatMessage`, `addWhiteboardStroke`, `clearWhiteboard`, `clearWhiteboardForPlayer`, `removeChatMessage`, `consumeRate` (reports and removal belong to systems, see [systems](systems.md)) |
@@ -86,6 +88,10 @@ route's `allowPhases`), requires a **connected** target, then in order:
    the sender gains `GAHOOK_STEAL_POINTS`. Final and interactive kinds never steal.
 2. **Spam and escalation** (below), setting `kind` to `normal`, `ultimate`,
    `get-got`, `counter`, `duel-challenge`, `congrats`, `boo` or `ultimate-congrats`.
+   Both the steal and the escalation are one call to `escalateGahook` in
+   `server/gahook-escalation.mjs`, which also reports which reset timer
+   `pokePlayer` must start (`schedule`): the module owns no timers, because a
+   timer has to close over the room table to broadcast when it fires.
 3. **Records** `player.latestPoke` (the object every client animates from), clears
    the target's lobby paint (`clearWhiteboardForPlayer`), publishes a room-wide
    `latestRoomPoke` for GET GOT, and adds `gahooksSent` and `gahooksReceived`
@@ -120,16 +126,26 @@ Lobby and finale Gahooks are not limited.
 Mini, Visual only, Chaos) and it is published as `gahookEffects`. Enforcement
 lives in `server.js`:
 
-- **Off means no gahooking.** `gahookEffectsAllowed` (policy is not `off`) is
-  checked in the dispatcher for every Gahook route in every phase
-  (`EFFECT_GATED_GAHOOK_ROUTES`: `/api/player/poke`, `round-poke`,
-  `counter-poke`, `shame-poke`, `final-poke` and `/api/host/poke`,
-  `/api/host/final-poke`): error "The host has turned Gahook effects off for
-  this game." Finale congratulations and boos travel through `final-poke`
-  (`finalPokeTarget`), so they are refused too. The client hides every Gahook
-  button (`useGahooksOff`: player cards, leaderboards, reveal, finale cards,
-  roster, counter prompt). `smoke-room-rules` covers a lobby Gahook and the
-  finale pokes under Off.
+- **Off means no gahooking.** One call, `gahookRouteRefusal(room, pathname)`,
+  runs in the dispatcher before any handler. It reads
+  `GAHOOK_ROUTE_SWITCHES` in `server/gahook-policy.mjs`, which names every
+  route that can land a Gahook and which switch owns it: eight answer to the
+  effects policy (`/api/player/poke`, `round-poke`, `counter-poke`,
+  `shame-poke`, `final-poke`, `duel-react` and `/api/host/poke`,
+  `/api/host/final-poke`) with "The host has turned Gahook effects off for this
+  game.", and `/api/player/duel-challenge` answers to the Arena switch.
+  Refusing at the route keeps a refused request free of side effects: a counter
+  offer is spent, and a duel created, before their handlers poke.
+  **`duel-react` was missing from that list until 2026-10-23**, so a spectator
+  could land an Arena "congrats"/"ARENA CHAMPION" and "boo"/"GET GOT" on the
+  duellists in a room with effects off, while `final-poke` refused the same two
+  kinds ([record](../verification/2026-10-23-gahook-extraction/README.md)).
+  `gahook-policy.test.mjs` now walks `server.js`'s own call graph and fails if
+  a route that reaches `pokePlayer` is missing from the table. The client also
+  hides every Gahook button (`useGahooksOff`: player cards, leaderboards,
+  reveal, finale cards, roster, counter prompt). `smoke-room-rules` covers a
+  lobby Gahook, the in-round Gahook, the host's and the finale pokes under Off;
+  `smoke-arena-lifecycle` covers the crowd's Arena reactions.
 - **Mini** allows Gahooks but every client draws them as the small pop-up
   (`MiniGahookLayer`, the style a host gets in the lobby) instead of the
   `PokeJumpScare` takeover: `PlayerView` routes every incoming Gahook to
@@ -156,8 +172,15 @@ Per target, `registerGahookSpam` keeps a streak: a Gahook that arrives within
 streak restarts at 1. When the streak has lasted `thresholdMs` the Gahook
 becomes `ultimate`. The first threshold is `ULTIMATE_GAHOOK_BASE_THRESHOLD_MS`
 and each Ultimate raises that target's threshold by
-`ULTIMATE_GAHOOK_THRESHOLD_STEP_MS` (reset by `resetUltimateGahookThreshold`
-when a game starts or the lobby resets). The starting stack is the streak
+`ULTIMATE_GAHOOK_THRESHOLD_STEP_MS` (reset by `resetUltimateThreshold` when a
+game starts or ends, or the lobby resets — never inside a game, and never in a
+lobby). **The ramp has no ceiling**, and the streak clock is reset by the very
+events it produces (`finishUltimateGahook` and `applyGetGot` both call
+`resetGahookSpam`), so measured in one lobby on 2026-10-23 the thresholds ran
+5,000 → 6,000 → 7,000 → 8,000 ms and twenty seconds of unbroken Gahooks after
+that produced no further Ultimate
+([record](../verification/2026-10-23-gahook-extraction/README.md)). Whether it
+should cap is an owner question, not a defect. The starting stack is the streak
 count (at least 1, at most `ULTIMATE_GAHOOK_MAX_STACK`). While an Ultimate is
 active (`ultimateGahookUntil`, extended `ULTIMATE_GAHOOK_GRACE_MS` by every
 Gahook) each further Gahook adds 1 to the stack; when the stack reaches the
@@ -172,7 +195,12 @@ state and `latestRoomPoke` shows it to the whole room. A timer
 within `COUNTER_GAHOOK_SPAM_IDLE_MS` of each other. At
 `COUNTER_GAHOOK_TRIGGER_COUNT` and every `COUNTER_GAHOOK_REPEAT_EVERY`
 after that (10, 12, 14, ...) the target gets `counterOffer`
-(valid `COUNTER_GAHOOK_OFFER_MS`). `/api/player/counter-poke` (lobby or
+(valid `COUNTER_GAHOOK_OFFER_MS`). That cadence is when a **new** offer is
+minted; the offer itself outlives it, so the button is there at 11, 13 and 15
+too. A Gahook with **no sender** — the host's, before the host has joined as a
+player — clears the streak outright, because there is nobody to fire back at,
+so a host joining a pile-on costs the victim the counter they were earning
+(measured 2026-10-23; behaviour, not changed). `/api/player/counter-poke` (lobby or
 building only) spends it: a `counter` Gahook ("Spam returned") goes to the
 spammer and opens `COUNTER_GAHOOK_OVERLAY_MS` in which the spammer can be
 challenged to the Arena. A counter never steals or escalates.
@@ -322,25 +350,25 @@ One place for every number above. Update here first.
 
 | Constant | Value | File |
 | --- | --- | --- |
-| `GAHOOK_STEAL_POINTS` | 50 | `server.js` |
-| `GET_GOT_SCORE_PENALTY` | 1000 | `server.js` |
-| `DEFAULT_GAHOOK_EFFECTS` | `chaos` (policies `off`, `visual`, `chaos`) | `server.js` |
-| `ULTIMATE_GAHOOK_SPAM_IDLE_MS` | 1200 | `server.js` |
-| `ULTIMATE_GAHOOK_BASE_THRESHOLD_MS` | 5000 | `server.js` |
-| `ULTIMATE_GAHOOK_THRESHOLD_STEP_MS` | 1000 | `server.js` |
-| `ULTIMATE_GAHOOK_GRACE_MS` | 1000 | `server.js` |
-| `ULTIMATE_GAHOOK_MAX_STACK` | 50 | `server.js` |
-| `COUNTER_GAHOOK_TRIGGER_COUNT` | 10 | `server.js` |
-| `COUNTER_GAHOOK_REPEAT_EVERY` | 2 | `server.js` |
-| `COUNTER_GAHOOK_SPAM_IDLE_MS` | 2200 | `server.js` |
-| `COUNTER_GAHOOK_OFFER_MS` | 6500 | `server.js` |
+| `GAHOOK_STEAL_POINTS` | 50 | `gahook-escalation.mjs` |
+| `GET_GOT_SCORE_PENALTY` | 1000 | `gahook-escalation.mjs` |
+| `DEFAULT_GAHOOK_EFFECTS` | `chaos` (policies `off`, `mini`, `visual`, `chaos`) | `gahook-policy.mjs` |
+| `ULTIMATE_GAHOOK_SPAM_IDLE_MS` | 1200 | `gahook-escalation.mjs` |
+| `ULTIMATE_GAHOOK_BASE_THRESHOLD_MS` | 5000 | `gahook-escalation.mjs` |
+| `ULTIMATE_GAHOOK_THRESHOLD_STEP_MS` | 1000 | `gahook-escalation.mjs` |
+| `ULTIMATE_GAHOOK_GRACE_MS` | 1000 | `gahook-escalation.mjs` |
+| `ULTIMATE_GAHOOK_MAX_STACK` | 50 | `gahook-escalation.mjs` |
+| `COUNTER_GAHOOK_TRIGGER_COUNT` | 10 | `gahook-escalation.mjs` |
+| `COUNTER_GAHOOK_REPEAT_EVERY` | 2 | `gahook-escalation.mjs` |
+| `COUNTER_GAHOOK_SPAM_IDLE_MS` | 2200 | `gahook-escalation.mjs` |
+| `COUNTER_GAHOOK_OFFER_MS` | 6500 | `gahook-escalation.mjs` |
 | `COUNTER_GAHOOK_OVERLAY_MS` | 2750 | `server.js` |
-| `ULTIMATE_CONGRATS_TRIGGER_COUNT` | 8 | `server.js` |
-| `ULTIMATE_CONGRATS_MIN_SENDERS` | 3 | `server.js` |
-| `ULTIMATE_CONGRATS_THRESHOLD_MS` | 5000 (with at least 4 congratulations) | `server.js` |
-| `ULTIMATE_CONGRATS_SPAM_IDLE_MS` | 1200 | `server.js` |
-| `ULTIMATE_CONGRATS_GRACE_MS` | 1000 | `server.js` |
-| `ULTIMATE_CONGRATS_MAX_STACK` | 50 | `server.js` |
+| `ULTIMATE_CONGRATS_TRIGGER_COUNT` | 8 | `gahook-escalation.mjs` |
+| `ULTIMATE_CONGRATS_MIN_SENDERS` | 3 | `gahook-escalation.mjs` |
+| `ULTIMATE_CONGRATS_THRESHOLD_MS` | 5000 (with at least 4 congratulations) | `gahook-escalation.mjs` |
+| `ULTIMATE_CONGRATS_SPAM_IDLE_MS` | 1200 | `gahook-escalation.mjs` |
+| `ULTIMATE_CONGRATS_GRACE_MS` | 1000 | `gahook-escalation.mjs` |
+| `ULTIMATE_CONGRATS_MAX_STACK` | 50 | `gahook-escalation.mjs` |
 | `GAHOOK_DUEL_CHALLENGE_MS` | 6500 (also the per-challenger cooldown) | `server.js` |
 | `GAHOOK_ARENA_INTRO_MS` | 2400 | `server.js` |
 | `GAHOOK_DUEL_FINISH_MS` | 10000 | `server.js` |
@@ -374,6 +402,9 @@ and belong to [systems](systems.md).
   and escalation, and every Arena result. The browser's optimistic Gahook and
   Arena projection are replaced by the next snapshot.
 - Under policy other than Chaos no Gahook ever changes a score, on any route.
+- Every route that can land a Gahook is named in `GAHOOK_ROUTE_SWITCHES` with
+  the switch that governs it; a route that reaches `pokePlayer` and is not in
+  that table fails `gahook-policy.test.mjs`.
 - A Gahook needs a connected target; in a question it needs a different player.
 - The Arena never changes a score, and at most one duel exists per room.
 - Arena presses are numbered by *press*, not by point, and `tapArena` is the
@@ -388,7 +419,7 @@ and belong to [systems](systems.md).
 
 ## Tests
 
-Run under the shared lock with Node 24 (`export PATH=$HOME/.local/opt/node-v24.13.1-linux-x64/bin:$PATH`).
+Run under the shared lock. Node 24 is the default runtime (`node --version` should say 24.x).
 
 ```bash
 # unit tests (includes standalone/server/arena.test.mjs and client/gahook-forms.test.ts)
@@ -408,10 +439,17 @@ flock /tmp/gahookz-verify.lock npm run test:disposable -- npm run test:browser:a
 ```
 
 `arena.test.mjs` covers the six-point lead, two-press closing pulls, charge
-drop, retries, privacy of targets and 2,000 seeded races. The smokes assert a
-mix of server behaviour and source text; a legitimate rename may mean updating
-an assertion. The `off` policy gap in Known issues is **not** covered by any
-test (`smoke-room-rules` only exercises `/api/player/poke`).
+drop, retries, privacy of targets and 2,000 seeded races.
+`gahook-escalation.test.mjs` covers every spam window, the Ultimate ladder and
+its ramp, GET GOT, the counter cadence and Ultimate Congratulations with the
+clock passed in, and `gahook-policy.test.mjs` covers the four policies, the
+route table and the claim ledger. **Off is covered on every route**:
+`smoke-room-rules` exercises the lobby Gahook, `round-poke`, the host's and
+both finale routes, and `smoke-arena-lifecycle` the crowd's Arena reactions —
+the gap this section used to describe was closed on 2026-10-23. Six source-text
+assertions were removed with it; the table in the
+[record](../verification/2026-10-23-gahook-extraction/README.md) says what
+replaced each one.
 
 ## Common changes
 
@@ -421,12 +459,16 @@ test (`smoke-room-rules` only exercises `/api/player/poke`).
   add the old id to both `LEGACY_GAHOOK_FORMS` tables; update
   `gahook-forms.test.ts`, [Gahook characters](../wiki/gahook-characters.md) and
   the tutorial art (audio-art owns art and sound).
-- **Change a spam or Arena number.** Edit the constant (listed above), run the
-  smokes, and update the Constants table, the wiki page and `Last reviewed`. The
+- **Change a spam or Arena number.** Edit the constant (listed above), run
+  `gahook-escalation.test.mjs` — the windows a player feels are asserted there
+  as literals on purpose, so it will tell you exactly which published number
+  you moved — then the smokes, and update the Constants table, the wiki page
+  and `Last reviewed`. The
   Arena table is published to the browser, so only `arena.mjs` changes.
-- **Gate a new Gahook route by the effects policy.** Check
-  `gahookEffectsAllowed(room)` for live phases in the dispatcher next to
-  `/api/player/poke`, and add a smoke for each route.
+- **Add a route that sends a Gahook.** Add it to `GAHOOK_ROUTE_SWITCHES` in
+  `server/gahook-policy.mjs` with the switch that owns it (`effects` unless it
+  is the Arena's own handshake), and add a smoke for the refusal.
+  `gahook-policy.test.mjs` fails if you forget: it walks the call graph.
 - **Add a custom Gahook option (effect, sound, colour).** Add the id to the
   `CUSTOM_GAHOOK_*` list in `custom-gahook.mjs` and to the matching list in
   `client/custom-gahook.jsx`, then to the renderer in `presentation.jsx` and
