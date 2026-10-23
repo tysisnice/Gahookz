@@ -13,7 +13,7 @@ The host opens **Lobby rules** from the control panel in the lobby. The dialog s
 - **Generated prompts: Funny or Educational.** Funny is the default. It changes what is suggested next, never a question already written ([Prompts and suggestions](prompts-and-suggestions.md)).
 
 **Gahook effects**
-- **Off:** no gahooking at all. The server refuses every Gahook in every phase (lobby, building, writing, the round and the finale, including congratulations and boos), and no Gahook button is shown. The 1v1 Arena has its own switch.
+- **Off:** no gahooking at all. The server refuses every Gahook in every phase (lobby, building, writing, the round and the finale, including congratulations and boos, and including the Arena crowd's Congratulate and Boo), and no Gahook button is shown. The 1v1 Arena itself has its own switch, so a challenge and a match still work -- only the Gahooks around them stop.
 - **Mini:** Gahooks are allowed, but every screen shows them as a small pop-up image instead of the full-screen takeover, and nobody loses points.
 - **Visual only:** full-screen reactions happen, but nobody loses points.
 - **Chaos** (the default): a Gahook steals points and GET GOT costs more ([Gahooks](gahooks.md)).
@@ -47,3 +47,4 @@ The host opens **Lobby rules** from the control panel in the lobby. The dialog s
 - 2026-09-29 — Back closes the dialog and focus returns to its button (`fee0b26`).
 - 2026-10-01 — Music switch added to the dialog (`9c5e84b`, a checkpoint commit).
 - 2026-10-08 — Off refuses every Gahook in every phase, and the new Mini option shows Gahooks as small pop-ups.
+- 2026-10-23 — Off reaches the last route it had missed: the Arena crowd's Congratulate and Boo.

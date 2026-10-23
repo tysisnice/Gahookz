@@ -24,6 +24,19 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Engineering P1
 
+- **Nothing in the repository typechecks the server.** `npm run typecheck` runs
+  three `tsc` projects; `tsconfig.server.json` includes
+  `standalone/server/**/*.ts` and that directory contains no `.ts` files at all,
+  and no project sets `allowJs`. So `server.js`, every `server/*.mjs` and
+  `app.jsx` are unchecked: on 2026-10-23 an extraction left a constant
+  referenced and undeclared, `npm run typecheck` passed, and every join failed
+  at runtime. Measured cost of closing it with `checkJs` and loose strictness:
+  **18 of the 25 server modules are already clean**, the other 7 have 38 errors
+  between them (`accounts` 12, `career-outbox` 9, `account-room` 8, `social` 5,
+  `admission` 3, `host-presence` 1) and `server.js` has 59. The first step --
+  a project for the 18 clean modules -- is a config change with no code changes.
+  (quality, platform; [record](verification/2026-10-23-gahook-extraction/README.md))
+
 - Nothing notices an unhealthy container between sessions: Docker does not
   restart on a failing health check, and no alert exists. A development
   container sat up-but-dead for six days in October.
@@ -36,7 +49,7 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
   still untested. The three `20261002` rollback images report `revision: unknown`, so
   a service rolled back to one cannot be identified by `/api/health` revision.
   (platform; [rehearsal record](verification/2026-10-18-rollback-rehearsal/README.md))
-- Split the monoliths: `server.js` (5,612 lines), `app.jsx` (5,496), `styles.css` (11,414). (platform, ui-shell; OPS section 10, [typescript plan](plans/typescript-migration.md))
+- Split the monoliths: `server.js` (**5,404** lines as of 2026-10-23, down from 5,671 when the Gahook rules moved into `server/gahook-policy.mjs` and `server/gahook-escalation.mjs`, [record](verification/2026-10-23-gahook-extraction/README.md)), `app.jsx` (5,496), `styles.css` (11,414). The Arena duel's lifecycle is the piece of the Gahook subsystem still in `server.js`: thin decisions, but every one bound to a timer that broadcasts. (platform, ui-shell; OPS section 10, [typescript plan](plans/typescript-migration.md))
 - Runtime schemas are described but not enforced. As of 2026-10-22 the public snapshot is described per phase and validated against real responses in tests (`PublicSnapshotSchema`, `smoke-contract-drift`), but the server imports only `HostSettingsRequestSchema` and `normaliseGameSettings`, so nothing validates a payload at runtime. The browser boundary now refuses a snapshot that is not a usable object (2026-10-23, [record](verification/2026-10-23-snapshot-adapter/README.md)), which is a shape check and not the contract: validating against `PublicSnapshotSchema` means either shipping zod to phones or generating a dependency-free guard from it, and that choice has not been made. P01 step 6's own list is complete as of 2026-10-23. (systems; PP P01/P02, [record](verification/2026-10-22-contract-phase-payloads/README.md))
 - 56 of the 76 public snapshot fields are listed as tolerated rather than described, `TOLERATED_SNAPSHOT_KEYS` being the honest record of that. `herdAnswerReview` and `ownHerdAssignments` were described on 2026-10-22, which is where the host review's writer names were pinned out. The substantial ones left are `leaderboard`, `questionResults` and `herdPreparation`; the embedded player object is described by four of roughly forty fields. Describe them a family at a time, as consumers need them. (systems; PP P01)
 - The engine's phase maths is not what runs: `nextPhase`, `resumeDeadline`, `estimatedDurationMs` are tested but unused; the live machine has its own. (game-flow; [game-flow](areas/game-flow.md))
@@ -94,6 +107,24 @@ RC = [RELEASE-CANDIDATE.md](../RELEASE-CANDIDATE.md), LEDGER = the ledger in the
 
 ## Owner decisions
 
+- **Should the Ultimate Gahook threshold have a ceiling?** Each Ultimate a
+  player triggers makes their next one a second harder, with no cap and no
+  reset inside a game or a lobby, while the streak clock is reset by the very
+  Ultimate or GET GOT that produced it. Measured in one lobby on 2026-10-23:
+  thresholds 5,000 → 6,000 → 7,000 → 8,000 ms, and after that twenty seconds of
+  unbroken Gahooks produced no further Ultimate. A cap or a per-round reset is
+  one line; it changes how the game feels, so it is not an engineering call.
+  (social; [record](verification/2026-10-23-gahook-extraction/README.md))
+- **Should a host Gahook spend the victim's Counter Gahook streak?** It does,
+  invisibly: a Gahook from a host who has not joined as a player clears the
+  streak, so nine from one player plus one from the host means the tenth earns
+  nothing. Counting the streak only for Gahooks that have a sender, and leaving
+  it untouched otherwise, is also one line. (social; same record)
+- **With Gahook effects off, should the Arena's challenge overlay still
+  appear?** It does, deliberately: that overlay is the only way a challenge is
+  announced and the Arena has its own switch. But it is a full-screen
+  interruption in a room where the host asked for none, and the host could turn
+  the Arena off instead. (social; same record)
 - Herd author-points denominator: with self-votes refused an author reaches at most (n-1)/n of the maximum; change needs before/after fixtures. (game-flow; OPS section 10)
 - Is `/information` public product content or an internal report? (ui-shell; OPS section 10, [internal-reports](product/internal-reports.md))
 - Legal review of `/legal` (privacy notice especially) by a lawyer before any public campaign; unreviewed today. (product; OPS section 10)

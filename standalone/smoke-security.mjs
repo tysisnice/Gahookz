@@ -230,6 +230,18 @@ assert(!mediaModule.includes("avatarImageDataUrl"), "The pruner must not keep a 
 assert(server.includes("clearPlayerMedia(room, playerId)"), "Kicking a player must clear their media through the one enumeration");
 assert(server.includes("clearPlayerMedia(room, player.id, { kinds: [AVATAR] })"), 'Randomizing a name and picture must clear every copy of that picture');
 
+// Which routes the host's Gahook policy governs is enumerated once, in
+// server/gahook-policy.mjs, and gahook-policy.test.mjs walks server.js's own
+// call graph to prove no Gahook-sending route is missing from it. It used to be
+// a hand-written set of seven paths in server.js, and two routes that send
+// Gahooks were not in it: with effects off, a spectator could still land an
+// Arena "congrats" and "boo" on the duellists. A second copy of the list, or a
+// second home for the escalation constants, is the regression.
+assert(!server.includes("EFFECT_GATED_GAHOOK_ROUTES"), "The effects policy must be enforced from the one route table in server/gahook-policy.mjs");
+assert(server.includes("gahookRouteRefusal(room, pathname)"), "Every room command must pass the one Gahook policy gate");
+assert(!/const (ULTIMATE_GAHOOK|COUNTER_GAHOOK_TRIGGER|ULTIMATE_CONGRATS|GET_GOT_SCORE|GAHOOK_STEAL)[A-Z_]* =/.test(server), "The Gahook escalation constants must have one home: server/gahook-escalation.mjs");
+assert(server.includes("escalateGahook(player, {"), "What a Gahook escalates into must be decided in server/gahook-escalation.mjs");
+
 // A kick that leaves the removed player watching the room in real time is not a
 // moderation control. The ban must apply to reads as well as to joining.
 const bannedKey = key("security-banned");

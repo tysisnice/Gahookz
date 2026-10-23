@@ -9,6 +9,7 @@ async function post(path, payload) {
   if (data.ok === false) throw Error(path + ": " + data.error);
   return data;
 }
+const raw = (path, payload) => fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, ...payload }) }).then(response => response.json());
 const state = playerKey => post("/api/state", { playerKey, role: playerKey === host ? "host" : "player" });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function challenge(a = first, b = second) {
@@ -68,4 +69,41 @@ assert.equal(duel.winnerId, (await state(second)).ownPlayer.id);
 assert.equal(duel.players.length, 2);
 assert.equal(duel.ownTargets.length, 0);
 await post("/api/host/reset", { playerKey: host });
-console.log(JSON.stringify({ ok: true, checked: ["challenge expiry", "45-second draw without a six-point lead", "automatic result cleanup", "main game cancels arena", "host exits player seat", "kick preserves result"] }, null, 2));
+
+// "Off means no gahooking" reaches the Arena crowd.
+//
+// Measured on 2026-10-23 before this was fixed: in a room with Gahook effects
+// off, a spectator could still land a "congrats"/"ARENA CHAMPION" and a
+// "boo"/"GET GOT" overlay on the two duellists through /api/player/duel-react,
+// while /api/player/final-poke refused those same two kinds in the same room.
+// The Arena's own challenge handshake is the deliberate exception: it is the
+// only way a challenge is announced, and the host has a separate switch for it.
+const third = randomUUID(), fourth = randomUUID();
+for (const [i, playerKey] of [third, fourth].entries()) await post("/api/player/join", { playerKey, name: "Off Arena " + i, avatarId: "frog" });
+const fourthId = (await state(fourth)).ownPlayer.id;
+await post("/api/host/settings", { playerKey: host, gahookEffects: "off" });
+const offRefused = await raw("/api/player/poke", { playerKey: third, playerId: fourthId });
+assert.equal(offRefused.ok, false, "an ordinary Gahook must be refused while effects are off");
+const offChallenge = await post("/api/player/duel-challenge", { playerKey: third, playerId: fourthId });
+assert.equal((await state(fourth)).ownPoke?.kind, "duel-challenge", "the Arena handshake answers to the Arena switch, not the effects policy");
+await post("/api/player/duel-accept", { playerKey: fourth, duelId: offChallenge.duelId });
+duel = (await state(third)).gahookDuel;
+await sleep(Math.max(0, duel.gameplayStartsAt - Date.now()) + 40);
+for (let taps = 0; taps < 20 && duel.status === "active"; taps += 1) {
+  const tapped = await post("/api/player/duel-tap", { playerKey: third, duelId: offChallenge.duelId, targetId: duel.ownTargets[0].id });
+  duel = tapped.duel;
+}
+assert.equal(duel.status, "finished", "the Arena itself still works with Gahook effects off");
+for (const reaction of ["congrats", "boo"]) {
+  const refused = await raw("/api/player/duel-react", { playerKey: second, duelId: offChallenge.duelId, reaction });
+  assert.equal(refused.ok, false, "the crowd must not land an Arena " + reaction + " while Gahooks are off: " + JSON.stringify(refused));
+  assert.match(refused.error, /Gahook effects off/);
+}
+const booedId = duel.loserId;
+const beforeReaction = (await state(host)).players.find((player) => player.id === booedId).latestPokeKind;
+await post("/api/host/settings", { playerKey: host, gahookEffects: "chaos" });
+await post("/api/player/duel-react", { playerKey: second, duelId: offChallenge.duelId, reaction: "boo" });
+assert.equal((await state(host)).players.find((player) => player.id === booedId).latestPokeKind, "boo", "with effects back on the same boo lands, so the refusal was the policy and not a broken route");
+assert.notEqual(beforeReaction, "boo", "and it had not landed while they were off");
+await post("/api/host/reset", { playerKey: host });
+console.log(JSON.stringify({ ok: true, checked: ["challenge expiry", "45-second draw without a six-point lead", "automatic result cleanup", "main game cancels arena", "host exits player seat", "kick preserves result", "Gahook effects off refuses the crowd's Arena reactions"] }, null, 2));

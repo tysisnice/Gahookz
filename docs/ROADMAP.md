@@ -92,6 +92,32 @@ Work these as bounded vertical slices; keep one active implementation goal plus 
 ### 3. Next — maintainability tied to behaviour, not a rewrite
 
 - [ ] Extract the Gahook subsystem from `standalone/server.js` with characterization tests for Off/Visual/Chaos, claims, counter/Ultimate and lobby GET GOT. Keep outward behaviour unchanged.
+  - **2026-10-23 (the rules):** all four named areas are out and characterized.
+    The host's effects policy and the one-Gahook-per-question claim are
+    `server/gahook-policy.mjs`; the spam streaks, the Ultimate ladder, GET GOT,
+    Ultimate Congratulations and Counter Gahook offers are
+    `server/gahook-escalation.mjs`, with the clock passed in, so rules that
+    previously cost the suite five seconds of real sleep each are now ordinary
+    tests. `pokePlayer` is 157 lines → 92; `server.js` 5,671 → 5,404; unit tests
+    320 → 368; 23 mutations, 23 caught. Behaviour is unchanged but for one
+    measured defect this made visible: **"Off means no gahooking" was a
+    hand-written set of seven URL paths**, and `/api/player/duel-react` was not
+    in it, so with effects off a spectator could still land an Arena
+    "congrats"/"ARENA CHAMPION" and "boo"/"GET GOT" on the duellists — the two
+    kinds `final-poke` refused in the same room. It is now a table naming every
+    Gahook-sending route and the switch that owns it, with a test that walks
+    `server.js`'s own call graph rather than restating the list
+    ([record](verification/2026-10-23-gahook-extraction/README.md)). Also
+    measured and left alone as owner questions: the Ultimate threshold ramps
+    without a ceiling (5,000 → 8,000 ms in one lobby, after which continuous
+    Gahooks produce none), and a host Gahook silently clears a victim's Counter
+    streak. **Still open in this item:** the Arena duel's own lifecycle
+    (`challengeGahookDuel`, `acceptGahookDuel`, `tapGahookDuel`,
+    `reactToGahookArena`, the deadline timer, `publicGahookDuel`) is still in
+    `server.js`; its decisions are thin but each is bound to a timer that
+    broadcasts, so it is a different shape of extraction. Found on the way and
+    now in the backlog: **nothing in the repository typechecks the server**, and
+    18 of its 25 modules are already `checkJs`-clean.
 - [ ] Extract client/stylesheet vertical slices with explicit ownership. Verify host/player/party roles, keyboard focus, phone portrait and short landscape after each extraction.
 - [ ] Continue P03–P06 stable option identities, settings preservation, host routes and prompt acceptance. Do not check off whole stages from one passing fixture.
 - [ ] Reconcile engine helpers with the live phase machine incrementally; deterministic transition tests must exercise the path the server actually uses (P09).

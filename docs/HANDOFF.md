@@ -1,6 +1,122 @@
 # Handoff — state of the project
 
-## Current checkpoint — executor session, 2026-10-23 (player media)
+## Current checkpoint — executor session, 2026-10-23 (Gahook extraction)
+
+**Current.** Roadmap **section 3, item 1** — the Gahook subsystem leaves
+`server.js` — on branch `agent/gahook-extract` (worktree
+`Projects/gahookz/worktrees/gahook-extract`), cut from `d821ecd`
+([record](verification/2026-10-23-gahook-extraction/README.md)). All four areas
+the roadmap names are out and characterized: Off/Visual/Chaos, the claims, the
+counter and Ultimate ladder, and lobby GET GOT. The Arena duel's own lifecycle
+is deliberately **not** — see Next.
+
+The four rules were spread through a 5,671-line file: the effects policy as a
+hand-written `Set` of seven URL paths in the dispatcher, the one-Gahook-per-
+question claim as a bare object on `room.game` with its key format spelled out
+at four call sites, and the whole escalation ladder interleaved through a
+**157-line `pokePlayer`** beside the broadcast, the career counters, the
+whiteboard wipe and the payload. Every one of them is a window measured in
+milliseconds, and none could be reached by a test without starting a server and
+sleeping — which is why the suite had come to assert them by searching
+`server.js` for the *text* of each constant. That kind of assertion passes
+unchanged if the rule stops being applied and fails on a rename that changes
+nothing, and **both halves showed up here**: six of them broke on an extraction
+that changed no behaviour, and the real defect was invisible to all of them.
+
+Measured over HTTP against `main` before anything changed:
+
+- **"Off means no gahooking" was not true of the Arena crowd.** In a room with
+  effects off, `/api/player/poke` and both finale congratulate/boo routes were
+  refused — and `/api/player/duel-react` was not in the gated set, so a
+  spectator could still land a `congrats`/"ARENA CHAMPION" and a `boo`/"GET
+  GOT" full-screen overlay on the two duellists. The same two kinds, refused
+  from one route and allowed from another, in the same room on the same tick.
+  Fixed: the hand-written set is now `GAHOOK_ROUTE_SWITCHES`, a table naming
+  every Gahook-sending route and the switch that owns it, and
+  `gahook-policy.test.mjs` walks `server.js`'s own call graph (51 routes
+  inspected, 9 found) and fails if a route that reaches `pokePlayer` is missing.
+  `/api/player/duel-challenge` stays governed by the Arena switch instead: that
+  overlay is the only way a challenge is announced at all.
+- **The Ultimate threshold ramps without a ceiling.** Each Ultimate makes the
+  next a second harder, reset only at the start and end of a game, while the
+  streak clock is reset by the very Ultimate or GET GOT that produced it.
+  Measured in one lobby: 5,000 → 6,000 → 7,000 → 8,000 ms, after which twenty
+  seconds of unbroken Gahooks produced none at all. Characterized, not changed.
+- **A host Gahook silently spends the victim's Counter Gahook streak.** Nine
+  from one player plus one from an unjoined host, and the tenth, eleventh and
+  twelfth earn nothing. Characterized, not changed.
+- **The counter button does not follow the cadence.** A new offer is minted at
+  10, 12, 14, 16, but each lasts 6.5 s, so the button is there at 11, 13 and 15
+  too. Correct; now written down.
+
+`server/gahook-policy.mjs` (138 lines) owns the four policies, the route table
+and the claim ledger. `server/gahook-escalation.mjs` (353) owns every window and
+the ladder, with the clock passed in, and returns which reset timer the caller
+must start rather than starting one — timers stay in `server.js` because they
+close over the room table to broadcast. `pokePlayer` is **92 lines** and reads
+validate → decide → record → publish.
+
+Verified on **Node 24.22.0**, everything under `flock`, disposable server only:
+`npm run check` (**368/368** unit, up from 320; build
+`release-535ce45117f717de`), the full `npm test` chain exit 0 across 36 scripts,
+`docs:check`. **23 mutations, 23 caught**, after fixing two tests rather than
+the code: M12 was *missed* because it measured the idle window with the very
+constant that defines it, and M18's anchor was ambiguous across both ladder
+branches (the extend branch had no test for its reset timer). The mutation that
+reproduces `main`'s behaviour — marking `duel-react` as `arena` — is caught by
+`smoke-arena-lifecycle`, so the fix has a behavioural proof as well as a
+structural one.
+
+**Next.**
+
+1. **The other half of this roadmap item: the Arena duel lifecycle.**
+   `challengeGahookDuel`, `acceptGahookDuel`, `tapGahookDuel`,
+   `reactToGahookArena`, `scheduleGahookDuelDeadline`, `finishGahookDuel`,
+   `handleGahookDuelDisconnect`, `publicGahookDuel`. Thin decisions, but every
+   one is bound to a timer that broadcasts, so it is a different shape of
+   extraction from this one and wants its own slice.
+2. **Turn the typechecker on over the server** — see Limits. Measured and
+   cheap to start.
+3. P01 steps 4 and 7 remain open: staged schema migration, and per-endpoint
+   request validation.
+4. Section 2's P08 (shared-NAT connections, tab-suspension storms, bounded
+   stream cleanup) and P07 (the non-root read-only journal-volume proof) are
+   both untouched and both bounded.
+
+**Limits — and what needs Tyson.**
+
+- **Nothing was deployed.** Production is still `74a489949e02`.
+- **Nothing in the repository typechecks the server, and this slice fell into
+  it.** `npm run typecheck` runs three `tsc` projects;
+  `tsconfig.server.json` includes `standalone/server/**/*.ts` and that
+  directory has no `.ts` files, and nothing sets `allowJs`. The extraction left
+  `ULTIMATE_GAHOOK_BASE_THRESHOLD_MS` referenced and undeclared in
+  `joinPlayer`, the typecheck passed, and **every join failed at runtime** until
+  the smoke chain caught it. Measured the cost of closing it under `checkJs`:
+  **18 of the 25 server modules are already clean** (both new ones among them),
+  the other 7 have 38 errors between them and `server.js` has 59. Adding the
+  clean 18 to a typechecked project is a config change with no code changes. Not
+  done here, because it is not this slice and does not belong in a refactor
+  commit; it is in the backlog under Engineering P1 and would make a good
+  bounded task for the coder bot.
+- **Three owner questions, all gameplay feel, none blocking:** whether the
+  Ultimate ramp should cap; whether a host Gahook should spend the victim's
+  counter streak; and whether, with Gahook effects off, the Arena's challenge
+  overlay should still appear (it does, deliberately, and the host has a
+  separate Arena switch).
+- **`CLAUDE.md` is still unmerged.** `84a8032` on `coordinator/audit-20261021`
+  adds the coordination links; the file is protected, so it stays for you. No
+  work depends on it.
+- **The Node 24.22 image pin is still waiting on you.** `1282bce` is unblocked,
+  but it changes the digest production builds from, so it wants a rebuild plus
+  a full smoke run as its own slice.
+- Still open from before: whether the shared screen should show the *text* of
+  unvoted Herd answers, the welcome-screen guides link, whether a host may
+  censor a live prompt mid-round, real-iPhone private-browsing evidence, a rate
+  limit on guest profile uploads, and whether a guest should learn who was
+  removed from a room.
+
+## Earlier checkpoint — executor session, 2026-10-23 (player media)
 
 **Current.** Roadmap section 2, **item 2's remaining half** on branch
 `agent/player-media` (worktree `Projects/gahookz/worktrees/player-media`):
